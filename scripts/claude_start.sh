@@ -576,12 +576,12 @@ EOF
         chmod +x "$CRON_WRAPPER"
 
         # Add to cron (daily at 2 AM) with proper variable handling
-        local current_crontab_mem=$(crontab -l 2>/dev/null || echo "")
+        current_crontab_mem=$(crontab -l 2>/dev/null || echo "")
         (echo "$current_crontab_mem"; echo '0 2 * * * $HOME/.local/bin/unified_memory_backup_wrapper.sh >> /tmp/memory_backup.log 2>&1') | crontab -
 
         echo -e "${GREEN}✅ Installed unified memory backup cron job (daily at 2 AM)${NC}"
         # Remove cron job error from backup issues array safely
-        local temp_array=()
+        temp_array=()
         for issue in "${BACKUP_ISSUES[@]}"; do
             if [[ "$issue" != *"Cron job not configured"* ]]; then
                 temp_array+=("$issue")
@@ -965,7 +965,7 @@ if [ -n "$MODE" ]; then
                         # Clean up any existing tunnel first
                         cleanup_ssh_tunnel
                         ssh -N -L 8000:localhost:8000 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$SSH_PORT" root@"$SSH_HOST" 2>/dev/null &
-                        local TUNNEL_PID=$!
+                        TUNNEL_PID=$!
                         echo $TUNNEL_PID > "$SSH_TUNNEL_PID_FILE"
 
                         # Test connection
@@ -1052,9 +1052,9 @@ if [ -n "$MODE" ]; then
                     if [ -n "$ENV_VARS" ]; then
                         # Parse ENV_VARS safely - handle quoted strings and spaces
                         # Expected format: "--env VAR1=value1 --env VAR2=value2" or "--env VAR1='value with spaces'"
-                        local current_arg=""
-                        local in_quotes=false
-                        local quote_char=""
+                        current_arg=""
+                        in_quotes=false
+                        quote_char=""
 
                         # Process each character to handle quoted strings properly
                         while IFS= read -r -n1 char; do

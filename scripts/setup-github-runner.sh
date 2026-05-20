@@ -4,7 +4,7 @@
 # This script downloads, configures, and starts a GitHub Actions runner
 #
 
-set -e
+set -euo pipefail
 
 # Auto-install to home directory if running from project
 SCRIPT_NAME="$(basename "$0")"

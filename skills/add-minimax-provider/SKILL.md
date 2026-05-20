@@ -39,7 +39,7 @@ https://platform.minimaxi.com/subscribe/coding-plan?code=2vNMQFJrZt&source=link
    - 配置完成后，将 primary 切换为 MiniMax
 
 3. **切换主力模型**：
-   ```
+   ```text
    /model Minimax
    ```
 
@@ -224,7 +224,7 @@ curl -s --max-time 15 https://api.minimaxi.com/v1/chat/completions \
 
 ### ⚠️ 别名配置的唯一合法字段是 `alias`
 
-```
+```text
 agents.defaults.models.<model-id>.alias     <-- 唯一合法字段
 agents.defaults.models.<model-id>.reasoning <-- 非法！会导致 Gateway 崩溃！
 agents.defaults.models.<model-id>.xxx       <-- 任何其他字段都非法！
@@ -296,7 +296,7 @@ launchctl print gui/$(id -u)/ai.smartclaw.gateway | grep -E "job state|last exit
 ```
 
 期望看到：
-```
+```text
 last exit code = 0
 job state = running
 ```
@@ -311,7 +311,7 @@ tail -20 ~/.smartclaw/logs/gateway.err.log
 
 在任意已绑定的聊天中测试：
 
-```
+```text
 /model Minimax           # 测试 API Key 直连
 /model minimax-portal    # 测试 OAuth 门户（如已配置）
 /model minimax-lightning # 测试 Lightning（如已配置）
@@ -341,7 +341,7 @@ API 端点 `GET /v1/api/openplatform/coding_plan/remains` 存在已知问题：
 
 不要用 API 数字做监控。推荐在 OpenClaw 中配置 cron 任务，定期发测试请求验证可用性：
 
-```
+```bash
 # cron 表达式示例：每 5 小时执行一次验证
 # 发真实请求 → 通了就可用，不通就记录
 curl -s https://api.minimaxi.com/v1/chat/completions \

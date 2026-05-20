@@ -103,7 +103,7 @@ for sess in $(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '(bb
 done
 ```
 
-**1e. Read fiction/novel entries** — workers write friction narratives in `novel/` and `docs/novel/`:
+**1e. Read friction/novel entries** — workers write friction narratives in `novel/` and `docs/novel/`:
 ```bash
 # Check for recent novel entries (last 24h)
 find novel/ docs/novel/ -name '*.md' -newer /tmp/evolve_loop_last_run 2>/dev/null

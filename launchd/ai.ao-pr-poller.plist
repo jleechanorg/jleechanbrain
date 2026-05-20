@@ -7,17 +7,17 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/ao-pr-poller.sh</string>
+        <string>~/.smartclaw/scripts/ao-pr-poller.sh</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/bin:${HOME}/.cargo/bin</string>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:~/bin:~/.cargo/bin</string>
         <key>HOME</key>
-        <string>${HOME}</string>
+        <string>~</string>
     </dict>
     <key>WorkingDirectory</key>
-    <string>${HOME}</string>
+    <string>~</string>
     <key>RunAtLoad</key>
     <false/>
     <key>StartInterval</key>

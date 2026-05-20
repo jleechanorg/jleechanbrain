@@ -153,7 +153,7 @@ Other known channel IDs (not yet env vars):
 | `#all-jleechan-ai` | `${SLACK_CHANNEL_ID}` |
 | `#smartclaw` | `C0AJ3SD5C79` |
 | `#novel` | `C0ANS2MF15G` |
-| `#antig-orchestrator` | `C0ANX2HU5V1` | Anti-gravity orchestrator discussion |
+| `#antig-orchestrator` | `C0ANX2HU5V1` |
 | `#ralph-status` | `C0AGX2Q0EA3` |
 | `#disk-usage-alerts` | `C0AKNDEARS5` |
 

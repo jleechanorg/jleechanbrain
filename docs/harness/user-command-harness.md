@@ -54,7 +54,7 @@ Scan all harness files for:
 
 Report findings as a table:
 
-```
+```markdown
 | Issue | File | Line | Recommendation |
 |-------|------|------|----------------|
 | Stale | ~/.claude/CLAUDE.md | 42 | Remove reference to deprecated tool X |
@@ -63,7 +63,7 @@ Report findings as a table:
 
 ## Output Format
 
-```
+```markdown
 ## Harness Analysis
 
 **Trigger**: <what happened — user correction, failed test, or description>

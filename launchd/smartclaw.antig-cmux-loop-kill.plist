@@ -15,8 +15,8 @@
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop-kill.log</string>
+    <string>~/.smartclaw/logs/antig-cmux-loop-kill.log</string>
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop-kill.err</string>
+    <string>~/.smartclaw/logs/antig-cmux-loop-kill.err</string>
 </dict>
 </plist>

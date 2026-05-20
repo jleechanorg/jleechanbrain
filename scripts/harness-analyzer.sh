@@ -5,7 +5,7 @@
 # and creates PRs to fix issues + comments on open PRs with suggestions
 #
 
-set -e
+set -euo pipefail
 
 REPO="jleechanorg/smartclaw"
 WORK_DIR="/tmp/harness-analyzer-$$"

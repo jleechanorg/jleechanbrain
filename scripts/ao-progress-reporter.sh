@@ -129,7 +129,7 @@ resolve_thread_ts() {
 
   # Check if we already have a thread for today in state
   today_ts="$(echo "$state_json" | jq -r ".daily_threads[\"$TODAY_KEY\"] // empty" 2>/dev/null)" || today_ts=""
-  if [[ -n "$today_ts" && "$today_ts" != "null" && "$today_ts" != "null" ]]; then
+  if [[ -n "$today_ts" && "$today_ts" != "null" ]]; then
     log "Using cached thread for $TODAY_KEY: $today_ts"
     echo "$today_ts"
     return

@@ -657,7 +657,7 @@ projects:
   worldai-claw:
     name: worldai_claw
     repo: jleechanorg/worldai_claw
-    path: /tmp/worldai_claw_review
+    path: ~/projects/worldai_claw_review
     defaultBranch: main
     sessionPrefix: wc
     workspace: worktree
@@ -691,7 +691,7 @@ projects:
   openclaw-sso:
     name: openclaw_sso
     repo: jleechanorg/openclaw_sso
-    path: /tmp/openclaw_sso_review
+    path: ~/projects/openclaw_sso_review
     defaultBranch: main
     sessionPrefix: os
     workspace: worktree
@@ -820,7 +820,7 @@ notifiers:
     token: ${OPENCLAW_HOOKS_TOKEN}
   slack:
     plugin: slack
-    webhookUrl: ${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/PLACEHOLDER}
+    webhookUrl: ${SLACK_WEBHOOK_URL:-}
 notificationRouting:
   urgent:
     - openclaw

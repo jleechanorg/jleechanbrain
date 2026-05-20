@@ -3,7 +3,7 @@
 Implements Karpathy's auto-research technique: autonomously test paper techniques against your own real PR history.
 
 ## Core Loop
-```
+```text
 Paper/Technique → Implement → Test on Real PRs → Measure → Iterate → Repeat
 ```
 

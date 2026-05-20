@@ -13,7 +13,7 @@
 | 2 | No conflicts — mergeable=true | `gh api repos/.../pulls/NUM --jq '{mergeable, mergeable_state}'` |
 | 3 | CR APPROVED — coderabbitai[bot] latest review is APPROVED | `gh api .../pulls/NUM/reviews --jq '[.[] \| select(.user.login=="coderabbitai[bot]")] \| last \| .state'` |
 | 4 | Bugbot clean — cursor[bot] zero error-severity comments | `gh api .../pulls/NUM/comments --jq '[.[] \| select(.user.login=="cursor[bot]" and (.body \| test("error";"i")))] \| length'` |
-| 5 | Comments resolved — zero unresolved non-nit inline review comments | `gh api .../pulls/NUM/comments --jq '[.[] \| select(.in_reply_to_id==null) \| select(.body \| test("^(nit:\|nitpick)";"i") \| not)] \| length'` |
+| 5 | Comments resolved — zero unresolved non-nit review threads (GraphQL `reviewThreads.isResolved`) | `gh api graphql -f query='{ repository(owner:"",name:"") { pullRequest(number:) { reviewThreads { nodes { isResolved } } } } }'` |
 | 6 | Evidence pass — evidence-review-bot APPROVED or evidence-gate CI passed | `gh api .../pulls/NUM/reviews --jq '[.[] \| select(.user.login=="evidence-review-bot" and .state=="APPROVED")] \| length'` |
 | 7 | Skeptic PASS — github-actions[bot] posted VERDICT: PASS | `gh api .../issues/NUM/comments --jq '[.[] \| select(.user.login=="github-actions[bot]" and (.body \| test("VERDICT: PASS";"i")))] \| length'` |
 
@@ -58,13 +58,13 @@ When driving a PR to green, follow this policy strictly. **Never push during act
 
 **Anti-patterns (BANNED):**
 - Pushing while Bugbot/CR is still running
-- Triggering `@coderabbitai all good?` before all checks are settled
+- Triggering `@coderabbitai review` before all checks are settled
 - Resolving review threads to trigger auto-approve (empty-body APPROVED is not real)
 - Polling CI status in a loop — wait for bots to finish, then check once
 - Sleep-polling after a push — after pushing, EXIT the task; let the monitoring loop handle CI waits. If a bash timeout occurs mid-sleep, do NOT retry — exit immediately.
 
 ## CodeRabbit Review Protocol
-After pushing to remote, post exactly: `@coderabbitai all good?`
+After pushing to remote, post exactly: `@coderabbitai review`
 
 ## Commit Guidelines
 

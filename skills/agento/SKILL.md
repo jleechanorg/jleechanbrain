@@ -232,7 +232,7 @@ The minimax plugin isn't passing `--model MiniMax-M2.7` to Claude Code. Root cau
 # Find the tmux session name (format: <uuid>-ao-<session-id>)
 tmux list-sessions | grep <session-id>
 # Send text to pane
-tmux send-key -t <tmux-session> "text here" Enter
+tmux send-keys -t <tmux-session> "text here" Enter
 # Capture output
 tmux capture-pane -t <tmux-session> -p | tail -20
 ```

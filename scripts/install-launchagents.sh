@@ -238,6 +238,9 @@ staging_cfg = deep_merge(staging_cfg, staging_overrides)
 # so prod config values can't bleed through.
 slack_channels = staging_cfg.get("channels", {}).get("slack", {}).get("channels", {})
 for ch in slack_channels:
+    if not isinstance(slack_channels[ch], dict):
+        slack_channels[ch] = {"requireMention": True}
+        continue
     slack_channels[ch]["requireMention"] = True
 
 staging_path.parent.mkdir(parents=True, exist_ok=True)

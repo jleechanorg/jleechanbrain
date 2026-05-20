@@ -8,7 +8,7 @@
 #   Root: AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md, HEARTBEAT.md, CLAUDE.md
 #   Agents: main, memqa, monitor (auth-profiles.json, models.json)
 
-set -e
+set -euo pipefail
 
 WORKSPACE_DIR="$HOME/.smartclaw/workspace"
 CLAUDE_REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -73,7 +73,7 @@ for file in $POLICY_FILES; do
     if [[ -f "$home_file" ]] && ! diff -q "$workspace_file" "$home_file" > /dev/null 2>&1; then
         echo -e "${YELLOW}DIFF: ~/.smartclaw/$file vs workspace/$file${NC}"
 
-        if [[ "$1" == "--fix" ]]; then
+        if [[ "${1:-}" == "--fix" ]]; then
             cp "$workspace_file" "$home_file"
             echo -e "  ${GREEN}Fixed: copied workspace -> ~/.smartclaw/${NC}"
         else
@@ -118,7 +118,7 @@ for agent in $AGENTS; do
         if ! diff -q "$workspace_file" "$home_file" > /dev/null 2>&1; then
             echo -e "${YELLOW}  DIFF: $agent/$file${NC}"
 
-            if [[ "$1" == "--fix" ]]; then
+            if [[ "${1:-}" == "--fix" ]]; then
                 cp "$workspace_file" "$home_file"
                 echo -e "    ${GREEN}Fixed: copied workspace -> live${NC}"
             else

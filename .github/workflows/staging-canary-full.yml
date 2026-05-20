@@ -49,8 +49,9 @@ jobs:
     if: |
       needs.find-openclaw-json.outputs.found == 'true' &&
       github.repository == 'jleechanorg/smartclaw' &&
+      github.event.pull_request.head.repo.fork == false &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
-    runs-on: [self-hosted, openclaw-staging]
+    runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4

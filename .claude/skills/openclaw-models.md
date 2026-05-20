@@ -60,7 +60,7 @@ Legacy direct-key shape (for probes or old setups):
 
 ```bash
 # Get the current MiniMax API key from auth-profiles
-KEY=$(python3 -c "import json; d=json.load(open('${HOME}/.smartclaw/agents/main/agent/auth-profiles.json')); print(d['profiles']['minimax:default']['key'])")
+KEY=$(python3 -c "import json; d=json.load(open('${HOME}/.smartclaw/agents/main/agent/auth-profiles.json')); print(d.get('profiles',{}).get('minimax:default',{}).get('key',''))")
 
 # Probe the candidate model — expect HTTP 200, not 500
 curl -s -o /dev/null -w "%{http_code}" \

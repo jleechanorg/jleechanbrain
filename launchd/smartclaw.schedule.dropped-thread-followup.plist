@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/dropped-thread-followup.sh</string>
+        <string>~/.smartclaw/scripts/dropped-thread-followup.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -28,10 +28,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/dropped-thread-followup.log</string>
+    <string>~/.smartclaw/logs/dropped-thread-followup.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/dropped-thread-followup.err</string>
+    <string>~/.smartclaw/logs/dropped-thread-followup.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>

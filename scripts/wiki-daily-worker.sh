@@ -2,7 +2,7 @@
 # wiki-daily-worker.sh - Daily wiki improvement via AO minimax worker
 # Location: ~/.smartclaw/scripts/wiki-daily-worker.sh
 
-set -e
+set -euo pipefail
 
 WIKI_DIR="$HOME/llm_wiki"
 MEMORY_WIKI="$HOME/memory/wiki"

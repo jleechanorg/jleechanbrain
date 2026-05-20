@@ -40,7 +40,7 @@ When `SlackWebSocket:N > 5` appears in gateway logs, or the canary fails (rc=4) 
 
 ```python
 # Surgical fix (never rewrite the whole file)
-import json; path="$HOME/.smartclaw/openclaw.json"
+import json, os; path=os.path.expanduser("~/.smartclaw/openclaw.json")
 with open(path) as f: d=json.load(f)
 d['agents']['defaults']['timeoutSeconds'] = 600
 d['agents']['defaults']['maxConcurrent'] = 3
@@ -53,7 +53,7 @@ Then: `openclaw gateway restart`
 
 When the primary model or gateway returns **HTTP 2064** / *server cluster is under high load*, **do not** fan out many simultaneous attach/diagnose or multi-session calls. Retry after a short wait with backoff; if it persists, lower `agents.defaults.maxConcurrent` and subagent concurrency (same event-loop discipline as WS churn above). Bulk "attach to all workers" requests will amplify this failure mode.
 
-**Dropped messages**: Redrive using `SLACK_USER_TOKEN` (jleechan identity), NOT the openclaw bot token (gateway ignores its own messages). Check ${SLACK_CHANNEL_ID} and ${SLACK_CHANNEL_ID} for unanswered jleechan messages in the past 2 hours.
+**Dropped messages**: Redrive using `SLACK_USER_TOKEN` (jleechan identity), NOT the openclaw bot token (gateway ignores its own messages). Check ${SLACK_CHANNEL_ID} and ${SLACK_CHANNEL_ID_ALT} for unanswered jleechan messages in the past 2 hours.
 
 ## openclaw.json mutation safety
 

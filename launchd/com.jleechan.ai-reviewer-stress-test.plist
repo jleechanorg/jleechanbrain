@@ -8,14 +8,14 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/ai-reviewer-stress-test.sh</string>
+        <string>~/.smartclaw/scripts/ai-reviewer-stress-test.sh</string>
     </array>
     
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/stress_test.stdout.log</string>
+    <string>~/.smartclaw/logs/stress_test.stdout.log</string>
     
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/stress_test.stderr.log</string>
+    <string>~/.smartclaw/logs/stress_test.stderr.log</string>
     
     <key>RunAtLoad</key>
     <false/>

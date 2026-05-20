@@ -52,13 +52,17 @@
 <li>Excluded as non-portable/private/runtime: 17</li>
 </ul>
 <h2>Selection Rules</h2>
-<p>Portable candidates are selected from:
-- <code>.github/workflows/</code>, <code>.claude/commands/</code>, <code>.claude/skills/</code>, <code>docs/</code>, <code>launchd/</code>, <code>scripts/</code>, <code>skills/</code>, <code>tests/</code>
-- Plus selected top-level operator files (README/install/health/monitor/doctor/startup/AO config)</p>
-<p>Non-portable paths are excluded when they contain:
-- Secrets, credentials, personal runtime state, local DB/log/cache artifacts
-- OpenClaw live config files and backups (<code>openclaw.json*</code>)
-- Internal-only context snapshots and generated local audit artifacts</p>
+<p>Portable candidates are selected from:</p>
+<ul>
+<li><code>.github/workflows/</code>, <code>.claude/commands/</code>, <code>.claude/skills/</code>, <code>docs/</code>, <code>launchd/</code>, <code>scripts/</code>, <code>skills/</code>, <code>tests/</code></li>
+<li>Plus selected top-level operator files (README/install/health/monitor/doctor/startup/AO config)</li>
+</ul>
+<p>Non-portable paths are excluded when they contain:</p>
+<ul>
+<li>Secrets, credentials, personal runtime state, local DB/log/cache artifacts</li>
+<li>OpenClaw live config files and backups (<code>openclaw.json*</code>)</li>
+<li>Internal-only context snapshots and generated local audit artifacts</li>
+</ul>
 <h2>Included Files (sample)</h2>
 <ul>
 <li><code>.claude/commands/agento_report.md</code></li>
