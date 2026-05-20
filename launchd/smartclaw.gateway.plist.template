@@ -9,7 +9,7 @@
 		<key>GOOGLE_CLOUD_PROJECT</key>
 		<string>infinite-zephyr-487405-d0</string>
 		<key>HOME</key>
-		<string>~</string>
+		<string>@HOME@</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>
@@ -37,7 +37,7 @@
 		<key>OPENCLAW_WINDOWS_TASK_NAME</key>
 		<string>OpenClaw Gateway</string>
 		<key>PATH</key>
-		<string>~/.local/bin:~/.npm-global/bin:~/bin:~/.volta/bin:~/.asdf/shims:~/.bun/bin:~/Library/Application Support/fnm/aliases/default/bin:~/.fnm/aliases/default/bin:~/Library/pnpm:~/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>@NODE_BIN_DIR@:@HOME@/.local/bin:@HOME@/.npm-global/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>SHELL</key>
 		<string>/opt/homebrew/bin/bash</string>
 		<key>TMPDIR</key>
@@ -49,8 +49,8 @@
 	<string>ai.smartclaw.gateway</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>~/.nvm/versions/node/v22.22.0/bin/node</string>
-		<string>~/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
+		<string>@NODE_PATH@</string>
+		<string>@OPENCLAW_BIN@</string>
 		<string>gateway</string>
 		<string>--port</string>
 		<string>18789</string>
@@ -58,9 +58,9 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>~/.smartclaw/logs/gateway.err.log</string>
+	<string>@HOME@/.smartclaw/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>~/.smartclaw/logs/gateway.log</string>
+	<string>@HOME@/.smartclaw/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>

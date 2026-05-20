@@ -731,7 +731,7 @@ if [[ "$OS" == "macos" ]]; then
   # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Install canonical gateway plist. Clean up legacy com.smartclaw.gateway if present.
-  if install_plist "$REPO_DIR/launchd/ai.smartclaw.gateway.plist"; then
+  if install_plist "$REPO_DIR/launchd/smartclaw.gateway.plist.template"; then
     # Tear down legacy com.smartclaw.gateway if it exists (migration from old label).
     launchctl bootout "gui/$(id -u)/com.smartclaw.gateway" 2>/dev/null || true
     rm -f "$LAUNCHD_DIR/com.smartclaw.gateway.plist"
@@ -764,8 +764,8 @@ if [[ "$OS" == "macos" ]]; then
     launchctl bootout "gui/$(id -u)/ai.smartclaw.staging" 2>/dev/null || true
     rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist"
   fi
-  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist" ]]; then
-    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist"
+  if [[ -f "$REPO_DIR/launchd/smartclaw.staging.plist.template" ]]; then
+    install_plist "$REPO_DIR/launchd/smartclaw.staging.plist.template"
   else
     echo "  • skipping ai.smartclaw.staging (plist not in repo — opt-in)"
   fi
@@ -786,7 +786,7 @@ fi
 # --- monitor-agent (periodic health monitoring) ---
 MONITOR_AGENT_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
-  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist"
+  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/smartclaw.monitor-agent.plist.template"
   if [[ -f "$MONITOR_AGENT_PLIST" ]]; then
     install_plist "$MONITOR_AGENT_PLIST"
     MONITOR_AGENT_INSTALLED=1
@@ -811,7 +811,7 @@ if [[ "$OS" == "macos" ]]; then
       cp "$ANTIG_CMUX_SCRIPT" "$_antig_dst"
     fi
     chmod +x "$_antig_dst"
-    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist"
+    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/smartclaw.antig-cmux-loop.plist.template"
     if [[ -f "$ANTIG_CMUX_PLIST" ]]; then
       install_plist "$ANTIG_CMUX_PLIST"
       echo "  ✓ ai.smartclaw.antig-cmux-loop installed"
