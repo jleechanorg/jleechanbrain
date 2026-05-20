@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
-      <string>@HOME@/.smartclaw/scripts/harness-analyzer.sh</string>
+      <string>~/.smartclaw/scripts/harness-analyzer.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <array>
@@ -55,17 +55,17 @@
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>@HOME@/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.out.log</string>
+    <string>~/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.out.log</string>
     <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.err.log</string>
+    <string>~/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>TZ</key>
       <string>America/Los_Angeles</string>
       <key>PATH</key>
-      <string>@OPENCLAW_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <string>@OPENCLAW_EXTRA_PATH@~/.bun/bin:~/.local/bin:~/bin:~/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
       <key>HOME</key>
-      <string>@HOME@</string>
+      <string>~</string>
     </dict>
     <key>ProcessType</key>
     <string>Background</string>

@@ -240,7 +240,8 @@ jobs:
           # error handling match the pattern).
           # ----------------------------------------------------------------
           BUGBOT_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
-            --jq '[.check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
+            --paginate 2>/dev/null | jq -rs \
+            '[.[].check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
             2>/dev/null || echo "none")
 
           if [ "$BUGBOT_CONCLUSION" = "failure" ]; then

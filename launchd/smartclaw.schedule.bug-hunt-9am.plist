@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/project_smartclaw/smartclaw/scripts/bug-hunt-daily.sh</string>
+        <string>~/project_smartclaw/smartclaw/scripts/bug-hunt-daily.sh</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -59,13 +59,13 @@
     </array>
     
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.log</string>
+    <string>~/.smartclaw/logs/bug-hunt-daily.log</string>
     
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.error.log</string>
+    <string>~/.smartclaw/logs/bug-hunt-daily.error.log</string>
     
     <key>WorkingDirectory</key>
-    <string>${HOME}/project_smartclaw/smartclaw</string>
+    <string>~/project_smartclaw/smartclaw</string>
     
     <key>ProcessType</key>
     <string>Background</string>
