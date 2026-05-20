@@ -516,6 +516,13 @@ install_plist() {
   AO_DASHBOARD_DIR="${AO_DASHBOARD_DIR:-${HOME}/projects_reference/agent-orchestrator/packages/web}"
 
   mkdir -p "$LAUNCHD_DIR" "$HOME/.smartclaw/logs" "$HOME/.smartclaw/logs/scheduled-jobs"
+
+  # Guard: fail fast if template requires @GITHUB_TOKEN@ but token is unresolved
+  if grep -q '@GITHUB_TOKEN@' "$src" 2>/dev/null && [[ -z "$GITHUB_TOKEN_VAL" ]]; then
+    echo "  ✗ $base: requires @GITHUB_TOKEN@ but GITHUB_TOKEN is not set (env or ~/.bashrc)" >&2
+    return 1
+  fi
+
   sed \
     -e "s|PLACEHOLDER_MC_TOKEN|$(_esc_sed "$MC_TOKEN")|g" \
     -e "s|@HOME@|$(_esc_sed "$HOME")|g" \
@@ -1048,7 +1055,8 @@ if [[ "$OS" == "macos" ]]; then
       # Derive label from the plist's <Label> key, not the filename.
       # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
       label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$tmpl" 2>/dev/null || true)"
-      [[ -n "$label" ]] || { label="${tmpl%.plist.template}"; label="$(basename "$label")"; }
+      # Skip if Label key is missing — filename-based fallback would give wrong prefix
+      [[ -n "$label" ]] || continue
       EXPECTED_LABELS+=("$label")
     done
   fi
@@ -1057,7 +1065,8 @@ if [[ "$OS" == "macos" ]]; then
   for plist in "$LAUNCHD_DIR"/smartclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
     label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$plist" 2>/dev/null || true)"
-    [[ -n "$label" ]] || label="$(basename "$plist" .plist)"
+    # Skip if Label key is missing — filename-based fallback would give wrong prefix
+    [[ -n "$label" ]] || continue
     EXPECTED_LABELS+=("$label")
   done
   [[ -f "$MC_BACKEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control")
