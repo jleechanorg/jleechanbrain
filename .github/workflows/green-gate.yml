@@ -24,6 +24,8 @@ concurrency:
 jobs:
   green_gate:
     name: Green Gate
+    # Fork PR guard: self-hosted runners must not execute untrusted code from forks
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
       pull-requests: write

@@ -46,9 +46,11 @@ jobs:
   staging-canary-full:
     name: Full canary (6/6)
     needs: find-openclaw-json
+    # Fork PR guard: self-hosted runners must not execute untrusted code from forks
     if: |
       needs.find-openclaw-json.outputs.found == 'true' &&
       github.repository == 'jleechanorg/smartclaw' &&
+      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: [self-hosted, openclaw-staging]
     timeout-minutes: 25
