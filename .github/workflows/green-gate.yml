@@ -455,8 +455,8 @@ jobs:
         run: |
           # Delete previous green-gate result comments to avoid clutter
           PREV_COMMENTS=$(gh api repos/${{ github.repository }}/issues/"$PR_NUM"/comments \
-            --paginate \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
+            --paginate --slurp 2>/dev/null \
+            | jq '[flatten | .[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
 
           for CID in $(echo "$PREV_COMMENTS" | jq -r '.[]' 2>/dev/null); do
             gh api repos/${{ github.repository }}/issues/comments/"$CID" --method DELETE 2>/dev/null || true
