@@ -75,7 +75,6 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
-          REQUIRED_CORE_JOBS=3
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
@@ -112,7 +111,19 @@ jobs:
                 | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
                 | length' 2>/dev/null || echo "0")
 
-            echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}"
+            # Determine required core jobs: 3 if Full canary exists, 2 otherwise
+            # (Full canary only runs when openclaw.json changes)
+            HAS_FULL_CANARY=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
+              --paginate \
+              --slurp 2>/dev/null \
+              | jq -r '[.[].check_runs[]]
+                | group_by(.name)
+                | map(sort_by(.started_at) | reverse | .[0])
+                | [.[] | select(.name == "Full canary (6/6)")]
+                | length' 2>/dev/null || echo "0")
+            REQUIRED_CORE_JOBS=$( [ "$HAS_FULL_CANARY" -gt 0 ] && echo 3 || echo 2 )
+
+            echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}, required=${REQUIRED_CORE_JOBS}"
 
             if [ "$TOTAL_CHECKS" -ge "$REQUIRED_CORE_JOBS" ] && [ "$CHECK_RUNS_PENDING" -eq 0 ] && [ "$CHECK_RUNS_FAILED" -eq 0 ]; then
               echo "Core CI checks registered and completed after ${ELAPSED}s"
@@ -150,11 +161,22 @@ jobs:
               | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
               | length' 2>/dev/null || echo "0")
 
+          # Determine required core jobs: 3 if Full canary exists, 2 otherwise
+          HAS_FULL_CANARY=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
+            --paginate \
+            --slurp 2>/dev/null \
+            | jq -r '[.[].check_runs[]]
+              | group_by(.name)
+              | map(sort_by(.started_at) | reverse | .[0])
+              | [.[] | select(.name == "Full canary (6/6)")]
+              | length' 2>/dev/null || echo "0")
+          REQUIRED_CORE_JOBS=$( [ "$HAS_FULL_CANARY" -gt 0 ] && echo 3 || echo 2 )
+
           CI_STATUS_JSON=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/status \
             --jq '{state: .state, total: .total_count}' 2>/dev/null || echo '{"state":"error","total":0}')
           CI_STATUS=$(echo "$CI_STATUS_JSON" | jq -r '.state')
 
-          CI_DETAIL="commit-status=$CI_STATUS, failed-checks=${CHECK_RUNS_FAILED:-0}, pending-checks=${CHECK_RUNS_PENDING:-0}, total-checks=${TOTAL_CHECKS:-0}"
+          CI_DETAIL="commit-status=$CI_STATUS, failed-checks=${CHECK_RUNS_FAILED:-0}, pending-checks=${CHECK_RUNS_PENDING:-0}, total-checks=${TOTAL_CHECKS:-0}, required=${REQUIRED_CORE_JOBS}"
 
           # Pass only when all registered core jobs completed successfully with no failures.
           if [ "${CHECK_RUNS_FAILED:-0}" = "__API_ERROR__" ] || [ "${CHECK_RUNS_PENDING:-0}" = "__API_ERROR__" ]; then
