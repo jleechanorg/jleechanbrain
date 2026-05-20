@@ -7,9 +7,9 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>~/bin/ao</string>
-        <string>lifecycle-worker</string>
-        <string>agent-orchestrator</string>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec @HOME@/bin/ao lifecycle-worker agent-orchestrator</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -17,7 +17,7 @@
         <key>PATH</key>
         <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>HOME</key>
-        <string>~</string>
+        <string>@HOME@</string>
         <key>GITHUB_TOKEN</key>
         <string>@GITHUB_TOKEN@</string>
         <key>GH_TOKEN</key>
@@ -31,13 +31,13 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>~/.smartclaw/logs/ao-lifecycle-agent-orchestrator.log</string>
+    <string>@HOME@/.smartclaw/logs/ao-lifecycle-agent-orchestrator.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/.smartclaw/logs/ao-lifecycle-agent-orchestrator.err.log</string>
+    <string>@HOME@/.smartclaw/logs/ao-lifecycle-agent-orchestrator.err.log</string>
 
     <key>WorkingDirectory</key>
-    <string>~/.smartclaw</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>ThrottleInterval</key>
     <integer>30</integer>

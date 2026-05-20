@@ -12,13 +12,13 @@
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>~/.smartclaw/scripts/spend-alert-daily.sh</string>
+        <string>@HOME@/.smartclaw/scripts/spend-alert-daily.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>~</string>
+        <string>@HOME@</string>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
@@ -35,13 +35,13 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>~/.smartclaw/logs/spend-alert-daily.log</string>
+    <string>@HOME@/.smartclaw/logs/spend-alert-daily.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/.smartclaw/logs/spend-alert-daily.error.log</string>
+    <string>@HOME@/.smartclaw/logs/spend-alert-daily.error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>~/.smartclaw</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>ProcessType</key>
     <string>Background</string>

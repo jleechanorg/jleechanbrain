@@ -1048,7 +1048,9 @@ if [[ "$OS" == "macos" ]]; then
   # Also pick up any plist already in LAUNCHD_DIR (backwards compat)
   for plist in "$LAUNCHD_DIR"/smartclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
-    EXPECTED_LABELS+=("$(basename "$plist" .plist)")
+    label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$plist" 2>/dev/null || true)"
+    [[ -n "$label" ]] || label="$(basename "$plist" .plist)"
+    EXPECTED_LABELS+=("$label")
   done
   [[ -f "$MC_BACKEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control")
   [[ -f "$MC_FRONTEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control-frontend")
