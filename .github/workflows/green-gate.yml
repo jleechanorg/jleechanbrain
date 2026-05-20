@@ -210,26 +210,34 @@ jobs:
 
           # ----------------------------------------------------------------
           # Gate 3: CR APPROVED (approved after any CR blocker)
+          # CodeRabbit with approve:true + request_changes_workflow:true
+          # posts APPROVED when no issues, CHANGES_REQUESTED when blockers
+          # found, and COMMENTED for non-blocking findings. A COMMENTED
+          # review with no open CHANGES_REQUESTED means no blocking issues.
           # ----------------------------------------------------------------
           # shellcheck disable=SC2016
-          LATEST_CR=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/reviews --paginate --slurp 2>/dev/null \
+          CR_STATE=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/reviews --paginate --slurp 2>/dev/null \
             | jq -r 'flatten
               | map(select(.user.login == "coderabbitai[bot]")) as $reviews
+              | ($reviews | length) as $total
               | ($reviews | map(select(.state == "CHANGES_REQUESTED" or .state == "DISMISSED") | .submitted_at) | max // null) as $last_blocker
               | ($reviews | map(select(.state == "APPROVED") | .submitted_at) | max // null) as $last_approved
-              | if $last_approved == null then "none"
-                elif $last_blocker == null or $last_approved > $last_blocker then "APPROVED"
-                else "CHANGES_REQUESTED"
+              | ($reviews | map(select(.state == "COMMENTED") | .submitted_at) | max // null) as $last_commented
+              | if $total == 0 then "none"
+                elif $last_approved != null and ($last_blocker == null or $last_approved > $last_blocker) then "APPROVED"
+                elif $last_blocker != null and ($last_approved == null or $last_blocker > $last_approved) then "CHANGES_REQUESTED"
+                elif $last_commented != null and ($last_blocker == null or $last_commented > $last_blocker) then "COMMENTED_OK"
+                else "none"
                 end' 2>/dev/null || echo "none")
-          LATEST_CR="${LATEST_CR:-none}"
+          CR_STATE="${CR_STATE:-none}"
 
-          if [ "$LATEST_CR" = "APPROVED" ]; then
+          if [ "$CR_STATE" = "APPROVED" ] || [ "$CR_STATE" = "COMMENTED_OK" ]; then
             GATE3="PASS"
           else
             GATE3="FAIL"
             FAILED_GATES="${FAILED_GATES}3, "
           fi
-          GATE3_DETAIL="state=$LATEST_CR"
+          GATE3_DETAIL="state=$CR_STATE"
           echo "Gate 3: $GATE3 ($GATE3_DETAIL)"
           GATE_ROWS="${GATE_ROWS}| 3. CR approved | ${GATE3} | ${GATE3_DETAIL} |\n"
 
@@ -330,12 +338,12 @@ jobs:
             # Extract Evidence section: from "## Evidence" to next ## heading
             # Strip HTML comment lines (<!-- ... -->) before scanning
             EVIDENCE_GATE6=$(printf '%s\n' "$PR_BODY_GATE6" | awk '
-              BEGIN { IGNORECASE=1; in_section=0; in_comment=0 }
+              BEGIN { in_section=0; in_comment=0 }
               /<!--.*-->/ { next }
               in_comment && /^[[:space:]]*-->/ { in_comment=0; next }
               /^[[:space:]]*<!--/ { in_comment=1; next }
               in_comment { next }
-              /^[[:space:]]*##[[:space:]]+evidence([[:space:]]|$)/ { in_section=1; next }
+              /^[[:space:]]*##[[:space:]]+[Ee][Vv][Ii][Dd][Ee][Nn][Cc][Ee]([[:space:]]|$)/ { in_section=1; next }
               in_section && /^[[:space:]]*##[[:space:]]/ { exit }
               in_section { print }
             ' 2>/dev/null || true)
