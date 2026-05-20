@@ -10,6 +10,10 @@
 # synthetic OpenClaw bot replies in the appropriate conversation surface.
 set -euo pipefail
 
+# Default SLACK_CHANNEL_ID so test runs under set -u without external env.
+# Override via: SLACK_CHANNEL_ID=CXXXXXX bash tests/test_monitor_slack_e2e_matrix.sh
+: "${SLACK_CHANNEL_ID:=C_STUB_CHANNEL}"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$REPO_ROOT/monitor-agent.sh"
 
