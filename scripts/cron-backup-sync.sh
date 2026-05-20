@@ -28,8 +28,13 @@ d = json.loads(raw)
 jobs = d.get('jobs', [])
 for j in jobs:
     for k in list(j.keys()):
-        if 'state' in k or k.startswith('last') or k.startswith('next'):
+        if k.startswith('last') or k.startswith('next'):
             del j[k]
+    # Keep schedule.kind + schedule.expr/everyMs + tz for cron expression fidelity
+    sched = j.get('schedule', {})
+    for k in list(sched.keys()):
+        if k not in ('kind', 'expr', 'everyMs', 'tz', 'anchorMs', 'staggerMs'):
+            del sched[k]
 print(json.dumps({'jobs': jobs, 'total': len(jobs)}, indent=2))
 " 2>/dev/null) || CRON_JOBS="$CRON_JSON"
 
@@ -48,10 +53,20 @@ lines = ['# Cron Jobs Backup', '',
          'Exported: ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC'),
          'Total jobs: ' + str(len(jobs)), '', '## Jobs', '']
 for j in jobs:
+    sched = j.get('schedule', {})
+    if sched.get('kind') == 'cron':
+        sched_str = sched.get('expr', '?')
+    elif sched.get('kind') == 'every':
+        ms = sched.get('everyMs', 0)
+        mins = ms // 60000
+        sched_str = f'every {mins}m'
+    else:
+        sched_str = '?'
     lines += ['### ' + j.get('name', 'unknown'),
               '- ID: ' + j.get('id', '?'),
               '- Enabled: ' + str(j.get('enabled', '?')),
-              '- Session: ' + j.get('sessionTarget', '?')]
+              '- Schedule: `' + sched_str + '`',
+              '- Description: ' + j.get('description', '?')]
 print('\n'.join(lines))
 " > "$BACKUP_MD" 2>/dev/null || {
   echo "# Cron Jobs Backup" > "$BACKUP_MD"
@@ -72,7 +87,8 @@ if [[ "$CHANGED" -eq 1 ]]; then
     if git add "$BACKUP_JSON" "$BACKUP_MD" 2>/dev/null; then
       if ! git diff --cached --quiet; then
         if git commit -m "chore: refresh cron backup" 2>/dev/null; then
-          log "Committed: $(git rev-parse HEAD)"
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          log "Committed: $COMMIT_SHA"
           git push 2>/dev/null || true
         fi
       fi
@@ -96,7 +112,7 @@ do_slack() {
     >> "$ROOT/logs/cron-backup/slack-$(date +%Y%m%d).log" 2>&1 || true
 }
 
-if [[ "$CHANGED" -eq 1 ]] && [[ -n "$COMMIT_SHA" ]]; then
+if [[ "$CHANGED" -eq 1 ]] && [[ -n "${COMMIT_SHA:-}" ]]; then
   do_slack "Cron Backup: committed. Total: $TOTAL jobs ($ENABLED enabled)."
 elif [[ "$CHANGED" -eq 1 ]]; then
   do_slack "Cron Backup: changed (not committed). Total: $TOTAL jobs."

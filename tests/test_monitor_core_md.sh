@@ -25,11 +25,11 @@ log_fail() { echo -e "${RED}✗ FAIL${NC}: $1"; ((FAILED++)); }
 log_info() { echo -e "${YELLOW}ℹ INFO${NC}: $1"; }
 
 # ---------------------------------------------------------------------------
-# Source the shared probe library — the same lib/core-md-probe.sh used by
+# Source the shared probe library — the same scripts/core-md-probe.sh used by
 # monitor-agent.sh. This eliminates drift between test and production logic.
 # ---------------------------------------------------------------------------
-# shellcheck source=lib/core-md-probe.sh
-source "$(dirname "$0")/../lib/core-md-probe.sh"
+# shellcheck source=scripts/core-md-probe.sh
+source "$(dirname "$0")/../scripts/core-md-probe.sh"
 
 # Thin wrapper: runs _core_md_probe() and captures output to a temp file.
 # This mirrors how monitor-agent.sh calls run_core_md_probe() → _core_md_probe().
