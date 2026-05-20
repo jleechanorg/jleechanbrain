@@ -300,7 +300,7 @@ jobs:
           # If CR has APPROVED, non-nit unresolved comments are non-blocking (CR
           # has already signed off despite the noise). Without CR APPROVED, unresolved
           # comments remain a hard failure (fail-closed).
-          if [ "$LATEST_CR" = "APPROVED" ]; then
+          if [ "$CR_STATE" = "APPROVED" ]; then
             GATE5="PASS"
             GATE5_DETAIL="${UNRESOLVED:-N/A} unresolved (CR approved — non-blocking)"
           elif [ "$UNRESOLVED" = "__GQL_ERROR__" ] || [ "$UNRESOLVED" = "__TRUNCATED__" ]; then
