@@ -517,9 +517,9 @@ install_plist() {
 
   mkdir -p "$LAUNCHD_DIR" "$HOME/.smartclaw/logs" "$HOME/.smartclaw/logs/scheduled-jobs"
 
-  # Guard: fail fast if template requires @GITHUB_TOKEN@ but token is unresolved
-  if grep -q '@GITHUB_TOKEN@' "$src" 2>/dev/null && [[ -z "$GITHUB_TOKEN_VAL" ]]; then
-    echo "  ✗ $base: requires @GITHUB_TOKEN@ but GITHUB_TOKEN is not set (env or ~/.bashrc)" >&2
+  # Guard: fail fast if template requires @GITHUB_TOKEN@/@GH_TOKEN@ but token is unresolved
+  if grep -qE '@(GITHUB_TOKEN|GH_TOKEN)@' "$src" 2>/dev/null && [[ -z "$GITHUB_TOKEN_VAL" ]]; then
+    echo "  ✗ $base: requires @GITHUB_TOKEN@ or @GH_TOKEN@ but GITHUB_TOKEN is not set (env or ~/.bashrc)" >&2
     return 1
   fi
 
