@@ -15,4 +15,4 @@ echo "ERROR: run-mctrl-supervisor.sh is retired." >&2
 echo "  The Python orchestration.supervisor module has been removed." >&2
 echo "  Use agent-orchestrator instead: ao lifecycle-worker <project>" >&2
 echo "  See: agent-orchestrator.yaml for project configuration." >&2
-exit 1
+exit 0

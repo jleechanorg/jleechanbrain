@@ -106,7 +106,7 @@ cat > "$REPORT_FILE" << EOF
 
 **Generated:** $(date)
 **Period:** Last ${DAYS_LOOKBACK} days
-**Agents:** claude, codex, cursor, minimax, gemini
+**Agents:** ${AGENTS[*]}
 
 ---
 

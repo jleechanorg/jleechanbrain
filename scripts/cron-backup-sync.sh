@@ -111,7 +111,7 @@ do_slack() {
     >> "$ROOT/logs/cron-backup/slack-$(date +%Y%m%d).log" 2>&1 || true
 }
 
-if [[ "$CHANGED" -eq 1 ]] && [[ -n "$COMMIT_SHA" ]]; then
+if [[ "$CHANGED" -eq 1 ]] && [[ -n "${COMMIT_SHA:-}" ]]; then
   do_slack "Cron Backup: committed. Total: $TOTAL jobs ($ENABLED enabled)."
 elif [[ "$CHANGED" -eq 1 ]]; then
   do_slack "Cron Backup: changed (not committed). Total: $TOTAL jobs."
