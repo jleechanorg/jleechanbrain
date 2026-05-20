@@ -220,7 +220,7 @@ jobs:
             | jq -r 'flatten
               | map(select(.user.login == "coderabbitai[bot]")) as $reviews
               | ($reviews | length) as $total
-              | ($reviews | map(select(.state == "CHANGES_REQUESTED" or .state == "DISMISSED") | .submitted_at) | max // null) as $last_blocker
+              | ($reviews | map(select(.state == "CHANGES_REQUESTED") | .submitted_at) | max // null) as $last_blocker
               | ($reviews | map(select(.state == "APPROVED") | .submitted_at) | max // null) as $last_approved
               | ($reviews | map(select(.state == "COMMENTED") | .submitted_at) | max // null) as $last_commented
               | if $total == 0 then "none"
