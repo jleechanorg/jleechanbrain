@@ -523,6 +523,12 @@ install_plist() {
     -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
     "$src" > "$dst"
 
+  # Derive label from the plist's <Label> key, not the filename.
+  # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
+  local plist_label
+  plist_label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$dst" 2>/dev/null || true)"
+  [[ -n "$plist_label" ]] && label="$plist_label"
+
   # Unregister any existing job with this label first. Re-running install when the
   # service is already loaded causes `launchctl bootstrap` to fail with EIO (exit 5).
   # Boot-out by label is reliable; boot-out by plist path alone can fail when not loaded.
@@ -1031,8 +1037,10 @@ if [[ "$OS" == "macos" ]]; then
   if [[ "$SCHEDULED_JOBS_INSTALLED" -eq 1 ]]; then
     for tmpl in "$REPO_DIR"/launchd/smartclaw.schedule.*.plist.template; do
       [[ -f "$tmpl" ]] || continue
-      label="${tmpl%.plist.template}"
-      label="$(basename "$label")"
+      # Derive label from the plist's <Label> key, not the filename.
+      # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
+      label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$tmpl" 2>/dev/null || true)"
+      [[ -n "$label" ]] || { label="${tmpl%.plist.template}"; label="$(basename "$label")"; }
       EXPECTED_LABELS+=("$label")
     done
   fi

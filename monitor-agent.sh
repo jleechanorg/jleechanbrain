@@ -1253,9 +1253,9 @@ MEMORY_LOOKUP_SUMMARY="memory lookup check not run"
 CORE_MD_RC=0
 CORE_MD_SUMMARY=""
 
-# Probe logic lives in lib/core-md-probe.sh (single source of truth for prod + tests).
-# shellcheck source=lib/core-md-probe.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/core-md-probe.sh"
+# Probe logic lives in scripts/core-md-probe.sh (single source of truth for prod + tests).
+# shellcheck source=scripts/core-md-probe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/scripts/core-md-probe.sh"
 
 run_core_md_probe() {
   CORE_MD_RC=0

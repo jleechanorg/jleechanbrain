@@ -8,15 +8,15 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>~/.smartclaw/scripts/ao7green-pr-monitor.launchd.sh</string>
+        <string>@HOME@/.smartclaw/scripts/ao7green-pr-monitor.launchd.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>~</string>
+        <string>@HOME@</string>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>@OPENCLAW_EXTRA_PATH@/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>AO_MONITOR_REPO</key>
         <string>jleechanorg/smartclaw</string>
         <key>AO_MONITOR_PROJECT</key>
@@ -24,7 +24,7 @@
         <key>AO_MONITOR_CHANNEL</key>
         <string>${SLACK_CHANNEL_ID}</string>
         <key>AO_MONITOR_LOG</key>
-        <string>~/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.log</string>
+        <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.log</string>
     </dict>
 
     <key>StartInterval</key>
@@ -38,7 +38,7 @@
     <string>/dev/null</string>
 
     <key>StandardErrorPath</key>
-    <string>~/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.err</string>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>
