@@ -8,13 +8,13 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>~/.smartclaw/scripts/dropped-thread-followup.sh</string>
+        <string>@HOME@/.smartclaw/scripts/dropped-thread-followup.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>~</string>
+        <string>@HOME@</string>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>SLACK_BOT_TOKEN</key>
@@ -28,10 +28,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>~/.smartclaw/logs/dropped-thread-followup.log</string>
+    <string>@HOME@/.smartclaw/logs/dropped-thread-followup.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/.smartclaw/logs/dropped-thread-followup.err</string>
+    <string>@HOME@/.smartclaw/logs/dropped-thread-followup.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>

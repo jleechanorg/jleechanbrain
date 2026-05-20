@@ -1027,9 +1027,9 @@ if [[ "$OS" == "macos" ]]; then
   [[ "$AGENTO_DASHBOARD_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.agento.dashboard")
 
   # Scheduled job labels — only add if scheduled jobs were actually installed
-  # NOTE: Keep this list in sync with launchd/ai.smartclaw.schedule.*.plist.template filenames
+  # NOTE: Keep this list in sync with launchd/smartclaw.schedule.*.plist.template filenames
   if [[ "$SCHEDULED_JOBS_INSTALLED" -eq 1 ]]; then
-    for tmpl in "$REPO_DIR"/launchd/ai.smartclaw.schedule.*.plist.template; do
+    for tmpl in "$REPO_DIR"/launchd/smartclaw.schedule.*.plist.template; do
       [[ -f "$tmpl" ]] || continue
       label="${tmpl%.plist.template}"
       label="$(basename "$label")"
@@ -1038,7 +1038,7 @@ if [[ "$OS" == "macos" ]]; then
   fi
 
   # Also pick up any plist already in LAUNCHD_DIR (backwards compat)
-  for plist in "$LAUNCHD_DIR"/ai.smartclaw.schedule.*.plist; do
+  for plist in "$LAUNCHD_DIR"/smartclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
     EXPECTED_LABELS+=("$(basename "$plist" .plist)")
   done
