@@ -7,16 +7,16 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/antig-cmux-loop.sh</string>
+        <string>~/.smartclaw/scripts/antig-cmux-loop.sh</string>
     </array>
     <key>StartInterval</key>
     <integer>600</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop.log</string>
+    <string>~/.smartclaw/logs/antig-cmux-loop.log</string>
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop.err</string>
+    <string>~/.smartclaw/logs/antig-cmux-loop.err</string>
     <key>LowPriorityIO</key>
     <true/>
 </dict>
