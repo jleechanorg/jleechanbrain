@@ -494,6 +494,13 @@ else
   HOMEBREW_BASH="/bin/bash"
 fi
 
+# Resolve GITHUB_TOKEN for templates that need it (e.g. lifecycle-agent-orchestrator).
+# Precedence: env var > ~/.bashrc export
+GITHUB_TOKEN_VAL="${GITHUB_TOKEN:-}"
+if [[ -z "$GITHUB_TOKEN_VAL" ]]; then
+  GITHUB_TOKEN_VAL=$(grep -E '^export GITHUB_TOKEN=' ~/.bashrc 2>/dev/null | tail -1 | sed "s/^export GITHUB_TOKEN=[\"']*//;s/[\"']*\$//" || true)
+fi
+
 install_plist() {
   local src="$1"
   local base label
@@ -521,6 +528,7 @@ install_plist() {
     -e "s|@OPENCLAW_EXTRA_PATH@|$(_esc_sed "$OPENCLAW_EXTRA_PATH")|g" \
     -e "s|@OPENCLAW_BIN@|$(_esc_sed "$OPENCLAW_BIN")|g" \
     -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
+    -e "s|@GITHUB_TOKEN@|$(_esc_sed "$GITHUB_TOKEN_VAL")|g" \
     "$src" > "$dst"
 
   # Derive label from the plist's <Label> key, not the filename.
