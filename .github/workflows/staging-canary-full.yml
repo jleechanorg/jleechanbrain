@@ -25,7 +25,8 @@ jobs:
     if: |
       github.repository == 'jleechanorg/smartclaw' &&
       github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
-    runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
+    runs-on: ubuntu-latest  # GitHub-hosted is safer for PR code (ephemeral, sandboxed);
+                            # self-hosted reserved for the actual canary job below.
     outputs:
       found: ${{ steps.find.outputs.found }}
     steps:
