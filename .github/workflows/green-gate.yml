@@ -169,7 +169,7 @@ jobs:
             FAILED_GATES="${FAILED_GATES}1, "
           elif [ "${CHECK_RUNS_PENDING:-0}" -eq 0 ] && [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${TOTAL_CHECKS:-0}" -ge "$REQUIRED_CORE_JOBS" ]; then
             GATE1="PASS"
-          elif [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${STAGING_CANARY_OK:-0}" -ge 1 ]; then
+          elif [ "${CHECK_RUNS_PENDING:-0}" -eq 0 ] && [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${STAGING_CANARY_OK:-0}" -ge 1 ]; then
             GATE1="PASS"
             CI_DETAIL="${CI_DETAIL} (staging-canary only; self-hosted runner absent)"
           else

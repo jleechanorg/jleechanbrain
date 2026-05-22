@@ -49,6 +49,7 @@ jobs:
     if: |
       needs.find-hermes-json.outputs.found == 'true' &&
       github.repository == 'jleechanorg/smartclaw' &&
+      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: [self-hosted, hermes-staging]
     timeout-minutes: 25
