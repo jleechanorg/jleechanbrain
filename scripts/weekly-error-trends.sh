@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
 # Weekly Error Trends -- 9:00 AM PT Mondays
-# Analyzes the last 7 days of OpenClaw logs, summarizes recurring errors,
+# Analyzes the last 7 days of Hermes logs, summarizes recurring errors,
 # identifies root causes, suggests fastest fixes, and provides a prevention checklist.
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${HERMES_ROOT:-$HOME/.smartclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/weekly-error-trends"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"
@@ -36,7 +36,7 @@ log "Collected $ERROR_COUNT error/warning lines"
 # -- 2. Categorize recurring patterns -------------------------------------------
 
 # Pattern-based categorization via grep counts
-categorize() { grep -cE "$1" "$TMP_ERRORS" 2>/dev/null || echo 0; }
+categorize() { grep -cE "$1" "$TMP_ERRORS" 2>/dev/null || true; }
 
 CAT_GATEWAY=$(categorize 'gateway')
 CAT_LAUNCHD=$(categorize 'launchd|plist|bootstrap')
@@ -49,23 +49,23 @@ CAT_CRONSCHED=$(categorize 'cron|schedule|calendar')
 # -- 3. Root cause heuristics ----------------------------------------------
 
 ROOT_CAUSES=""
-if [[ "$CAT_LAUNCHD" -gt 3 ]]; then
+if [[ "${CAT_LAUNCHD:-0}" -gt 3 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
 - launchd reload failures -- usually stale plist after config change; fix: launchctl bootout && launchctl bootstrap"
 fi
-if [[ "$CAT_NETWORK" -gt 3 ]]; then
+if [[ "${CAT_NETWORK:-0}" -gt 3 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
 - Network/connectivity errors -- external service timeout or DNS failure; fix: check service status"
 fi
-if [[ "$CAT_AUTH" -gt 2 ]]; then
+if [[ "${CAT_AUTH:-0}" -gt 2 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
-- Auth/token errors -- token expired or scope missing; fix: openclaw agents auth <agent-id>"
+- Auth/token errors -- token expired or scope missing; fix: hermes agents auth <agent-id>"
 fi
-if [[ "$CAT_MEMORY" -gt 2 ]]; then
+if [[ "${CAT_MEMORY:-0}" -gt 2 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
 - Memory issues -- agent session leak or unbounded log growth; fix: kill stale tmux sessions, rotate logs"
 fi
-if [[ "$CAT_SCRIPT" -gt 3 ]]; then
+if [[ "${CAT_SCRIPT:-0}" -gt 3 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
 - Script failures -- missing dependency or bad PATH in launchd environment; fix: verify PATH in plist"
 fi
@@ -73,21 +73,21 @@ fi
 # -- 4. Fastest fixes ----------------------------------------------------
 
 FASTEST_FIXES=""
-[[ "$CAT_LAUNCHD" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
+[[ "${CAT_LAUNCHD:-0}" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 1. launchd failures: launchctl bootout gui/$(id -u)/<label> && launchctl bootstrap gui/$(id -u) <plist>"
-[[ "$CAT_NETWORK" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
-2. Services unreachable: openclaw gateway probe && openclaw channels status"
-[[ "$CAT_AUTH" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
-3. Auth errors: re-authenticate with openclaw agents auth <agent-id>"
-[[ "$CAT_SCRIPT" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
+[[ "${CAT_NETWORK:-0}" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
+2. Services unreachable: hermes gateway probe && hermes channels status"
+[[ "${CAT_AUTH:-0}" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
+3. Auth errors: re-authenticate with hermes agents auth <agent-id>"
+[[ "${CAT_SCRIPT:-0}" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 4. Script errors: run the script manually with the same PATH to reproduce"
-[[ "$CAT_MEMORY" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
+[[ "${CAT_MEMORY:-0}" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 5. Memory/log errors: find large log files with: find ~/.smartclaw/logs -size +100M"
 
 # -- 5. Prevention checklist ----------------------------------------------
 
 PREVENTION_CHECKLIST="
-- Run openclaw doctor weekly -- catches config drift early
+- Run hermes doctor weekly -- catches config drift early
 - Verify launchd PATH before installing new plists
 - Keep log directory under 5 GB; prune monthly: find ~/.smartclaw/logs -name '*.log' -mtime +30 -delete
 - Test scripts in a launchd-like environment (stripped PATH) before deploying

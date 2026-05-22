@@ -8,7 +8,7 @@ When a mistake or failure pattern is identified, analyze whether the root cause 
 
 ## Scope
 
-- **Hermes workspace:** `~/.hermes/skills/harness/SKILL.md` (this file)
+- **Hermes workspace:** `~/.smartclaw/skills/harness/SKILL.md` (this file)
 - **Canonical source:** `~/.claude/skills/harness-engineering/SKILL.md`
 - **Collision:** If the canonical file is more recent or has additional guidance, prefer it over any stale local copy.
 
@@ -17,7 +17,7 @@ When a mistake or failure pattern is identified, analyze whether the root cause 
 | Layer | Files | What it prevents |
 |-------|-------|-----------------|
 | **Instructions** | `SOUL.md`, `AGENTS.md`, `~/.claude/CLAUDE.md` | Wrong approach, wrong assumptions, wrong defaults |
-| **Skills** | `~/.hermes/skills/*.md`, `~/.claude/skills/*.md` | Repeated manual workflows, forgotten validation steps |
+| **Skills** | `~/.smartclaw/skills/*.md`, `~/.claude/skills/*.md` | Repeated manual workflows, forgotten validation steps |
 | **Memory** | `mem0`, `memory/` | Forgetting user preferences, past corrections, project context |
 | **Integration tests** | `tests/test_*.py` | Regressions in real behavior |
 | **CI gates** | `.github/workflows/*.yml`, cron jobs | Merging broken code, mislabeled artifacts |
@@ -74,13 +74,13 @@ Key questions:
 
 For each failure class, check which harness layers are missing or insufficient:
 
-1. **Read existing instructions** — `~/.hermes/SOUL.md`, `~/.hermes/AGENTS.md`, `~/.claude/CLAUDE.md`
+1. **Read existing instructions** — `~/.smartclaw/SOUL.md`, `~/.smartclaw/AGENTS.md`, `~/.claude/CLAUDE.md`
    - Is the rule already documented? If yes → it's an adherence problem, add a stronger enforcement instruction
    - If no → add the rule
-2. **Check for existing skills** — `~/.hermes/skills/`, `~/.claude/skills/`
+2. **Check for existing skills** — `~/.smartclaw/skills/`, `~/.claude/skills/`
    - Is there a skill that should have caught this? If yes → update it
    - If no and the pattern is repeatable → create a skill
-3. **Check memory** — mem0, `~/.hermes/memory/`
+3. **Check memory** — mem0, `~/.smartclaw/memory/`
    - Was this corrected before? If yes → strengthen the memory
    - If no → save feedback memory
 4. **Check tests** — are there tests that would catch this regression?

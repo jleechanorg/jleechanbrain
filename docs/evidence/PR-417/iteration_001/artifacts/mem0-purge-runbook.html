@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mem0-purge Runbook</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#mem0-purge-runbook">mem0-purge Runbook</a>
+<a class="toc-l2" href="#purpose">Purpose</a>
+<a class="toc-l2" href="#affected-system">Affected System</a>
+<a class="toc-l2" href="#safety-model">Safety Model</a>
+<a class="toc-l2" href="#pre-flight-checklist">Pre-flight Checklist</a>
+<a class="toc-l2" href="#dry-run-required-before-any-live-run">Dry-Run (Required Before Any Live Run)</a>
+<a class="toc-l2" href="#live-run">Live Run</a>
+<a class="toc-l3" href="#step-1-record-pre-run-point-count">Step 1 — Record pre-run point count</a>
+<a class="toc-l3" href="#step-2-create-ids-file">Step 2 — Create IDs file</a>
+<a class="toc-l3" href="#step-3-execute-live-deletion">Step 3 — Execute live deletion</a>
+<a class="toc-l3" href="#step-4-verify-post-run">Step 4 — Verify post-run</a>
+<a class="toc-l3" href="#step-5-post-deletion-search-verification">Step 5 — Post-deletion search verification</a>
+<a class="toc-l2" href="#rollback-mitigation">Rollback / Mitigation</a>
+<a class="toc-l2" href="#targeted-ids-benjamin-false-memories">Targeted IDs: Benjamin False Memories</a>
+<a class="toc-l2" href="#smoke-test">Smoke Test</a>
+<a class="toc-l2" href="#troubleshooting">Troubleshooting</a></nav><main><p><a href="mem0-purge-runbook.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="mem0-purge-runbook">mem0-purge Runbook</h1>
+<h2 id="purpose">Purpose</h2>
+<p>Delete specific memory IDs from the hermes mem0/Qdrant store. This script is the <strong>only approved mechanism</strong> for one-off memory deletions in this system. All deletions are ID-allowlist-only; no glob, no pattern, no bulk delete-all.</p>
+<p>---</p>
+<h2 id="affected-system">Affected System</h2>
+<p>| Component | Detail |</p>
+<p>|-----------|--------|</p>
+<p>| Vector store | Qdrant at <code>http://127.0.0.1:6333</code>, collection <code>hermes_mem0</code> |</p>
+<p>| Memory layer | mem0 (<code>mem0ai</code> Python package) |</p>
+<p>| User namespace | <code>jleechan</code> |</p>
+<p>| Config | <code>~/.smartclaw/.claude/hooks/mem0_config.py</code> |</p>
+<p>---</p>
+<h2 id="safety-model">Safety Model</h2>
+<p>| Guard | Description |</p>
+<p>|-------|-------------|</p>
+<p>| <strong>Dry-run default</strong> | Running without <code>--confirm</code> only prints preview; no deletions occur |</p>
+<p>| <strong>ID allowlist only</strong> | Every ID to delete must appear in <code>--ids-file</code> or <code>--ids-inline</code> |</p>
+<p>| <strong>Count confirmation</strong> | <code>--confirm-count N</code> must match the number of IDs being deleted |</p>
+<p>| <strong>Hash confirmation</strong> | <code>--confirm-hash &lt;sha256&gt;</code> must match the SHA256 of sorted IDs |</p>
+<p>| <strong>5-second abort window</strong> | Live mode sleeps 5s before executing; Ctrl+C aborts |</p>
+<p>| <strong>Post-run verification</strong> | After deletion, script queries Qdrant directly to confirm IDs are gone |</p>
+<p>---</p>
+<h2 id="pre-flight-checklist">Pre-flight Checklist</h2>
+<ul>
+<li>- [ ] Qdrant is running: <code>curl -sf http://127.0.0.1:6333/healthz</code></li>
+<li>- [ ] mem0 Python package is importable: <code>python3 -c &quot;from mem0 import Memory&quot;</code></li>
+<li>- [ ] <code>mem0_config.py</code> is present at <code>~/.smartclaw/.claude/hooks/mem0_config.py</code></li>
+<li>- [ ] IDs to delete have been independently confirmed (e.g., via <code>m.get(id_)</code> or <code>m.search()</code>)</li>
+<li>- [ ] A pre-run memory count snapshot has been recorded</li>
+</ul>
+<p>---</p>
+<h2 id="dry-run-required-before-any-live-run">Dry-Run (Required Before Any Live Run)</h2>
+<pre><code># Option A: IDs from file
+./scripts/mem0-purge.sh --ids-file ./benjamin-ids.txt
+
+# Option B: Inline IDs
+./scripts/mem0-purge.sh \
+  --ids-inline &quot;14ddf0c0-a8e4-49e3-941c-849c071c713c,196d0128-a0d7-4492-a7d0-154e0be33ab7,...&quot;
+
+# Verify-only mode (no IDs needed — just check store health).
+# Requires the hooks dir at ~/.smartclaw/.claude/hooks for Qdrant config.
+./scripts/mem0-purge.sh --verify-only</code></pre>
+<p>Dry-run output:</p>
+<pre><code>- Lists every candidate ID
+- Prints the memory TEXT for each ID (verify these are the right targets)
+- Computes and prints a confirmation hash
+- Shows the exact live-run command to copy</code></pre>
+<p><strong>Inspect the output carefully.</strong> If any ID looks wrong, do not proceed.</p>
+<p>---</p>
+<h2 id="live-run">Live Run</h2>
+<h3 id="step-1-record-pre-run-point-count">Step 1 — Record pre-run point count</h3>
+<pre><code>curl -sf http://127.0.0.1:6333/collections/hermes_mem0 \
+  | python3 -c &quot;import sys,json; print(json.load(sys.stdin)[&#x27;result&#x27;][&#x27;points_count&#x27;])&quot;</code></pre>
+<h3 id="step-2-create-ids-file">Step 2 — Create IDs file</h3>
+<pre><code>cat &gt; /tmp/benjamin-ids.txt &lt;&lt; &#x27;EOF&#x27;
+# Benjamin false memory IDs — confirmed via m.get()
+# 8 IDs, all confirmed present in Qdrant as of 2026-03-27
+14ddf0c0-a8e4-49e3-941c-849c071c713c
+196d0128-a0d7-4492-a7d0-154e0be33ab7
+17a00b39-7563-4428-bf2a-e83f9670180e
+3684c632-97dc-443e-b425-e89717c7d299
+7ee22498-0598-4bcc-b9e6-1cb815c29868
+dade246e-aa4d-4c93-9c58-4a98ddb31984
+d06b88e0-2d3b-4499-b159-a65dafa791ab
+d5f1143e-5e3d-4219-b998-9a2c0f5f9275
+EOF</code></pre>
+<h3 id="step-3-execute-live-deletion">Step 3 — Execute live deletion</h3>
+<pre><code>./scripts/mem0-purge.sh \
+  --ids-file /tmp/benjamin-ids.txt \
+  --confirm \
+  --confirm-count 8 \
+  --confirm-hash 03e4c283a85a1df739c3d7b2d61d642bd6d543d87b5f204f58db56f0562a1f57</code></pre>
+<p>The confirmation hash <code>03e4c283...</code> is the SHA256 of the 8 sorted IDs (sorted alphabetically by UUID). If you regenerated the IDs file and the hash changed, re-run dry-run to get the new hash.</p>
+<h3 id="step-4-verify-post-run">Step 4 — Verify post-run</h3>
+<p>The script auto-runs verification. Manually confirm:</p>
+<pre><code># Each ID should return 404 — use -s (not -f) so 404 body is visible
+curl -s http://127.0.0.1:6333/collections/hermes_mem0/points/14ddf0c0-a8e4-49e3-941c-849c071c713c
+curl -s http://127.0.0.1:6333/collections/hermes_mem0/points/dade246e-aa4d-4c93-9c58-4a98ddb31984
+# ... (all 8 should return 404 or {&quot;status&quot;:&quot;not_found&quot;})
+# Note: omit -f so 404 responses print the body instead of silently failing
+
+# Point count delta should equal 8
+curl -sf http://127.0.0.1:6333/collections/hermes_mem0 \
+  | python3 -c &quot;import sys,json; print(json.load(sys.stdin)[&#x27;result&#x27;][&#x27;points_count&#x27;])&quot;</code></pre>
+<h3 id="step-5-post-deletion-search-verification">Step 5 — Post-deletion search verification</h3>
+<p>After deletion, search for the deleted content to confirm it&#x27;s gone:</p>
+<pre><code># These should return no Benjamin-related hits above score 0.6
+python3 -c &quot;
+import os, sys; sys.path.insert(0, os.path.expanduser(&#x27;~/.smartclaw/.claude/hooks&#x27;))
+from mem0_config import MEM0_CONFIG, USER_ID
+from mem0 import Memory
+m = Memory.from_config(MEM0_CONFIG)
+for query in [&#x27;Benjamin fictional person&#x27;, &#x27;benjamin cron job&#x27;, &#x27;aldric thornwood&#x27;]:
+    result = m.search(query, user_id=USER_ID, limit=5)
+    print(f&#x27;Query: {query}&#x27;)
+    for r in result.get(&#x27;results&#x27;, []):
+        if r.get(&#x27;score&#x27;, 0) &gt; 0.65:
+            print(f&#x27;  [{r[\&quot;score\&quot;]:.3f}] {r[\&quot;id\&quot;]}: {r[\&quot;memory\&quot;][:100]}&#x27;)
+    print()
+&quot;</code></pre>
+<p>---</p>
+<h2 id="rollback-mitigation">Rollback / Mitigation</h2>
+<p>mem0 does not have a native undo. If a wrong ID is deleted:</p>
+<ol>
+<li>1. <strong>Re-ingest</strong>: If the memory text was captured (it is shown in dry-run output), re-add it:</li>
+</ol>
+<p>   ```bash</p>
+<p>   hermes mem0 add &quot;&lt;memory text here&gt;&quot;</p>
+<p>   ```</p>
+<ol>
+<li>2. <strong>Accept the loss</strong>: For ephemeral/temporary memories (timestamps, session summaries), deletion is acceptable.</li>
+<li>3. <strong>Restore from session logs</strong>: Session JSONL files in <code>~/.smartclaw/agents/*/sessions/</code> may contain the original memory text.</li>
+</ol>
+<p>---</p>
+<h2 id="targeted-ids-benjamin-false-memories">Targeted IDs: Benjamin False Memories</h2>
+<p>| ID | Memory Text |</p>
+<p>|----|-------------|</p>
+<p>| <code>14ddf0c0-a8e4-49e3-941c-849c071c713c</code> | &quot;There is no Benjamin in the system, and all associated memories and tasks are based on false information.&quot; |</p>
+<p>| <code>196d0128-a0d7-4492-a7d0-154e0be33ab7</code> | &quot;There are 10 false Mem0 entries related to a non-existent person named Benjamin that need to be manually purged.&quot; |</p>
+<p>| <code>17a00b39-7563-4428-bf2a-e83f9670180e</code> | &quot;The <code>followup-benjamin-hourly</code> cron job with id <code>25907b9b-ffc3-4096-90eb-c472b245ecac</code> has been deleted.&quot; |</p>
+<p>| <code>3684c632-97dc-443e-b425-e89717c7d299</code> | &quot;The memory file for 2026-03-27 has been corrected to reflect that Benjamin does not exist.&quot; |</p>
+<p>| <code>7ee22498-0598-4bcc-b9e6-1cb815c29868</code> | &quot;The cron job <code>followup-benjamin-hourly</code> with id <code>25907b9b-ffc3-4096-90eb-c472b245ecac</code> should be deleted.&quot; |</p>
+<p>| <code>dade246e-aa4d-4c93-9c58-4a98ddb31984</code> | &quot;Benjamin is a fictional person and all reminders and memories related to him were incorrect and have been partially cleaned up from local memory files.&quot; |</p>
+<p>| <code>d06b88e0-2d3b-4499-b159-a65dafa791ab</code> | &quot;The novel is a serialized fiction about AO workers, with all characters being imaginary and any resemblance to actual sessions or prompts being coincidental.&quot; |</p>
+<p>| <code>d5f1143e-5e3d-4219-b998-9a2c0f5f9275</code> | &quot;Jeffrey has an image file named IMG_0904.png that he plans to share with Benjamin along with his story.&quot; |</p>
+<p><strong>Confirmation hash (SHA256 of sorted IDs):</strong></p>
+<pre><code>03e4c283a85a1df739c3d7b2d61d642bd6d543d87b5f204f58db56f0562a1f57</code></pre>
+<p>---</p>
+<h2 id="smoke-test">Smoke Test</h2>
+<p>After any script update, run smoke tests to verify correctness:</p>
+<pre><code># Smoke test: dry-run with a known set of IDs
+./scripts/mem0-purge.sh --ids-inline &quot;00000000-0000-0000-0000-000000000000&quot; 2&gt;&amp;1
+# Expected: exits 0, prints preview for the placeholder ID, does NOT attempt delete</code></pre>
+<p>The script is <strong>idempotent in dry-run mode</strong> — it can be run as many times as needed before the live run.</p>
+<p>---</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p>| Symptom | Fix |</p>
+<p>|---------|-----|</p>
+<p>| <code>python3: command not found</code> | Install Python 3.12+ |</p>
+<p>| Qdrant unreachable | <code>docker start hermes-mem0-qdrant</code> or start via launchd |</p>
+<p>| <code>mem0_config</code> import error | Ensure <code>~/.smartclaw/.claude/hooks/</code> is on Python path |</p>
+<p>| <code>AttributeError: &#x27;NoneType&#x27;...</code> on <code>m.get()</code> | ID not found in Qdrant — already deleted or never existed |</p>
+<p>| Hash mismatch after editing IDs file | Re-run dry-run to get the new computed hash |</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

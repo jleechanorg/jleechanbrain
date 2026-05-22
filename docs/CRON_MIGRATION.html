@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenClaw Cron → Launchd Migration</title>
+  <title>Hermes Cron → Launchd Migration</title>
   <style>
     :root {
       --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
@@ -50,7 +50,7 @@
 <body>
 <div class="container">
 
-<h1>OpenClaw Cron → Launchd Migration</h1>
+<h1>Hermes Cron → Launchd Migration</h1>
 <p class="updated">Last updated: 2026-03-21</p>
 
 <div class="info">
@@ -61,7 +61,7 @@
 
 <h2 id="tracked">Tracked in Git — Launchd Services</h2>
 <p>All plists in <code>launchd/*.plist.template</code> are tracked in git. Install via
-<code>./scripts/install-openclaw-launchd.sh</code>.</p>
+<code>./scripts/install-hermes-launchd.sh</code>.</p>
 
 <table>
   <thead>
@@ -74,24 +74,24 @@
     </tr>
   </thead>
   <tbody>
-    <tr><td><code>ai.smartclaw.gateway.plist</code></td><td><code>ai.smartclaw.gateway</code></td><td>KeepAlive</td><td><code>openclaw</code> CLI</td><td>Gateway daemon (port 18789)</td></tr>
+    <tr><td><code>ai.smartclaw.gateway.plist</code></td><td><code>ai.smartclaw.gateway</code></td><td>KeepAlive</td><td><code>hermes</code> CLI</td><td>Gateway daemon (port 18789)</td></tr>
     <tr><td><code>ai.smartclaw.health-check.plist</code></td><td><code>ai.smartclaw.health-check</code></td><td>5 min</td><td><code>health-check.sh</code></td><td>Gateway health probe + self-heal</td></tr>
     <tr><td><code>ai.smartclaw.monitor-agent.plist</code></td><td><code>ai.smartclaw.monitor-agent</code></td><td>30 min</td><td><code>monitor-agent.sh</code></td><td>Agent process monitoring</td></tr>
     <tr><td><code>ai.smartclaw.schedule.morning-log-review.plist</code></td><td><code>ai.smartclaw.schedule.morning-log-review</code></td><td>8:00 AM PT daily</td><td><code>morning-log-review.sh</code></td><td>Gateway log error review</td></tr>
     <tr><td><code>ai.smartclaw.schedule.weekly-error-trends.plist</code></td><td><code>ai.smartclaw.schedule.weekly-error-trends</code></td><td>Mon 9:00 AM PT</td><td><code>weekly-error-trends.sh</code></td><td>7-day error trend analysis</td></tr>
     <tr><td><code>ai.smartclaw.schedule.docs-drift-review.plist</code></td><td><code>ai.smartclaw.schedule.docs-drift-review</code></td><td>8:15 AM PT daily</td><td><code>docs-drift-review.sh</code></td><td>Docs audit + drift fill</td></tr>
     <tr><td><code>ai.smartclaw.schedule.cron-backup-sync.plist</code></td><td><code>ai.smartclaw.schedule.cron-backup-sync</code></td><td>8:25 AM PT daily</td><td><code>cron-backup-sync.sh</code></td><td>Cron backup + git commit</td></tr>
-    <tr><td><code>ai.smartclaw.schedule.daily-research.plist</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td>6:00 PM PT M–F</td><td><code>daily-openclaw-research.sh</code></td><td>OpenClaw tips + state check</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.daily-research.plist</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td>6:00 PM PT M–F</td><td><code>daily-hermes-research.sh</code></td><td>Hermes tips + state check</td></tr>
     <tr><td><code>ai.smartclaw.schedule.bug-hunt-9am.plist</code></td><td><code>ai.smartclaw.schedule.bug-hunt-9am</code></td><td>9:00 AM PT M–F</td><td><code>scripts/bug-hunt-daily.sh</code></td><td>Bug hunt across repos</td></tr>
     <tr><td><code>ai.smartclaw.schedule.harness-analyzer-9am.plist</code></td><td><code>ai.smartclaw.schedule.harness-analyzer-9am</code></td><td>9:00 AM PT M–F</td><td><code>scripts/harness-analyzer.sh</code></td><td>Harness engineering analysis</td></tr>
     <tr><td><code>ai.smartclaw.schedule.orch-health-weekly.plist</code></td><td><code>ai.smartclaw.schedule.orch-health-weekly</code></td><td>Mon 9:30 AM PT</td><td><code>orchestration.cron_runner</code></td><td>Orchestration health report</td></tr>
     <tr><td><code>ai.smartclaw.schedule.github-intake.plist</code></td><td><code>ai.smartclaw.schedule.github-intake</code></td><td>9:00 AM PT daily</td><td><code>scripts/github-intake.sh</code></td><td>GitHub notification intake</td></tr>
     <tr><td><code>ai.agento.dashboard.plist</code></td><td><code>ai.agento.dashboard</code></td><td>KeepAlive</td><td><code>npx next start</code></td><td>AO web dashboard (port 3020)</td></tr>
     <tr><td><code>ai.smartclaw.lifecycle-manager.plist</code></td><td><code>ai.smartclaw.lifecycle-manager</code></td><td>KeepAlive</td><td>inline bash</td><td>AO lifecycle workers</td></tr>
-    <tr><td><code>ai.smartclaw.config-sync.plist</code></td><td><code>ai.smartclaw.config-sync</code></td><td>1 hr</td><td><code>scripts/sync-openclaw-config.sh</code></td><td>Config sync to live dir</td></tr>
+    <tr><td><code>ai.smartclaw.config-sync.plist</code></td><td><code>ai.smartclaw.config-sync</code></td><td>1 hr</td><td><code>scripts/sync-hermes-config.sh</code></td><td>Config sync to live dir</td></tr>
     <tr><td><code>ai.smartclaw.qdrant.plist</code></td><td><code>ai.smartclaw.qdrant</code></td><td>KeepAlive</td><td><code>scripts/start-qdrant-container.sh</code></td><td>Qdrant vector DB (Docker)</td></tr>
     <tr><td><code>ai.smartclaw.webhook.plist</code></td><td><code>ai.smartclaw.webhook</code></td><td>KeepAlive</td><td>webhook daemon</td><td>GitHub webhook ingress</td></tr>
-    <tr><td><code>scripts/openclaw-backup.plist.template</code></td><td><code>com.smartclaw.backup</code></td><td>4h20m</td><td><code>scripts/run-openclaw-backup.sh</code></td><td>Redacted backup snapshots</td></tr>
+    <tr><td><code>scripts/hermes-backup.plist.template</code></td><td><code>com.smartclaw.backup</code></td><td>4h20m</td><td><code>scripts/run-hermes-backup.sh</code></td><td>Redacted backup snapshots</td></tr>
   </tbody>
 </table>
 
@@ -121,15 +121,15 @@ owner for their lifecycle.</p>
     <tr><td><code>4ec2aa58-5c97-…</code></td><td><code>healthcheck:weekly-error-trends</code></td><td><code>ai.smartclaw.schedule.weekly-error-trends</code></td><td><code>weekly-error-trends.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
     <tr><td><code>95f858df-0fe8-…</code></td><td><code>healthcheck:docs-drift-review</code></td><td><code>ai.smartclaw.schedule.docs-drift-review</code></td><td><code>docs-drift-review.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
     <tr><td><code>d6bb3693-9f5c-…</code></td><td><code>healthcheck:cron-backup-sync</code></td><td><code>ai.smartclaw.schedule.cron-backup-sync</code></td><td><code>cron-backup-sync.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
-    <tr><td><code>abf80788-7bb0-…</code></td><td><code>tips:daily-openclaw-research</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td><code>daily-openclaw-research.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>abf80788-7bb0-…</code></td><td><code>tips:daily-hermes-research</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td><code>daily-hermes-research.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
     <tr><td><code>9417b82a-ac58-…</code></td><td><code>thread-followup-ao263</code></td><td><em>NOT migrated</em></td><td>—</td><td><span class="not-migrated">✗ Live-only</span></td></tr>
   </tbody>
 </table>
 
 <h2 id="install">Install</h2>
-<pre><code># Central entrypoint — installs ALL openclaw launchd services
+<pre><code># Central entrypoint — installs ALL hermes launchd services
 cd ~/.smartclaw
-./scripts/install-openclaw-launchd.sh
+./scripts/install-hermes-launchd.sh
 
 # Bootstrap also calls this automatically after git clone
 bash ~/.smartclaw/scripts/bootstrap.sh</code></pre>
@@ -166,7 +166,7 @@ done</code></pre>
   These require human attention — the install scripts cannot automate them.
 </div>
 <ol>
-  <li><strong>Tokens/secrets</strong>: Ensure <code>~/.smartclaw/openclaw.json</code> is configured
+  <li><strong>Tokens/secrets</strong>: Ensure <code>~/.smartclaw/hermes.json</code> is configured
     before running install. <code>bootstrap.sh</code> handles this for new machines.</li>
   <li><strong>Qdrant Docker</strong>: <code>ai.smartclaw.qdrant</code> requires Docker running.
     Run <code>docker info</code> before installing. Service starts on next login if Docker
@@ -188,9 +188,9 @@ done</code></pre>
 <ul>
   <li class="checklist-item"><input type="checkbox" /> All plist templates in <code>launchd/*.plist.template</code></li>
   <li class="checklist-item"><input type="checkbox" /> <code>morning-log-review.sh</code>, <code>weekly-error-trends.sh</code>,
-    <code>docs-drift-review.sh</code>, <code>cron-backup-sync.sh</code>, <code>daily-openclaw-research.sh</code></li>
-  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-openclaw-launchd.sh</code> (central entrypoint)</li>
-  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-openclaw-scheduled-jobs.sh</code> (scheduled job installer, fixed CONFIG_DIR)</li>
+    <code>docs-drift-review.sh</code>, <code>cron-backup-sync.sh</code>, <code>daily-hermes-research.sh</code></li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-hermes-launchd.sh</code> (central entrypoint)</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-hermes-scheduled-jobs.sh</code> (scheduled job installer, fixed CONFIG_DIR)</li>
   <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-launchagents.sh</code> (fixed CONFIG_DIR, added dashboard install)</li>
   <li class="checklist-item"><input type="checkbox" /> <code>scripts/bootstrap.sh</code> (updated to call central installer)</li>
   <li class="checklist-item"><input type="checkbox" /> <code>docs/CRON_MIGRATION.md</code> (migration docs)</li>
@@ -199,7 +199,7 @@ done</code></pre>
 <h3>Still live-only (NOT in git):</h3>
 <ul>
   <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/cron/jobs.json</code> — gateway cron jobs, gitignored</li>
-  <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/openclaw.json</code> — tokens and secrets, gitignored</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/hermes.json</code> — tokens and secrets, gitignored</li>
   <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/webhook.json</code> — webhook secrets, gitignored</li>
 </ul>
 

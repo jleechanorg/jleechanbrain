@@ -1,7 +1,5 @@
 ---
 name: evidence_review
-aliases:
-  - er
 description: Run an independent evidence review on a PR using Codex. Reviews evidence bundles against project standards, checks for circular citations, weak statistics, and missing artifacts. Posts verdict (PASS/WARN/FAIL) as a PR comment.
 type: git
 execution_mode: background

@@ -3,7 +3,7 @@
 ## Retained Local Extensions
 
 - Plugin input shaping remains local in `scripts/prepare-symphony-payload.py` and `src/orchestration/symphony_plugins.py`.
-- Benchmark catalogs remain local in `openclaw-config/symphony/leetcode_hard_5.json` and `openclaw-config/symphony/swe_bench_verified_5.json`.
+- Benchmark catalogs remain local in `symphony/leetcode_hard_5.json` and `symphony/swe_bench_verified_5.json`.
 - `scripts/sym-dispatch.sh` remains the stable local wrapper for freeform text and plugin payload dispatch.
 
 These are retained because they are repository-specific curation layers, not Symphony runtime primitives.

@@ -9,16 +9,16 @@
 #   2. Installs all LaunchAgents / systemd units (gateway, monitor, startup-check, etc.)
 #
 # Prerequisites:
-#   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
+#   - hermes.json must exist at ~/.smartclaw/hermes.json with real tokens hardcoded
 #     (create/update this local runtime file directly; it is gitignored)
-#   - openclaw CLI must be in PATH
+#   - hermes CLI must be in PATH
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$REPO_ROOT/scripts"
 
-echo "=== OpenClaw Install ==="
+echo "=== Hermes Install ==="
 echo "Repo root: $REPO_ROOT"
 echo ""
 
@@ -45,15 +45,15 @@ if [[ -f "$REPO_YAML" ]]; then
   bash "$SCRIPTS/bootstrap.sh" --symlink-only
 fi
 
-# --- 2. Verify openclaw.json has real tokens ---
-if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
+# --- 2. Verify hermes.json has real tokens ---
+if [[ ! -f "$REPO_ROOT/hermes.json" ]]; then
   echo ""
-  echo "ERROR: ~/.smartclaw/openclaw.json not found."
-  echo "  Create openclaw.json with real tokens before running install."
+  echo "ERROR: ~/.smartclaw/hermes.json not found."
+  echo "  Create hermes.json with real tokens before running install."
   exit 1
 fi
 
-if python3 - "$REPO_ROOT/openclaw.json" <<'PY'
+if python3 - "$REPO_ROOT/hermes.json" <<'PY'
 import json, sys
 data = json.loads(open(sys.argv[1]).read())
 def has_placeholder(obj):
@@ -65,11 +65,11 @@ def has_placeholder(obj):
         return any(has_placeholder(v) for v in obj)
     return False
 if has_placeholder(data):
-    print("ERROR: openclaw.json still contains \${PLACEHOLDER} values — fill in real tokens first.", file=__import__("sys").stderr)
+    print("ERROR: hermes.json still contains \${PLACEHOLDER} values — fill in real tokens first.", file=__import__("sys").stderr)
     sys.exit(1)
 PY
 then
-  echo "✓ openclaw.json: tokens appear to be real (no placeholders)"
+  echo "✓ hermes.json: tokens appear to be real (no placeholders)"
 else
   exit 1
 fi
@@ -102,6 +102,6 @@ echo "--- Installing services ---"
 echo ""
 echo "=== Install complete ==="
 echo ""
-echo "Gateway token and all secrets are read directly from ~/.smartclaw/openclaw.json."
-echo "Do NOT add tokens to plists or environment variables — openclaw.json is the"
+echo "Gateway token and all secrets are read directly from ~/.smartclaw/hermes.json."
+echo "Do NOT add tokens to plists or environment variables — hermes.json is the"
 echo "single source of truth."

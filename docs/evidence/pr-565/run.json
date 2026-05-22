@@ -1,0 +1,144 @@
+{
+  "command": "bash scripts/install.sh --fix",
+  "checks": {
+    "1. Hermes binary": {
+      "pass": 1,
+      "fail": 0,
+      "warn": 1,
+      "fix": 0,
+      "items": [
+        "[PASS] hermes binary: /opt/homebrew/bin/hermes (Hermes Agent v0.13.0 (2026.5.7) Project: /Users/jleechan/projects_other/hermes-agent Python: 3.14.4 OpenAI SDK: 2.29.0 Update available: 90 commits behind \u2014 run 'hermes update')",
+        "[WARN] Hermes update available \u2014 run 'hermes update'"
+      ]
+    },
+    "2. Directory structure": {
+      "pass": 6,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] .hermes directory exists",
+        "[PASS] .hermes_prod directory exists",
+        "[PASS] .hermes/logs exists",
+        "[PASS] .hermes/agents exists",
+        "[PASS] .hermes_prod/logs exists",
+        "[PASS] .hermes_prod/agents exists"
+      ]
+    },
+    "3. Config parity (staging <-> prod)": {
+      "pass": 4,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] both config.yaml files exist",
+        "[PASS] config.yaml parity OK (ignoring port)",
+        "[PASS] prod config port = 8642",
+        "[PASS] staging config port = 8643"
+      ]
+    },
+    "4. API keys (from shell environment)": {
+      "pass": 7,
+      "fail": 0,
+      "warn": 1,
+      "fix": 0,
+      "items": [
+        "[PASS] WAFER_API_KEY present (68 chars)",
+        "[PASS] SLACK_APP_TOKEN present (98 chars)",
+        "[PASS] SLACK_BOT_TOKEN present (58 chars)",
+        "[PASS] MINIMAX_API_KEY present (125 chars)",
+        "[WARN] MEM0_API_KEY not set (optional)",
+        "[PASS] HERMES_STAGING_SLACK_APP_TOKEN present (98 chars)",
+        "[PASS] HERMES_STAGING_SLACK_BOT_TOKEN present (58 chars)",
+        "[PASS] staging Slack tokens separate from prod"
+      ]
+    },
+    "5. LaunchAgent plists": {
+      "pass": 10,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] ai.hermes.prod plist exists",
+        "[PASS] ai.hermes.prod HERMES_HOME = /Users/jleechan/.hermes_prod",
+        "[PASS] ai.hermes.prod loaded in launchd (PID 40325)",
+        "[PASS] ai.hermes-staging plist exists",
+        "[PASS] ai.hermes-staging HERMES_HOME = /Users/jleechan/.hermes",
+        "[PASS] ai.hermes-staging loaded in launchd (PID 84015)",
+        "[PASS] ai.hermes-mem0-server plist exists",
+        "[PASS] ai.hermes-mem0-server HERMES_HOME = /Users/jleechan/.hermes_prod",
+        "[PASS] ai.hermes-mem0-server loaded in launchd (PID 43572)",
+        "[PASS] no duplicate HERMES_HOME assignments across plists"
+      ]
+    },
+    "6. Gateway health": {
+      "pass": 8,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] ai.hermes.prod port 8642 bound (PID 40325)",
+        "[PASS] ai.hermes.prod launchd PID matches port PID",
+        "[PASS] ai.hermes.prod /health -> {\"status\": \"ok\", \"platform\": \"hermes-agent\"}",
+        "[PASS] ai.hermes.prod API key source present (auth-profiles.json or config.yaml inline)",
+        "[PASS] ai.hermes-staging port 8643 bound (PID 84015)",
+        "[PASS] ai.hermes-staging launchd PID matches port PID",
+        "[PASS] ai.hermes-staging /health -> {\"status\": \"ok\", \"platform\": \"hermes-agent\"}",
+        "[PASS] ai.hermes-staging API key source present (auth-profiles.json or config.yaml inline)"
+      ]
+    },
+    "7. Slack token conflict check": {
+      "pass": 3,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] launchd-env-wrapper.sh exists",
+        "[PASS] wrapper routes staging Slack tokens",
+        "[PASS] no active Slack token conflicts (historical entries may exist deeper in error log)"
+      ]
+    },
+    "8. Provider registry consistency": {
+      "pass": 1,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] no duplicate provider entries"
+      ]
+    },
+    "9. mem0 server": {
+      "pass": 2,
+      "fail": 0,
+      "warn": 1,
+      "fix": 0,
+      "items": [
+        "[PASS] mem0 server running (PID 43572)",
+        "[PASS] self-hosted mem0 server healthy (port 8000)",
+        "[WARN] MEM0_API_KEY not set \u2014 cloud mem0 disabled, but self-hosted mem0 is available"
+      ]
+    },
+    "10. launchd-env-wrapper.sh": {
+      "pass": 1,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": [
+        "[PASS] launchd-env-wrapper.sh exists and executable"
+      ]
+    },
+    "Summary": {
+      "pass": 0,
+      "fail": 0,
+      "warn": 0,
+      "fix": 0,
+      "items": []
+    }
+  },
+  "summary": {
+    "pass": 43,
+    "fail": 0,
+    "warn": 3
+  },
+  "all_critical_passed": true
+}

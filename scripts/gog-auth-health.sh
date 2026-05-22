@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Non-interactive gog OAuth + API probes (Gmail, Calendar, Drive).
-# Uses GOG_KEYRING_PASSWORD from env or ~/.smartclaw/openclaw.json (see lib/gog-env.sh).
+# Uses GOG_KEYRING_PASSWORD from env or ~/.smartclaw/hermes.json (see lib/gog-env.sh).
 #
 # Exit codes:
 #   0 — token valid; Gmail, Calendar, and Drive API probes succeed
@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=/dev/null
 source "$REPO_ROOT/lib/gog-env.sh"
-load_gog_env_from_openclaw "${LIVE_OPENCLAW:-$HOME/.smartclaw}/openclaw.json"
+load_gog_env_from_hermes "${LIVE_HERMES:-$HOME/.smartclaw}/hermes.json"
 
 if ! command -v gog >/dev/null 2>&1; then
   echo "gog not installed (brew install jleechanorg/tap/gog)" >&2

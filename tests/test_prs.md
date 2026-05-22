@@ -7,7 +7,7 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 ### TEST-PR-001: c84398bbb — Staging Slack Require-Mention Fix
 - **Commit**: `c84398bbb`
 - **Type**: small fix, configuration hardening
-- **Files**: 2 (install-launchagents.sh, test_openclaw_configs.py)
+- **Files**: 2 (install-launchagents.sh, test_hermes_configs.py)
 - **Lines**: +73, -14
 - **Description**: Add `@mention` requirement on all Slack channels in staging. Prevents staging config from bleeding through to prod on reinstall.
 - **Test scenario**: Generate the install-launchagents.sh change and corresponding test.
@@ -41,7 +41,7 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 - **Type**: medium fix, script repair
 - **Files**: 4 (.beads/issues.jsonl, bug-hunt-daily.sh, thread-reply-nudge.sh, test_bug_hunt_daily_script.py)
 - **Lines**: +293, -47
-- **Description**: Replace invalid `ao --task` usage in bug-hunt script with openclaw agent one-shot. Align bug-hunt prompt with JSON extraction format.
+- **Description**: Replace invalid `ao --task` usage in bug-hunt script with hermes agent one-shot. Align bug-hunt prompt with JSON extraction format.
 - **Test scenario**: Given the bug-hunt-daily.sh script as context, generate the corrected version.
 - **Why hard**: The original script had a valid-looking but semantically wrong `ao` invocation pattern. Fix required understanding the difference between fire-and-forget and one-shot AO modes.
 - **Category**: Script repair / API usage correction
@@ -60,7 +60,7 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 ### TEST-PR-006: 897372987 — AO Dashboard Opt-In and Health Probes
 - **Commit**: `897372987`
 - **Type**: medium fix, harness hardening
-- **Files**: 8 (monitor-agent.sh, install-launchagents.sh, test_openclaw_configs.py, workspace/MEMORY.md, etc.)
+- **Files**: 8 (monitor-agent.sh, install-launchagents.sh, test_hermes_configs.py, workspace/MEMORY.md, etc.)
 - **Lines**: +108, -12
 - **Description**: Add opt-in AO dashboard. Harden gateway health probes. Fix launchctl enable after dashboard opt-in install.
 - **Test scenario**: Generate the monitor-agent.sh and install-launchagents.sh changes.
@@ -70,10 +70,10 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 ### TEST-PR-007: 65d76a073 — Deploy DM E2E Disable + Upgrade-Safe Fix
 - **Commit**: `65d76a073`
 - **Type**: medium fix, deploy pipeline
-- **Files**: 4 (deploy.sh, openclaw-upgrade-safe.sh, and config files)
+- **Files**: 4 (deploy.sh, hermes-upgrade-safe.sh, and config files)
 - **Lines**: +9, -43 (net negative — removed code)
 - **Description**: Disable DM e2e in staging+prod monitor. Fix upgrade-safe to use launchd label. Fix mem0 log message.
-- **Test scenario**: Generate the openclaw-upgrade-safe.sh changes (remove bad code, add correct launchd label usage).
+- **Test scenario**: Generate the hermes-upgrade-safe.sh changes (remove bad code, add correct launchd label usage).
 - **Why hard**: Required understanding the launchd lifecycle and upgrade safety invariants. Net negative diff is a clue — the original approach was wrong.
 - **Category**: Bug repair / infrastructure
 
@@ -93,10 +93,10 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 ### TEST-PR-009: b22747b9c — Monitor Slack Matrix + Staging Overlay
 - **Commit**: `b22747b9c`
 - **Type**: very complex, test infrastructure
-- **Files**: 6 (tests/test_monitor_slack_e2e_matrix.sh, tests/test_openclaw_configs.py, install-launchagents.sh, and more)
+- **Files**: 6 (tests/test_monitor_slack_e2e_matrix.sh, tests/test_hermes_configs.py, install-launchagents.sh, and more)
 - **Lines**: +1402, -156
 - **Description**: Major rewrite/expansion of Slack E2E matrix test harness. Fix staging overlay harness behavior.
-- **Test scenario**: Generate the expanded test_monitor_slack_e2e_matrix.sh and the corresponding test_openclaw_configs.py additions.
+- **Test scenario**: Generate the expanded test_monitor_slack_e2e_matrix.sh and the corresponding test_hermes_configs.py additions.
 - **Why hard**: 1400+ line test file. The tests themselves are the specification — generating correct test logic for this complex monitoring scenario is non-trivial.
 - **Category**: Test generation / large-scale harness work
 
@@ -106,8 +106,8 @@ Curated set of 10 PRs from smartclaw history for testing coding technique improv
 - **Files**: 15
 - **Lines**: +429, -53
 - **Description**: Commit pending docs (gateway-reference.md, pr-merge-protocols.md), staging lifecycle helpers, upgrade safety improvements. Full AO workspace integration.
-- **Test scenario**: Generate docs/gateway-reference.md given the operational context, or generate scripts/openclaw-staging-start.sh and stop.sh lifecycle helpers.
-- **Why hard**: Required understanding the full OpenClaw operational model, gateway protocols, and lifecycle state machine. Documentation must be precise enough to serve as a runbook.
+- **Test scenario**: Generate docs/gateway-reference.md given the operational context, or generate scripts/hermes-staging-start.sh and stop.sh lifecycle helpers.
+- **Why hard**: Required understanding the full Hermes operational model, gateway protocols, and lifecycle state machine. Documentation must be precise enough to serve as a runbook.
 - **Category**: Documentation + operational scripts / domain knowledge heavy
 
 ## How to Use These PRs

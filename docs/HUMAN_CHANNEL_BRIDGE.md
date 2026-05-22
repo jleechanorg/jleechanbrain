@@ -156,8 +156,8 @@ notifiers:
     to: ["jleechan"]
 
 notificationRouting:
-  urgent: [openclaw, orchestrator, slack, mcp-mail]
-  action: [openclaw, orchestrator, slack, mcp-mail]
+  urgent: [hermes, orchestrator, slack, mcp-mail]
+  action: [hermes, orchestrator, slack, mcp-mail]
 ```
 
 ---

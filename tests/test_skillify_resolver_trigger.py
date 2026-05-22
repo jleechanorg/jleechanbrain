@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-HERMES_ROOT = Path.home() / ".hermes"
+HERMES_ROOT = Path.home() / ".smartclaw"
 SKILLIFY_PATH = HERMES_ROOT / "skills" / "skillify" / "SKILL.md"
 RESOLVER_PATH = HERMES_ROOT / "skills" / "RESOLVER.md"
 

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes Node Version Management</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#hermes-node-version-management">Hermes Node Version Management</a>
+<a class="toc-l2" href="#problem-dual-node-abi-mismatch">Problem: Dual Node ABI Mismatch</a>
+<a class="toc-l2" href="#root-causes-fixed">Root Causes Fixed</a>
+<a class="toc-l3" href="#1-rebuild-native-modulessh-bad-fallback-commit-e8b2f1a975">1. `rebuild-native-modules.sh` bad fallback (commit `e8b2f1a975`)</a>
+<a class="toc-l3" href="#2-mem0-native-module-watchdogsh-missing-load-test">2. `mem0-native-module-watchdog.sh` missing load test</a>
+<a class="toc-l3" href="#3-removed-homebrew-node-entirely-2026-03-30">3. Removed Homebrew Node entirely (2026-03-30)</a>
+<a class="toc-l2" href="#canonical-node-for-this-machine">Canonical Node for This Machine</a>
+<a class="toc-l2" href="#up-slash-command">`/up` Slash Command</a>
+<a class="toc-l2" href="#docker-container-setup">Docker Container Setup</a>
+<a class="toc-l2" href="#related-files">Related Files</a></nav><main><p><a href="hermes-node-version-management.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="hermes-node-version-management">Hermes Node Version Management</h1>
+<h2 id="problem-dual-node-abi-mismatch">Problem: Dual Node ABI Mismatch</h2>
+<p>Hermes&#x27;s gateway uses a hardcoded Node binary path in the launchd plist</p>
+<p>(<code>~/Library/LaunchAgents/ai.smartclaw.gateway.plist</code>). The <code>hermes-mem0</code> extension</p>
+<p>includes <code>better-sqlite3</code>, a native Node module compiled against a specific</p>
+<p><code>NODE_MODULE_VERSION</code> (127 = Node 22, 137 = Node 24).</p>
+<p><strong>Failure scenario</strong>: If the machine has both <strong>nvm Node 22</strong> and <strong>Homebrew Node 24</strong>,</p>
+<p>scripts that detect &quot;which Node should I use?&quot; can accidentally pick Homebrew (wrong</p>
+<p>version), rebuild <code>better-sqlite3</code> for Node 24, and silently break <code>memory_lookup</code></p>
+<p>until manually fixed.</p>
+<p>This happened repeatedly on this machine until fixed on 2026-03-30.</p>
+<p>---</p>
+<h2 id="root-causes-fixed">Root Causes Fixed</h2>
+<h3 id="1-rebuild-native-modulessh-bad-fallback-commit-e8b2f1a975">1. <code>rebuild-native-modules.sh</code> bad fallback (commit <code>e8b2f1a975</code>)</h3>
+<p><code>detect_gateway_node()</code> fell back to <code>/opt/homebrew/bin/node</code> (Node 24) when</p>
+<p>the gateway process was not running. Fixed by reading the launchd plist directly:</p>
+<pre><code>python3 -c &quot;
+import plistlib
+with open(&#x27;$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist&#x27;, &#x27;rb&#x27;) as f:
+    d = plistlib.load(f)
+for a in d.get(&#x27;ProgramArguments&#x27;, []):
+    if &#x27;/bin/node&#x27; in a: print(a); break
+&quot;</code></pre>
+<p>Priority order (never use Homebrew as fallback):</p>
+<ol>
+<li>1. <code>HERMES_GATEWAY_NODE</code> env override</li>
+<li>2. Running gateway process (<code>pgrep</code> + <code>lsof</code>)</li>
+<li>3. Gateway launchd plist (ground truth)</li>
+<li>4. <code>~/.nvm/versions/node/v22.22.0/bin/node</code> (hardcoded nvm fallback)</li>
+<li>5. PATH node (with warning log)</li>
+</ol>
+<h3 id="2-mem0-native-module-watchdogsh-missing-load-test">2. <code>mem0-native-module-watchdog.sh</code> missing load test</h3>
+<p>Watchdog compared <code>MODULE_VERSION</code> numbers only — never called <code>require()</code>. If</p>
+<p>something rebuilt <code>better-sqlite3</code> for Node 24 while the stored baseline was still</p>
+<p><code>127</code>, the watchdog said &quot;OK&quot; while the module was broken.</p>
+<p>Fixed by adding a <code>require()</code> load test inside the &quot;versions match&quot; branch:</p>
+<pre><code>if ! &quot;$GATEWAY_NODE&quot; -e &quot;require(&#x27;$BETTER_SQLITE3_DIR/node_modules/better-sqlite3&#x27;)&quot; 2&gt;/dev/null; then
+  # fall through to rebuild path even if MODULE_VERSION matches
+fi</code></pre>
+<h3 id="3-removed-homebrew-node-entirely-2026-03-30">3. Removed Homebrew Node entirely (2026-03-30)</h3>
+<p>Eliminated the root cause by removing the second Node installation:</p>
+<pre><code>brew uninstall node</code></pre>
+<p>Homebrew-only packages (<code>verdaccio</code>, <code>pyright</code>, <code>wscat</code>, <code>clawhub</code>, <code>mcporter</code>,</p>
+<p><code>chrome-devtools-mcp</code>, <code>grok-mcp</code>) reinstalled under nvm Node 22 first.</p>
+<p>---</p>
+<h2 id="canonical-node-for-this-machine">Canonical Node for This Machine</h2>
+<p><strong>Single Node: nvm v22.22.0</strong></p>
+<pre><code>~/.nvm/versions/node/v22.22.0/bin/node
+~/.nvm/versions/node/v22.22.0/bin/npm</code></pre>
+<ul>
+<li>- Never install a second Node via Homebrew (<code>brew install node</code>)</li>
+<li>- If an upgrade is needed, update the gateway plist after: <code>hermes gateway install --force</code></li>
+<li>- All agent instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, Cursor rules) document this preference</li>
+</ul>
+<p>---</p>
+<h2 id="up-slash-command"><code>/up</code> Slash Command</h2>
+<p>Created <code>~/.claude/commands/up.md</code> — a slash command to update all agent instruction</p>
+<p>files simultaneously:</p>
+<pre><code>/up &lt;instruction&gt;</code></pre>
+<p>Targets: <code>~/.claude/CLAUDE.md</code>, <code>~/.codex/AGENTS.md</code>, <code>~/.gemini/GEMINI.md</code>,</p>
+<p><code>~/.cursor/rules/env-preferences.mdc</code></p>
+<p>---</p>
+<h2 id="docker-container-setup">Docker Container Setup</h2>
+<p><code>docker/</code> in this repo contains a container-based hermes setup:</p>
+<ul>
+<li>- <code>Dockerfile</code> — <code>node:22-slim</code> base, installs hermes</li>
+<li>- <code>entrypoint.sh</code> — onboards on first run, patches hermes.json, starts gateway on <code>0.0.0.0:18789</code></li>
+<li>- <code>patch.py</code> — surgical hermes.json patcher (tokens, bind address)</li>
+<li>- <code>docker-compose.yml</code> — service definition with healthcheck</li>
+<li>- <code>.env.example</code> — template for <code>SLACK_BOT_TOKEN</code>, <code>SLACK_APP_TOKEN</code>, <code>GATEWAY_TOKEN</code></li>
+</ul>
+<p>Key difference from native: <code>--gateway-bind 0.0.0.0</code> (Docker needs this; native uses loopback).</p>
+<p>---</p>
+<h2 id="related-files">Related Files</h2>
+<p>| File | Purpose |</p>
+<p>|------|---------|</p>
+<p>| <code>scripts/rebuild-native-modules.sh</code> | Detects + fixes native module ABI mismatch on gateway start |</p>
+<p>| <code>scripts/mem0-native-module-watchdog.sh</code> | 4-hourly check; auto-rebuilds if <code>require()</code> fails |</p>
+<p>| <code>scripts/health-check.sh</code> | Calls rebuild-native-modules on startup |</p>
+<p>| <code>~/.smartclaw/.gateway-node-version</code> | Baseline MODULE_VERSION for watchdog |</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

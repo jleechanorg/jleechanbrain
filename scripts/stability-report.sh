@@ -14,7 +14,7 @@ REPOS=(
 )
 LOOKBACK_HOURS=24
 REPORT_CHANNEL="${STABILITY_REPORT_CHANNEL:-${SLACK_CHANNEL_ID}}"
-AGENT_USER_ID="${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}"
+AGENT_USER_ID="${HERMES_BOT_USER_ID:-U0AEZC7RX1Q}"
 SLACK_TOKEN="${SLACK_BOT_TOKEN:-}"
 
 LOG_DIR="${STABILITY_LOG_DIR:-${HOME}/.smartclaw/logs}"
@@ -27,7 +27,7 @@ log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*"; }
 # GH token
 resolve_token() {
   local tok=""
-  tok="$(cat "$HOME/.smartclaw/openclaw.json" 2>/dev/null | jq -r '.skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
+  tok="$(cat "$HOME/.smartclaw/hermes.json" 2>/dev/null | jq -r '.skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
   tok="${tok:-$GH_TOKEN}"
   tok="${tok:-$GITHUB_TOKEN}"
   printf '%s' "$tok"

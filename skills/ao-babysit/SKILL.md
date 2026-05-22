@@ -45,14 +45,14 @@ AO workers create tmux sessions named by their session ID. The mapping:
 
 ```bash
 # Poll once and report (for cron use)
-python3 ~/.hermes/skills/ao-babysit/scripts/babysit.py poll \
+python3 ~/.smartclaw/skills/ao-babysit/scripts/babysit.py poll \
   --session ao-4250 \
   --slack-channel ${SLACK_CHANNEL_ID} \
   --slack-thread-ts 1776524900.599649 \
   --task-summary "Skeptic goals/tenets proof gate implementation"
 
 # Run continuous babysitter loop (for manual use)
-python3 ~/.hermes/skills/ao-babysit/scripts/babysit.py babysit \
+python3 ~/.smartclaw/skills/ao-babysit/scripts/babysit.py babysit \
   --session ao-4250 \
   --slack-channel ${SLACK_CHANNEL_ID} \
   --slack-thread-ts 1776524900.599649 \
@@ -115,4 +115,4 @@ When sending corrective nudges via `ao send`, always:
 - `tmux` available
 - `ao` CLI on PATH
 - `SLACK_TRIGGER_TS` and `SLACK_TRIGGER_CHANNEL` for threading
-- Write access to `~/.hermes/skills/ao-babysit/state/` for poll state
+- Write access to `~/.smartclaw/skills/ao-babysit/state/` for poll state

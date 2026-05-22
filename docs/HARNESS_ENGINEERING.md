@@ -32,7 +32,7 @@ Reference: [OpenAI: Harness Engineering](https://openai.com/index/harness-engine
 | `TOOLS.md` | Tool allow/deny list and usage policy |
 | `CLAUDE.md` | Project rules, coding style, safety rails |
 | `AGENTS.md` | Agent-specific guidelines and conventions |
-| `openclaw.json` | Runtime config (memory, compaction, gateway) |
+| `hermes.json` | Runtime config (memory, compaction, gateway) |
 | `agents/*/models.json` | Per-agent model configuration |
 | `skills/` | Custom agent skills (agento, browser, etc.) |
 
@@ -55,14 +55,14 @@ reactions:
 This is the inner feedback loop: agent acts, CI/review state changes, AO
 reacts, agent acts again. No LLM needed for the predictable 80%.
 
-### Layer 3: LLM Judgment (OpenClaw)
+### Layer 3: LLM Judgment (Hermes)
 
-OpenClaw sits above the reaction engine and handles the 20% that requires
+Hermes sits above the reaction engine and handles the 20% that requires
 judgment — vague reviews, task decomposition, conflicting failures, strategy
 decisions. It has persistent memory, tools, and full project context.
 
 This is the outer loop: when deterministic reactions exhaust their budget,
-AO escalates to OpenClaw. OpenClaw decides what to do next — retry with a
+AO escalates to Hermes. Hermes decides what to do next — retry with a
 different strategy, decompose the problem, or escalate to Jeffrey.
 
 ### Layer 4: Entropy Management
@@ -73,7 +73,7 @@ get bypassed. Prompts that worked stop working as models update.
 Planned entropy management:
 - **Self-improving prompts** (ORCH-04k) — log which prompts succeed vs fail,
   build a project-specific prompt library
-- **Autonomous PR review** (ORCH-apr) — OpenClaw reviews PRs using memory,
+- **Autonomous PR review** (ORCH-apr) — Hermes reviews PRs using memory,
   CLAUDE.md rules, and historical patterns before Jeffrey sees them
 - **Convergence intelligence** (ORCH-cil) — learning, anomaly detection,
   escalation tier tuning based on historical success rates
@@ -102,7 +102,7 @@ predictability."
 
 Each headless agent call gets a clean prompt with all context injected
 upfront. No memory of previous attempts — that's the harness's job
-(AO session metadata + OpenClaw memory). The coding agent never
+(AO session metadata + Hermes memory). The coding agent never
 accumulates context, avoiding the context bloat that kills performance
 in long-running agent loops.
 

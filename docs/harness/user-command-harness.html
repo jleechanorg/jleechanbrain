@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>/harness — Fix the harness, not just the symptom</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#harness-fix-the-harness-not-just-the-symptom">/harness — Fix the harness, not just the symptom</a>
+<a class="toc-l2" href="#instructions-for-claude">Instructions for Claude</a>
+<a class="toc-l2" href="#usage">Usage</a>
+<a class="toc-l2" href="#execution">Execution</a>
+<a class="toc-l3" href="#default-mode-harness-or-harness">Default mode (`/harness` or `/harness &lt;description&gt;`)</a>
+<a class="toc-l3" href="#fix-mode-harness-fix">Fix mode (`/harness --fix`)</a>
+<a class="toc-l3" href="#audit-mode-harness-audit">Audit mode (`/harness --audit`)</a>
+<a class="toc-l2" href="#output-format">Output Format</a>
+<a class="toc-l2" href="#examples">Examples</a>
+<a class="toc-l2" href="#input">Input</a></nav><main><p><a href="user-command-harness.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><p>---</p>
+<p>description: Analyze failures and fix the harness (instructions, skills, tests, CI) rather than just the symptom</p>
+<p>type: quality</p>
+<p>execution_mode: deferred</p>
+<p>scope: user</p>
+<p>---</p>
+<h1 id="harness-fix-the-harness-not-just-the-symptom">/harness — Fix the harness, not just the symptom</h1>
+<p><strong>Scope:</strong> <strong>User-level (general).</strong> This file lives at <code>~/.claude/commands/harness.md</code> and applies to <strong>any</strong> repository unless a project overrides it. <strong>Collision rule:</strong> if a workspace contains <strong><code>.claude/commands/harness.md</code></strong>, read repo-local content <strong>after</strong> this file — it adds project-specific harness rules (for example Hermes gateway). <strong>Canonical copy in git:</strong> <a href="https://github.com/jleechanorg/smartclaw/blob/main/docs/harness/user-command-harness.md">smartclaw <code>docs/harness/user-command-harness.md</code></a> (sync with <code>scripts/sync-harness-user-scope.sh</code> in that repo).</p>
+<h2 id="instructions-for-claude">Instructions for Claude</h2>
+<p>When this command is invoked, analyze the current situation for harness-level gaps and propose/implement fixes that prevent the same class of mistake from recurring.</p>
+<p><strong>Skill reference</strong>: <code>~/.claude/skills/harness-engineering/SKILL.md</code></p>
+<h2 id="usage">Usage</h2>
+<ul>
+<li>- <code>/harness</code> — Analyze the most recent mistake or user correction in this conversation and propose harness fixes</li>
+<li>- <code>/harness &lt;description&gt;</code> — Analyze a specific failure pattern and propose harness fixes</li>
+<li>- <code>/harness --fix</code> — Analyze AND implement fixes without waiting for approval</li>
+<li>- <code>/harness --audit</code> — Scan all instruction files for staleness, contradictions, or gaps</li>
+</ul>
+<h2 id="execution">Execution</h2>
+<h3 id="default-mode-harness-or-harness">Default mode (<code>/harness</code> or <code>/harness &lt;description&gt;</code>)</h3>
+<ol>
+<li>1. <strong>Identify the trigger</strong>: Look at the most recent user correction, failed test, or explicit description</li>
+<li>2. <strong>Classify the failure</strong>: Use the failure classes from the harness engineering skill</li>
+<li>3. <strong>Check existing harness</strong>: Read these files to see what&#x27;s already covered:</li>
+</ol>
+<ul>
+<li>   - <code>~/.claude/CLAUDE.md</code> (global instructions)</li>
+<li>   - Repo-local <code>CLAUDE.md</code> (project instructions)</li>
+<li>   - Workspace <strong><code>.claude/commands/harness.md</code></strong> and **<code>.claude/skills/*/</code>** when present (repository overlay)</li>
+<li>   - <code>~/.codex/AGENTS.md</code> (Codex instructions)</li>
+<li>   - <code>~/.claude/skills/harness-engineering/SKILL.md</code> (the skill itself)</li>
+<li>   - <code>~/.claude/projects/*/memory/</code> (relevant memories)</li>
+</ul>
+<ol>
+<li>4. <strong>Run 5 Whys — Technical</strong>: Ask &quot;Why?&quot; five times about the technical failure. Drill to root cause. <strong>This is mandatory.</strong></li>
+<li>5. <strong>Run 5 Whys — Agent path</strong>: Ask &quot;Why?&quot; five times about why the agent (Claude Code or any coding LLM) went down the wrong path. <strong>This is mandatory.</strong> Focus on: Did the agent trust without verifying? Did it analyze at the wrong abstraction level? Was there no skill/instruction to redirect it?</li>
+<li>6. <strong>Identify the gap</strong>: What&#x27;s missing or insufficient in the harness?</li>
+<li>7. <strong>Propose fixes</strong>: Output the structured plan from the skill protocol</li>
+<li>8. <strong>Wait for approval</strong> before implementing (unless <code>--fix</code> flag)</li>
+</ol>
+<h3 id="fix-mode-harness-fix">Fix mode (<code>/harness --fix</code>)</h3>
+<p>Same as default but implement immediately after analysis. Still report what was changed.</p>
+<h3 id="audit-mode-harness-audit">Audit mode (<code>/harness --audit</code>)</h3>
+<p>Scan all harness files for:</p>
+<ul>
+<li>- <strong>Stale rules</strong>: Instructions that reference files/tools/patterns that no longer exist</li>
+<li>- <strong>Contradictions</strong>: Rules in different files that conflict</li>
+<li>- <strong>Gaps</strong>: Known failure patterns (from memory) without corresponding instructions</li>
+<li>- <strong>Duplication</strong>: Same rule in multiple places (consolidate to most durable layer)</li>
+</ul>
+<p>Report findings as a table:</p>
+<pre><code>| Issue | File | Line | Recommendation |
+|-------|------|------|----------------|
+| Stale | ~/.claude/CLAUDE.md | 42 | Remove reference to deprecated tool X |
+| Gap | repo CLAUDE.md | - | Add rule about Y (corrected 3x in memory) |</code></pre>
+<h2 id="output-format">Output Format</h2>
+<pre><code>## Harness Analysis
+
+**Trigger**: &lt;what happened — user correction, failed test, or description&gt;
+**Failure class**: &lt;mislabeled artifact | wrong approach | missing validation | repeated manual fix | silent degradation | knowledge gap | LLM path error&gt;
+
+### 5 Whys — Technical failure
+1. Why: &lt;answer&gt;
+2. Why: &lt;answer&gt;
+3. Why: &lt;answer&gt;
+4. Why: &lt;answer&gt;
+5. Why: &lt;answer&gt;
+→ Root cause: &lt;single sentence&gt;
+
+### 5 Whys — Agent path
+1. Why did the agent not catch/prevent this?
+2. Why did the agent reason or act that way?
+3. Why didn&#x27;t the agent&#x27;s instructions prevent that reasoning?
+4. Why wasn&#x27;t there a skill, memory, or rule that redirected the agent?
+5. Why was the harness incomplete for this class of agent behavior?
+→ Agent root cause: &lt;single sentence&gt;
+
+### Existing coverage
+- [x] ~/.claude/CLAUDE.md — &lt;relevant rule if exists&gt;
+- [ ] repo CLAUDE.md — &lt;gap identified&gt;
+- [ ] ~/.claude/skills/ — &lt;no skill covers this&gt;
+- [x] memory — &lt;relevant memory if exists&gt;
+
+### Proposed fixes
+1. **[Instructions]** `&lt;file&gt;` — &lt;what to add/change&gt;
+2. **[Skill]** `&lt;file&gt;` — &lt;what to create/update&gt;
+3. **[Test]** `&lt;file&gt;` — &lt;what test to add&gt;
+
+### Verification
+&lt;How to confirm the fix works&gt;</code></pre>
+<h2 id="examples">Examples</h2>
+<p><strong>User says &quot;don&#x27;t mock the database in these tests&quot;</strong>:</p>
+<p>→ Failure class: wrong approach</p>
+<p>→ 5 Whys technical: mock used → no instructions prohibiting it → testing philosophy not documented → ...</p>
+<p>→ 5 Whys agent: agent defaulted to mock → common pattern in training data → no skill redirecting to real tests → ...</p>
+<p>→ Add instruction to CLAUDE.md, save feedback memory</p>
+<p><strong>Test labeled &quot;e2e&quot; but only does unit-level work</strong>:</p>
+<p>→ Failure class: mislabeled artifact</p>
+<p>→ 5 Whys technical: E2E criteria not met → criteria not checked → no checklist for E2E → ...</p>
+<p>→ 5 Whys agent: agent named it e2e without verifying → no skill mandating verification → ...</p>
+<p>→ Add/update test classification rules in CLAUDE.md + AGENTS.md, update /validate-e2e skill</p>
+<p><strong>Same code review comment given 3 conversations in a row</strong>:</p>
+<p>→ Failure class: repeated manual fix → mandatory harness fix, no exceptions</p>
+<p>→ Add instruction to CLAUDE.md, save memory, consider lint rule</p>
+<p><strong>Automation cleanup silently fails every cycle</strong>:</p>
+<p>→ Failure class: silent degradation (harness layer present but broken)</p>
+<p>→ 5 Whys technical: cleanup fn uses wrong grep key → porcelain format not verified → no test for cleanup path → ...</p>
+<p>→ 5 Whys agent: agent said &quot;cleanup present&quot; without running it → assumed present = working → skill doesn&#x27;t mandate verifying harness script correctness → ...</p>
+<p>→ Fix script, add verification step to skill, add integration test for cleanup path</p>
+<h2 id="input">Input</h2>
+<p>$ARGUMENTS</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

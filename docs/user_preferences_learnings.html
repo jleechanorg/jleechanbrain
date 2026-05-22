@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>User Preferences &amp; Patterns Learnings</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#user-preferences-patterns-learnings">User Preferences &amp; Patterns Learnings</a>
+<a class="toc-l2" href="#overview">Overview</a>
+<a class="toc-l2" href="#communication-preferences">Communication Preferences</a>
+<a class="toc-l3" href="#evidence">Evidence</a>
+<a class="toc-l2" href="#user-profile">User Profile</a>
+<a class="toc-l2" href="#technical-patterns">Technical Patterns</a>
+<a class="toc-l3" href="#ai-models-used">AI Models Used</a>
+<a class="toc-l3" href="#thinking-level">Thinking Level</a>
+<a class="toc-l3" href="#workflow-patterns">Workflow Patterns</a>
+<a class="toc-l3" href="#github-activity">GitHub Activity</a>
+<a class="toc-l2" href="#interaction-patterns">Interaction Patterns</a>
+<a class="toc-l3" href="#command-style">Command Style</a>
+<a class="toc-l3" href="#example-interactions">Example Interactions</a>
+<a class="toc-l2" href="#constraints-boundaries">Constraints &amp; Boundaries</a>
+<a class="toc-l2" href="#key-takeaways">Key Takeaways</a>
+<a class="toc-l2" href="#data-sources">Data Sources</a></nav><main><p><a href="user_preferences_learnings.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="user-preferences-patterns-learnings">User Preferences &amp; Patterns Learnings</h1>
+<p>&gt; Analysis of conversation history for jleechan</p>
+<h2 id="overview">Overview</h2>
+<p>This document captures user preferences and patterns extracted from available conversation history.</p>
+<p><strong>Note:</strong> No Claude Code or Cursor conversation history was found in the home directory (~). The analysis is based on Hermes session data from <code>~/.smartclaw/backups/</code> covering February 2026.</p>
+<p>---</p>
+<h2 id="communication-preferences">Communication Preferences</h2>
+<p>| Preference | Value |</p>
+<p>|------------|-------|</p>
+<p>| <strong>Primary Channel</strong> | WhatsApp |</p>
+<p>| <strong>Tone</strong> | Straight to business, direct and practical |</p>
+<p>| <strong>Response Style</strong> | Terse by default |</p>
+<p>| <strong>Signature Emoji</strong> | 🦾 |</p>
+<h3 id="evidence">Evidence</h3>
+<p>From onboarding session (2026-02-10):</p>
+<ul>
+<li>- User chose &quot;1. genesis coder 2.claw&quot; for identity setup</li>
+<li>- When asked about tone preference, responded: &quot;straight to business&quot;</li>
+<li>- When asked about response style: &quot;1. terse&quot;</li>
+<li>- When asked about emoji: kept 🦾</li>
+</ul>
+<p>---</p>
+<h2 id="user-profile">User Profile</h2>
+<p>| Field | Value |</p>
+<p>|-------|-------|</p>
+<p>| <strong>Name</strong> | Genesis Coder |</p>
+<p>| <strong>Timezone</strong> | America/Los_Angeles |</p>
+<p>| <strong>Preferred Channel</strong> | WhatsApp (mainly WhatsApp) |</p>
+<p>---</p>
+<h2 id="technical-patterns">Technical Patterns</h2>
+<h3 id="ai-models-used">AI Models Used</h3>
+<ul>
+<li>- <strong>OpenAI Codex</strong> (<code>gpt-5.3-codex-spark</code>)</li>
+<li>- <strong>MiniMax-M2.5</strong> (via minimax-portal)</li>
+</ul>
+<h3 id="thinking-level">Thinking Level</h3>
+<ul>
+<li>- Prefers &quot;low&quot; thinking level for efficiency</li>
+</ul>
+<h3 id="workflow-patterns">Workflow Patterns</h3>
+<ul>
+<li>- Uses <strong>cron jobs</strong> for recurring reminders (e.g., &quot;review-p-every-10m&quot;)</li>
+<li>- Active <strong>GitHub PR workflow</strong> - frequently reviews and addresses PR comments</li>
+<li>- Uses <strong>Slack</strong> for communication</li>
+<li>- Tests <strong>E2E for Hermes</strong> (character creation flows)</li>
+</ul>
+<h3 id="github-activity">GitHub Activity</h3>
+<ul>
+<li>- Works on <code>jleechanorg/worldarchitect.ai</code> and <code>jleechanorg/smartclaw</code></li>
+<li>- Manages many PRs (5500+ range)</li>
+<li>- Recent focus: BYOK (Bring Your Own Key) implementation, MCP smoke tests</li>
+</ul>
+<p>---</p>
+<h2 id="interaction-patterns">Interaction Patterns</h2>
+<h3 id="command-style">Command Style</h3>
+<ul>
+<li>- Prefers numbered menu responses (e.g., &quot;1&quot;, &quot;2&quot;, &quot;3&quot;)</li>
+<li>- Minimal messages - gets straight to the point</li>
+<li>- Uses short confirmations like &quot;terse&quot;, &quot;keep&quot;</li>
+</ul>
+<h3 id="example-interactions">Example Interactions</h3>
+<pre><code>Agent: What do you want first: 1) set up daily check-in, 2) create reminder, 3) help with task?
+User: 1
+
+Agent: Pick the daily check-in schedule: 1) Time, 2) Days, 3) What to include
+User: 2
+
+Agent: Reply like: &quot;9am weekdays; calendar + priorities&quot;
+User: 1. terse 2. keep</code></pre>
+<p>---</p>
+<h2 id="constraints-boundaries">Constraints &amp; Boundaries</h2>
+<p>Based on Hermes SOUL.md guidance:</p>
+<ul>
+<li>- No filler words (&quot;Great question!&quot;, &quot;I&#x27;d be happy to help!&quot;)</li>
+<li>- Be genuinely helpful, not performatively helpful</li>
+<li>- Have opinions</li>
+<li>- Earn trust through competence</li>
+<li>- Remember being a guest in user&#x27;s space</li>
+<li>- Private things stay private</li>
+<li>- When in doubt, ask before acting externally</li>
+<li>- Never send half-baked replies to messaging surfaces</li>
+</ul>
+<p>---</p>
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li>1. <strong>Efficiency-first</strong>: User values terse, direct communication</li>
+<li>2. <strong>Multi-channel</strong>: WhatsApp primary, Slack secondary</li>
+<li>3. <strong>Active developer</strong>: Heavy GitHub/PR workflow involvement</li>
+<li>4. <strong>Automation lover</strong>: Uses cron jobs for reminders</li>
+<li>5. <strong>Minimalist</strong>: Prefers numbered responses over freeform</li>
+</ol>
+<p>---</p>
+<h2 id="data-sources">Data Sources</h2>
+<ul>
+<li>- Hermes session backups: <code>~/.smartclaw/backups/20260219_120541/agents/main/sessions/</code></li>
+<li>- Date range: February 10-19, 2026</li>
+<li>- Session types: Onboarding, cron reminders, GitHub PR reviews, E2E testing</li>
+</ul></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

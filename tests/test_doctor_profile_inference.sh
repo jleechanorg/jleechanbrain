@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regression test for doctor.sh profile inference when the plist omits OPENCLAW_STATE_DIR.
+# Regression test for doctor.sh profile inference when the plist omits HERMES_STATE_DIR.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -53,21 +53,21 @@ import sys
 plist = {
     "Label": "ai.smartclaw.gateway",
     "EnvironmentVariables": {
-        "OPENCLAW_GATEWAY_PORT": "18789"
+        "HERMES_GATEWAY_PORT": "18789"
     },
 }
 with open(sys.argv[1], "wb") as f:
     plistlib.dump(plist, f)
 PY
 
-if /usr/bin/plutil -extract EnvironmentVariables.OPENCLAW_STATE_DIR raw -o - "$PLIST" >/dev/null 2>&1; then
-  fail "plist unexpectedly contains OPENCLAW_STATE_DIR"
+if /usr/bin/plutil -extract EnvironmentVariables.HERMES_STATE_DIR raw -o - "$PLIST" >/dev/null 2>&1; then
+  fail "plist unexpectedly contains HERMES_STATE_DIR"
 else
-  pass "plist omits OPENCLAW_STATE_DIR"
+  pass "plist omits HERMES_STATE_DIR"
 fi
 
 HOME="$HOME_DIR"
-PORT="$(/usr/bin/plutil -extract EnvironmentVariables.OPENCLAW_GATEWAY_PORT raw -o - "$PLIST")"
+PORT="$(/usr/bin/plutil -extract EnvironmentVariables.HERMES_GATEWAY_PORT raw -o - "$PLIST")"
 INFERRED="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "$PORT")"
 
 if [[ "$INFERRED" == "$HOME_DIR/.smartclaw_prod" ]]; then

@@ -139,7 +139,7 @@ git config --global user.name "${GITHUB_USER}"
 git config --global user.email "${GITHUB_USER}@users.noreply.github.com"
 ```
 
-Or per-repo (in `~/.hermes/.git/config`):
+Or per-repo (in `~/.smartclaw/.git/config`):
 ```bash
 git config user.name "${GITHUB_USER}"
 git config user.email "${GITHUB_USER}@users.noreply.github.com"

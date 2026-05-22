@@ -6,10 +6,10 @@
 ## Commands
 
 ```bash
-export OPENCLAW_STATE_DIR="$HOME/.smartclaw"
-export OPENCLAW_CONFIG_PATH="$HOME/.smartclaw/openclaw.json"
+export HERMES_STATE_DIR="$HOME/.smartclaw"
+export HERMES_CONFIG_PATH="$HOME/.smartclaw/hermes.json"
 cd ${HOME}/.worktrees/smartclaw/jc-1795
-openclaw gateway run --bind loopback --port 18999 --force 2>/tmp/gw-pr532.err &
+hermes gateway run --bind loopback --port 18999 --force 2>/tmp/gw-pr532.err &
 GW_PID=$!
 sleep 12
 curl -fsS -m 5 http://127.0.0.1:18999/health

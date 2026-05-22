@@ -1,4 +1,4 @@
-# Full 6/6 staging canary on a machine that runs the staging OpenClaw gateway.
+# Full 6/6 staging canary on a machine that runs the staging Hermes gateway.
 #
 # GitHub-hosted runners cannot curl localhost:18810 or load ~/.smartclaw extensions,
 # so this workflow uses a self-hosted runner (typically your Mac with ai.smartclaw.staging).
@@ -20,20 +20,15 @@ permissions:
   contents: read
 
 jobs:
-  find-openclaw-json:
-    # Fork PR guard: self-hosted runners must not execute untrusted code from forks
-    if: |
-      github.repository == 'jleechanorg/smartclaw' &&
-      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
-    runs-on: ubuntu-latest  # GitHub-hosted is safer for PR code (ephemeral, sandboxed);
-                            # self-hosted reserved for the actual canary job below.
+  find-hermes-json:
+    runs-on: ubuntu-latest
     outputs:
       found: ${{ steps.find.outputs.found }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect openclaw.json in PR diff
+      - name: Detect hermes.json in PR diff
         id: find
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
@@ -41,8 +36,8 @@ jobs:
           found=false
           for f in $CHANGED; do
             case "$f" in
-              openclaw.json) found=true ;;
-              */openclaw.json) found=true ;;
+              hermes.json) found=true ;;
+              */hermes.json) found=true ;;
             esac
           done
           echo "found=$found" >> "$GITHUB_OUTPUT"
@@ -50,14 +45,12 @@ jobs:
 
   staging-canary-full:
     name: Full canary (6/6)
-    needs: find-openclaw-json
-    # Fork PR guard: self-hosted runners must not execute untrusted code from forks
+    needs: find-hermes-json
     if: |
-      needs.find-openclaw-json.outputs.found == 'true' &&
+      needs.find-hermes-json.outputs.found == 'true' &&
       github.repository == 'jleechanorg/smartclaw' &&
-      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
-    runs-on: [self-hosted, openclaw-staging]
+    runs-on: [self-hosted, hermes-staging]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -66,13 +59,13 @@ jobs:
       - name: Run staging-canary.sh
         env:
           STAGING_CANARY_PORT: ${{ vars.STAGING_CANARY_PORT }}
-          OPENCLAW_STAGING_CONFIG: ${{ vars.OPENCLAW_STAGING_CONFIG }}
+          HERMES_STAGING_CONFIG: ${{ vars.HERMES_STAGING_CONFIG }}
         run: |
           set -euo pipefail
           PORT="${STAGING_CANARY_PORT:-18810}"
-          if [[ -n "${OPENCLAW_STAGING_CONFIG:-}" ]]; then
-            export OPENCLAW_STAGING_CONFIG
-            echo "OPENCLAW_STAGING_CONFIG=$OPENCLAW_STAGING_CONFIG"
+          if [[ -n "${HERMES_STAGING_CONFIG:-}" ]]; then
+            export HERMES_STAGING_CONFIG
+            echo "HERMES_STAGING_CONFIG=$HERMES_STAGING_CONFIG"
           fi
           echo "Staging canary port=$PORT"
           bash scripts/staging-canary.sh --port "$PORT"

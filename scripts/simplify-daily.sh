@@ -25,7 +25,7 @@ declare -A GH_REPOS=(
 )
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="${HOME}/Library/Logs/openclaw/simplify-daily-${TIMESTAMP}.log"
+LOG_FILE="${HOME}/Library/Logs/hermes/simplify-daily-${TIMESTAMP}.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 log_error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" | tee -a "$LOG_FILE" >&2; }

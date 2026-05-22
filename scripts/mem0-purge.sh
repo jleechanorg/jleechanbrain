@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# === mem0-purge.sh — Safe one-off memory deletion for openclaw mem0/Qdrant store ===
+# === mem0-purge.sh — Safe one-off memory deletion for hermes mem0/Qdrant store ===
 #
-# PURPOSE: Delete specific memory IDs from the openclaw mem0 vector store.
+# PURPOSE: Delete specific memory IDs from the hermes mem0 vector store.
 #          Defaults to DRY-RUN mode (--dry-run is the default).
 #          Requires explicit confirmation before any live delete.
 #
@@ -52,7 +52,7 @@ try:
     vs = MEM0_CONFIG.get("vector_store", {})
     host = vs.get("config", {}).get("host", "127.0.0.1")
     port = vs.get("config", {}).get("port", 6333)
-    collection = vs.get("config", {}).get("collection_name", "openclaw_mem0")
+    collection = vs.get("config", {}).get("collection_name", "hermes_mem0")
     sys.stdout.write(f"QDRANT_URL={host}:{port}\nCOLLECTION={collection}\n")
     sys.stdout.flush()
 except Exception as e:
@@ -76,7 +76,7 @@ PYEOF
 
 # Fallback defaults — used only if _load_qdrant_config fails
 QDRANT_URL="http://127.0.0.1:6333"
-COLLECTION="openclaw_mem0"
+COLLECTION="hermes_mem0"
 
 # --- CLI state ----------------------------------------------------------------
 DRY_RUN="true"

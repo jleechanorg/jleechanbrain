@@ -28,11 +28,11 @@ curl -s -X POST "https://slack.com/api/chat.postMessage" \
 ```
 
 ## Bot Token — Verified Extraction (2026-04-29)
-The env var `SLACK_MCP_XOXB_TOKEN` may return a **redacted/placeholder value** (`***`) when sourced from bashrc or shell — not the real token. The actual working `xoxb-...` token is stored in `~/.hermes_prod/config.yaml`.
+The env var `SLACK_MCP_XOXB_TOKEN` may return a **redacted/placeholder value** (`***`) when sourced from bashrc or shell — not the real token. The actual working `xoxb-...` token is stored in `~/.smartclaw_prod/config.yaml`.
 
 **Extraction command (tested and working):**
 ```bash
-TOKEN=$(grep "SLACK_MCP_XOXB_TOKEN" ~/.hermes_prod/config.yaml | awk '{print $2}')
+TOKEN=$(grep "SLACK_MCP_XOXB_TOKEN" ~/.smartclaw_prod/config.yaml | awk '{print $2}')
 # Verify: echo "Token length: ${#TOKEN}"  # should be ~58 chars, not 3
 ```
 
@@ -43,7 +43,7 @@ curl -s "https://slack.com/api/auth.test" \
 ```
 
 **Token Discovery Order (most reliable first):**
-1. `~/.hermes_prod/config.yaml` — grep + awk (this is the canonical working source)
+1. `~/.smartclaw_prod/config.yaml` — grep + awk (this is the canonical working source)
 2. Env var `SLACK_MCP_XOXB_TOKEN` — **verify it returns >10 chars**, not `***`
 3. If none yield a real `xoxb-...` token -> cannot post via API
 
@@ -58,11 +58,27 @@ curl -sv "https://hooks.slack.com/services/T09FXQ4LCQP/B09GCD0K6N6/..." 2>&1 | g
 **`x-slack-shared-secret-outcome: no-match`** = webhook secret mismatch.
 
 ## Cron Job / Automated Posting
-- **Default:** Use `openclaw cron add --announce --to slack:#channel --name "..." --at <time>`
-- This uses OpenClaw's internal Slack integration and handles auth automatically
-- Only fall back to raw webhook/curl if OpenClaw is unavailable
+- **Default:** Use `hermes cron add --announce --to slack:#channel --name "..." --at <time>`
+- This uses Hermes's internal Slack integration and handles auth automatically
+- Only fall back to raw webhook/curl if Hermes is unavailable
+
+## Slack MCP Server — Read-Only Tool Discovery (2026-05-06)
+The MCP server at `${HOME}/go/bin/slack-mcp-server` exposes **only read/search tools** in this runtime:
+- `conversations_history` ✅ (works)
+- `conversations_replies` ✅ (works)
+- `users_search` ✅ (works)
+- `conversations_add_message` ❌ (NOT available — write tools absent)
+
+**Symptom:** `mcp__slack__conversations_add_message` tool call fails silently or isn't exposed in the tools list.
+**Fix:** The MCP server binary needs write tools explicitly enabled via `-enabled-tools` flag, e.g.:
+```
+${HOME}/go/bin/slack-mcp-server -enabled-tools conversations,chat,users
+```
+If that fails, fall back to REST API with token from `~/.smartclaw_prod/config.yaml` (see token extraction above).
 
 ## Notes
 - Slack home channel ID for this user: `C0AJQ5M0A0Y`
 - Slack bot token format: `xoxb-...`
 - Incoming webhook URL format: `https://hooks.slack.com/services/T09.../B09.../xxx`
+- MCP server path: `${HOME}/go/bin/slack-mcp-server`
+- Verified reminder target: `#cindil-health` channel = `C0AQYBLPC84` (thread ts `1777993618.727389`)

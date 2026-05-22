@@ -8,6 +8,22 @@ category: git
 
 Every PR must be built on a fresh worktree cloned from `origin/main`. No commits from previous sessions, no stale files, no cross-contamination.
 
+## ⚠️ CRITICAL: Worktree BEFORE Code
+
+**NEVER edit files in the main worktree (the one you're reading this from) when preparing a PR.**
+
+The failure pattern that caused this skill to be strengthened:
+> Edit code → commit in main worktree → create PR → PR has wrong commits → polluted PR
+
+The correct sequence is:
+1. Create fresh worktree from `origin/main` FIRST
+2. Make all code changes in the fresh worktree
+3. Commit and PR from the fresh worktree
+
+If you already edited the main worktree by mistake:
+- Close the bad PR
+- Cherry-pick your commit(s) into a fresh worktree (see Fixing a Polluted PR below)
+
 ## When to Use
 
 - Creating any new PR
@@ -94,17 +110,17 @@ If a PR already has pollution (wrong files, wrong commits):
 4. Verify: `gh pr diff --name-only` shows only your intended files
 5. If you cannot cleanly isolate, **destroy the worktree and recreate from scratch**
 
-## ~/.hermes Symlink Gotcha
+## ~/.smartclaw Symlink Gotcha
 
-`~/.hermes/SOUL.md` is a **symlink** to `workspace/SOUL.md`. This affects hermes-repo PR work:
+`~/.smartclaw/SOUL.md` is a **symlink** to `workspace/SOUL.md`. This affects hermes-repo PR work:
 
-- `~/.hermes/SOUL.md` resolves to `~/.hermes/workspace/SOUL.md` — there is no real file at the top level
-- `git add SOUL.md` from `~/.hermes/` stages `workspace/SOUL.md` (correct)
-- `git status` at `~/.hermes/` shows changes in `workspace/SOUL.md`, not a separate file
-- `git log SOUL.md` from `~/.hermes/` checks `workspace/SOUL.md`'s history
+- `~/.smartclaw/SOUL.md` resolves to `~/.smartclaw/workspace/SOUL.md` — there is no real file at the top level
+- `git add SOUL.md` from `~/.smartclaw/` stages `workspace/SOUL.md` (correct)
+- `git status` at `~/.smartclaw/` shows changes in `workspace/SOUL.md`, not a separate file
+- `git log SOUL.md` from `~/.smartclaw/` checks `workspace/SOUL.md`'s history
 - Always `git add workspace/SOUL.md` explicitly to avoid confusion
 
-When committing hermes SOUL.md changes, the commit lands on the current branch of `~/.hermes/`. Push to origin before deploying.
+When committing hermes SOUL.md changes, the commit lands on the current branch of `~/.smartclaw/`. Push to origin before deploying.
 
 ## Cleanup
 

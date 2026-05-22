@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3-Stage OpenClaw Dev Pipeline</title>
+  <title>3-Stage Hermes Dev Pipeline</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -255,13 +255,13 @@
 
   <!-- Main -->
   <main class="main">
-    <h1>3-Stage OpenClaw Dev Pipeline</h1>
+    <h1>3-Stage Hermes Dev Pipeline</h1>
     <div class="subtitle">Reference Documentation &nbsp;·&nbsp; Last updated: 2026-04-03 &nbsp;·&nbsp; <span class="badge badge-green">Operational</span></div>
 
     <!-- Background -->
     <section id="background">
       <h2>Background</h2>
-      <p>Before this pipeline, changes to <code>~/.smartclaw/</code> (the live gateway config) went straight to production with no automated safety gate. A bad <code>openclaw.json</code> edit could crash the gateway, drop Slack messages, or break all agent sessions. Manual review caught some cases, but not consistently.</p>
+      <p>Before this pipeline, changes to <code>~/.smartclaw/</code> (the live gateway config) went straight to production with no automated safety gate. A bad <code>hermes.json</code> edit could crash the gateway, drop Slack messages, or break all agent sessions. Manual review caught some cases, but not consistently.</p>
       <p>The 3-stage pipeline adds automated gates between unvalidated changes and production:</p>
       <ol>
         <li><strong>Staging branch</strong> — changes land on <code>staging</code> first, not <code>main</code></li>
@@ -383,7 +383,7 @@ bash scripts/staging-canary.sh --port 18789</pre>
     <section id="stage-3">
       <h2>Stage 3 — CI Gate</h2>
       <p><strong>File</strong>: <code>.github/workflows/staging-canary-gate.yml</code></p>
-      <p>Fires on every PR. Detects whether <code>openclaw.json</code> changed in the diff. If so, runs the full canary (which also reads <code>package.json</code> for Check 5 — SDK protocol version). <code>package.json</code> changes alone do not trigger the canary.</p>
+      <p>Fires on every PR. Detects whether <code>hermes.json</code> changed in the diff. If so, runs the full canary (which also reads <code>package.json</code> for Check 5 — SDK protocol version). <code>package.json</code> changes alone do not trigger the canary.</p>
 
       <h3>Canary checks — CI vs local</h3>
       <table>
@@ -433,8 +433,8 @@ bash scripts/staging-canary.sh --port 18789</pre>
     <section id="stage-3b">
       <h2>Stage 3b — Full canary in CI (self-hosted)</h2>
       <p><strong>File</strong>: <code>.github/workflows/staging-canary-full.yml</code></p>
-      <p>When <code>openclaw.json</code> changes in a PR, runs <code>scripts/staging-canary.sh</code> (all 6 checks) on a <strong>self-hosted runner</strong> (e.g. Mac with <code>ai.smartclaw.staging</code> on port <strong>18810</strong>).</p>
-      <p><strong>Setup:</strong> <code>.github/SELFHOSTED_TEST.md</code> — register a runner with labels <code>self-hosted</code> and <code>openclaw-staging</code>. Optional variables: <code>STAGING_CANARY_PORT</code>, <code>OPENCLAW_STAGING_CONFIG</code>. Set <code>ENABLE_STAGING_CANARY_SELFHOSTED=false</code> to skip when the runner is offline.</p>
+      <p>When <code>hermes.json</code> changes in a PR, runs <code>scripts/staging-canary.sh</code> (all 6 checks) on a <strong>self-hosted runner</strong> (e.g. Mac with <code>ai.smartclaw.staging</code> on port <strong>18810</strong>).</p>
+      <p><strong>Setup:</strong> <code>.github/SELFHOSTED_TEST.md</code> — register a runner with labels <code>self-hosted</code> and <code>hermes-staging</code>. Optional variables: <code>STAGING_CANARY_PORT</code>, <code>HERMES_STAGING_CONFIG</code>. Set <code>ENABLE_STAGING_CANARY_SELFHOSTED=false</code> to skip when the runner is offline.</p>
       <p><strong>Not included:</strong> <code>monitor-agent.sh</code> remains on LaunchAgent; it is not a PR gate.</p>
     </section>
 
@@ -462,7 +462,7 @@ bash scripts/staging-canary.sh --port 18790</pre>
         </tbody>
       </table>
 
-      <p>The staging gateway is a separate process from production (port 18789). It shares the same binary and Node.js but uses <code>~/.smartclaw/staging/openclaw.json</code> as its config.</p>
+      <p>The staging gateway is a separate process from production (port 18789). It shares the same binary and Node.js but uses <code>~/.smartclaw/staging/hermes.json</code> as its config.</p>
     </section>
 
     <!-- Workflow -->
@@ -470,7 +470,7 @@ bash scripts/staging-canary.sh --port 18790</pre>
       <h2>Day-to-Day Workflow</h2>
 
       <h3>Normal PR flow (gateway config changes)</h3>
-<pre># 1. In feature worktree: edit the file (openclaw.json, agents/, skills/, SOUL.md, etc.)
+<pre># 1. In feature worktree: edit the file (hermes.json, agents/, skills/, SOUL.md, etc.)
 
 # 2. Open PR targeting: staging (NOT main)
 gh pr create --base staging --head feat/my-change

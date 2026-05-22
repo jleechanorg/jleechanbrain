@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>GATEWAY_ALLOW_ALL_USERS</key>
+		<string>true</string>
+		<key>HERMES_HOME</key>
+		<string>@HOME@/.smartclaw_prod</string>
+		<key>HERMES_LOG_LEVEL</key>
+		<string>INFO</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>SLACK_ALLOW_BOTS</key>
+		<string>mentions</string>
+		<key>SLACK_REQUIRE_MENTION</key>
+		<string>false</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.smartclaw.prod</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+		<string>@HERMES_BIN@</string>
+		<string>gateway</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>Nice</key>
+	<integer>-5</integer>
+	<key>StandardErrorPath</key>
+	<string>@HOME@/.smartclaw_prod/logs/gateway.error.log</string>
+	<key>StandardOutPath</key>
+	<string>@HOME@/.smartclaw_prod/logs/gateway.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WorkingDirectory</key>
+	<string>@HOME@/.smartclaw_prod</string>
+</dict>
+</plist>

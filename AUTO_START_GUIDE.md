@@ -1,15 +1,15 @@
-# OpenClaw Auto-Start Configuration Guide
+# Hermes Auto-Start Configuration Guide
 
 **Last Updated:** 2026-02-13
-**OpenClaw Version:** v2026.2.12
+**Hermes Version:** v2026.2.12
 **macOS Configuration:** Complete ✅
 
 ---
 
 ## 🚧 Scheduling Guardrail
 
-- **Forbidden:** system `crontab` edits for OpenClaw reminder/scheduling jobs.
-- **Required:** OpenClaw gateway cron workflow only (`openclaw cron ...`).
+- **Forbidden:** system `crontab` edits for Hermes reminder/scheduling jobs.
+- **Required:** Hermes gateway cron workflow only (`hermes cron ...`).
 
 ---
 
@@ -24,13 +24,13 @@
 ### 2. **Startup Verification: LaunchAgent**
 - **File:** `~/Library/LaunchAgents/ai.smartclaw.startup-check.plist`
 - **Purpose:** Sends WhatsApp confirmation after each login/restart
-- **Sends message to:** `OPENCLAW_WHATSAPP_TARGET`
+- **Sends message to:** `HERMES_WHATSAPP_TARGET`
 - **Logs:** `~/.smartclaw/logs/startup-check.log`
 
-### 3. **Health Monitoring: OpenClaw Gateway Cron**
+### 3. **Health Monitoring: Hermes Gateway Cron**
 - **Schedule:** Every 5 minutes
 - **Script:** `~/.smartclaw/health-check.sh`
-- **Purpose:** Monitors gateway health and auto-recovery if needed via OpenClaw gateway cron jobs
+- **Purpose:** Monitors gateway health and auto-recovery if needed via Hermes gateway cron jobs
 - **Logs:** `~/.smartclaw/logs/health-check.log`
 
 ---
@@ -39,7 +39,7 @@
 
 ### Test 1: Check LaunchAgent Status
 ```bash
-launchctl list | grep openclaw
+launchctl list | grep hermes
 ```
 **Expected Output:**
 ```text
@@ -49,7 +49,7 @@ launchctl list | grep openclaw
 
 ### Test 2: Check Gateway Status
 ```bash
-openclaw gateway status
+hermes gateway status
 ```
 **Expected Output:**
 ```text
@@ -59,7 +59,7 @@ RPC probe: ok
 
 ### Test 3: Check WhatsApp Connection
 ```bash
-openclaw channels list
+hermes channels list
 ```
 **Expected Output:**
 ```text
@@ -67,8 +67,8 @@ WhatsApp default: linked, enabled
 ```
 
 ### Test 4: Check WhatsApp (You'll Receive a Message!)
-After each restart/login, you should receive confirmation if `OPENCLAW_WHATSAPP_TARGET` is set:
-> 🚀 OpenClaw auto-started successfully (PID: XXXXX) ✅
+After each restart/login, you should receive confirmation if `HERMES_WHATSAPP_TARGET` is set:
+> 🚀 Hermes auto-started successfully (PID: XXXXX) ✅
 
 ---
 
@@ -76,7 +76,7 @@ After each restart/login, you should receive confirmation if `OPENCLAW_WHATSAPP_
 
 ### View Real-Time Gateway Logs
 ```bash
-openclaw logs --follow
+hermes logs --follow
 ```
 
 ### View Health Check Results
@@ -91,8 +91,8 @@ tail -f ~/.smartclaw/logs/startup-check.log
 
 ### Check Gateway Cron Configuration
 ```bash
-openclaw cron status
-openclaw cron list
+hermes cron status
+hermes cron list
 ```
 
 ---
@@ -101,19 +101,19 @@ openclaw cron list
 
 ### Start Gateway
 ```bash
-openclaw gateway start
+hermes gateway start
 # OR
-openclaw gateway install
+hermes gateway install
 ```
 
 ### Stop Gateway
 ```bash
-openclaw gateway stop
+hermes gateway stop
 ```
 
 ### Restart Gateway
 ```bash
-openclaw gateway stop && sleep 2 && openclaw gateway install
+hermes gateway stop && sleep 2 && hermes gateway install
 ```
 
 ### Force Reload LaunchAgent
@@ -135,7 +135,7 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 1. **Check if LaunchAgent is loaded:**
    ```bash
-   launchctl list | grep openclaw
+   launchctl list | grep hermes
    ```
 
 2. **If not loaded, load manually:**
@@ -152,12 +152,12 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 1. **Check status:**
    ```bash
-   openclaw channels list
+   hermes channels list
    ```
 
 2. **Relink if needed:**
    ```bash
-   openclaw channels login --channel whatsapp --account default
+   hermes channels login --channel whatsapp --account default
    ```
    Scan QR code within 60 seconds.
 
@@ -165,8 +165,8 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 1. **Verify gateway cron jobs:**
    ```bash
-   openclaw cron status
-   openclaw cron list
+   hermes cron status
+   hermes cron list
    ```
 
 2. **Test health check manually:**
@@ -176,7 +176,7 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 3. **Inspect gateway logs for cron execution details:**
    ```bash
-   openclaw logs --follow
+   hermes logs --follow
    ```
 
 ---
@@ -193,7 +193,7 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 | **Gateway Error Logs** | `~/.smartclaw/logs/gateway.err.log` |
 | **Health Check Logs** | `~/.smartclaw/logs/health-check.log` |
 | **Startup Check Logs** | `~/.smartclaw/logs/startup-check.log` |
-| **Configuration** | `~/.smartclaw/openclaw.json` |
+| **Configuration** | `~/.smartclaw/hermes.json` |
 
 ---
 
@@ -201,10 +201,10 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 Run this one-liner for a complete health check:
 ```bash
-echo "=== OpenClaw Health Status ===" && \
-launchctl list | grep openclaw && \
-echo "" && openclaw gateway status && \
-echo "" && openclaw channels list
+echo "=== Hermes Health Status ===" && \
+launchctl list | grep hermes && \
+echo "" && hermes gateway status && \
+echo "" && hermes channels list
 ```
 
 ---
@@ -213,13 +213,13 @@ echo "" && openclaw channels list
 
 ✅ **LaunchAgent installed** with RunAtLoad=true, KeepAlive=true
 ✅ **Startup verification** configured (sends WhatsApp confirmation)
-✅ **Health monitoring** via OpenClaw gateway cron (every 5 minutes)
-✅ **WhatsApp notification** configured via `OPENCLAW_WHATSAPP_TARGET`
+✅ **Health monitoring** via Hermes gateway cron (every 5 minutes)
+✅ **WhatsApp notification** configured via `HERMES_WHATSAPP_TARGET`
 ✅ **Auto-recovery** enabled (restarts on crash)
 ✅ **Version:** v2026.2.12 (latest)
 
-**Next Restart:** You will receive a WhatsApp message confirming OpenClaw started successfully if `OPENCLAW_WHATSAPP_TARGET` is set. 🚀
+**Next Restart:** You will receive a WhatsApp message confirming Hermes started successfully if `HERMES_WHATSAPP_TARGET` is set. 🚀
 
 ---
 
-*Generated by OpenClaw Auto-Configuration System*
+*Generated by Hermes Auto-Configuration System*

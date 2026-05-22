@@ -20,7 +20,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/../lib/gog-env.sh"
-load_gog_env_from_openclaw "${HOME}/.smartclaw/openclaw.json"
+load_gog_env_from_hermes "${HOME}/.smartclaw/hermes.json"
 
 TZ="${TZ:-America/Los_Angeles}"; export TZ
 

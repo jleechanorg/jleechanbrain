@@ -59,7 +59,7 @@ C0ANS2MF15G, ${SLACK_CHANNEL_ID}, C0ALSKLU9KM, C0ANX2HU5V1, ${SLACK_CHANNEL_ID}
 - **Channel:** ${SLACK_CHANNEL_ID}
 - **Thread:** 1775280734.832279
 - **Time:** 2026-04-04 05:45 UTC + 05:46 UTC
-- **Jeffrey:** "U0AEZC7RX1Q U0APZAB0DUZ both of you run monitor and confirm youre working" and "openclaw why isnt staging working?"
+- **Jeffrey:** "U0AEZC7RX1Q U0APZAB0DUZ both of you run monitor and confirm youre working" and "hermes why isnt staging working?"
 - **Response:** 08:25 UTC (~2h 40min later)
 - **Why:** Session lock errors at 05:47–05:49 dropped the responses; only resolved after gateway was restarted
 - **Why missed:** Script's LOOKBACK_HOURS=2 scan didn't cover this; the nudge interval state also marked this thread as recently nudged
@@ -73,7 +73,7 @@ C0ANS2MF15G, ${SLACK_CHANNEL_ID}, C0ALSKLU9KM, C0ANX2HU5V1, ${SLACK_CHANNEL_ID}
 - **Thread:** 1775272948.657419
 - **Time:** 2026-04-04 03:22 UTC
 - **Jeffrey:** "make sure we made beads in origin main for this and make an opus AO worker..."
-- **Timeout:** 03:32 UTC (10 min) — openclaw replied "Request timed out before a response was generated"
+- **Timeout:** 03:32 UTC (10 min) — hermes replied "Request timed out before a response was generated"
 - **Re-ask:** Jeffrey "try again" at 03:38 → real response at 03:42
 - **Why:** Gateway timeout under load (timeoutSeconds too low)
 
@@ -83,7 +83,7 @@ C0ANS2MF15G, ${SLACK_CHANNEL_ID}, C0ALSKLU9KM, C0ANX2HU5V1, ${SLACK_CHANNEL_ID}
 - **Time:** 2026-04-03 13:30 UTC
 - **Jeffrey:** "look at PRs and how to fix off track ones? Investigate using tmux convo then run harness skill then run /eloop..."
 - **Timeout:** 13:42 UTC (12 min timeout)
-- **Gap:** No real response until mcp_agent_mail nudged at 20:57 (7h later), which triggered openclaw to respond
+- **Gap:** No real response until mcp_agent_mail nudged at 20:57 (7h later), which triggered hermes to respond
 - **Why:** Gateway timeout + no follow-up until dropped-thread nudge fired
 
 #### 8. "clone claude code source" — 6h gap before Jeffrey re-asked
@@ -103,9 +103,9 @@ C0ANS2MF15G, ${SLACK_CHANNEL_ID}, C0ALSKLU9KM, C0ANX2HU5V1, ${SLACK_CHANNEL_ID}
 - **Thread:** 1775222423.790339
 - **Time:** 2026-04-03 13:37 UTC
 - **Jeffrey:** "U0AEZC7RX1Q make daily important emails 9am"
-- **Gap:** No in-thread reply until mcp_agent_mail nudged at 20:57 (7h), openclaw confirmed at 21:00
+- **Gap:** No in-thread reply until mcp_agent_mail nudged at 20:57 (7h), hermes confirmed at 21:00
 - **Outcome:** The cron change WAS made. Jeffrey just didn't get confirmation until 7h later.
-- **Why:** openclaw made the change but failed to post the acknowledgment reply to the thread
+- **Why:** hermes made the change but failed to post the acknowledgment reply to the thread
 
 ---
 
@@ -150,4 +150,4 @@ C0ANS2MF15G, ${SLACK_CHANNEL_ID}, C0ALSKLU9KM, C0ANX2HU5V1, ${SLACK_CHANNEL_ID}
 | **orch-p8f** | Add `$JLEECHAN_DM_CHANNEL` to dropped-thread scan | #1, #2, #3 |
 | **orch-avd** (existing) | Gateway config repair — doctor warns on PATH/config | #4 session locks |
 | Existing (timeoutSeconds) | Keep timeoutSeconds ≤ 600, maxConcurrent ≤ 3 | #5, #6 |
-| New | openclaw should always post thread ack after completing work, even if task is "done" | #7 |
+| New | hermes should always post thread ack after completing work, even if task is "done" | #7 |

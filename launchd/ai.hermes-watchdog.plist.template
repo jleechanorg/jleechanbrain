@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>ai.smartclaw-watchdog</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+		<string>/bin/bash</string>
+		<string>@HOME@/.smartclaw/scripts/hermes-watchdog.sh</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>300</integer>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/tmp/hermes-watchdog.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/hermes-watchdog.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HERMES_HOME</key>
+		<string>@HOME@/.smartclaw_prod</string>
+		<key>HERMES_WATCHDOG_ALERT_CHANNEL</key>
+		<string>${SLACK_CHANNEL_ID}</string>
+	</dict>
+</dict>
+</plist>

@@ -8,6 +8,8 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
+    <string>@REPO_ROOT@/scripts/launchd-env-wrapper.sh</string>
+    <string>/bin/bash</string>
     <string>@REPO_ROOT@/scripts/sync-claude-memory.sh</string>
   </array>
 
@@ -16,7 +18,7 @@
     <key>HOME</key>
     <string>@HOME@</string>
     <key>PATH</key>
-    <string>@OPENCLAW_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>TZ</key>
     <string>America/Los_Angeles</string>
   </dict>

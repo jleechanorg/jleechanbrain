@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Burn Investigation — 2026-05-07 (Actions-side only)</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 260px; flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto; padding: 24px 0;
+    }
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar nav a {
+      display: block; padding: 6px 20px;
+      color: var(--text-muted); text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+    .sidebar nav a.sub { padding-left: 36px; font-size: 12px; }
+    .main { flex: 1; max-width: 900px; padding: 48px 56px; }
+    h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px; margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 20px; font-weight: 600; color: var(--text);
+      margin-top: 52px; margin-bottom: 16px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 16px; font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px; margin-bottom: 10px;
+    }
+    p { margin-bottom: 14px; color: var(--text); }
+    ul, ol { margin: 10px 0 14px 24px; color: var(--text); }
+    li { margin-bottom: 6px; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px; line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+    code {
+      background: var(--code-bg);
+      border-radius: 4px; padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px; color: #cdd9e5;
+    }
+    pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+    table {
+      width: 100%; border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600; text-align: left;
+      padding: 8px 12px; border: 1px solid var(--border);
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+    .callout {
+      border-left: 3px solid var(--accent3);
+      background: rgba(247, 129, 102, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+    section { scroll-margin-top: 24px; }
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-title">Budget Burn Investigation</div>
+    <nav>
+      <a href="#tldr">TL;DR</a>
+      <a href="#cost-drivers">Top 5 Cost Drivers</a>
+      <a href="#why-hanging" class="sub">Why is living_blog hanging?</a>
+      <a href="#runners">Current Runner Infrastructure</a>
+      <a href="#color-legend">Color Legend</a>
+      <a href="#plan">Recommended Plan</a>
+      <a href="#phase-0" class="sub">Phase 0 — Stop the bleeding</a>
+      <a href="#phase-1" class="sub">Phase 1 — Migrate ai_universe</a>
+      <a href="#recipe" class="sub">Migration recipe</a>
+      <a href="#phase-2" class="sub">Phase 2 — Org guardrails</a>
+      <a href="#savings">Counterfactual Estimated Savings</a>
+      <a href="#open-questions">Open Questions</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <h1>Budget Burn Investigation — 2026-05-07 (Actions-side only)</h1>
+    <div class="subtitle">
+      GCP budget alert flagged 2026-05-07. This document covers
+      <strong>only the GitHub Actions slice</strong> of the investigation; it is
+      <strong>not a determination of the GCP cost driver</strong>. Window analyzed:
+      <strong>2026-04-23 → 2026-05-07</strong> (last 14 days).
+    </div>
+
+    <section id="tldr">
+      <h2>TL;DR</h2>
+      <div class="callout">
+        <strong>⚠️ Do not treat this document as the GCP root cause.</strong>
+        <code>ai_universe_living_blog</code> is a <strong>public</strong> repo, so
+        its Actions minutes are <strong>free</strong> and cannot be the GCP budget
+        driver. The actual GCP burn is almost certainly elsewhere (Cloud Run, Cloud
+        Build, Vertex AI, storage egress, etc.) and <strong>must</strong> be
+        identified from the GCP billing export by service before any incident
+        response. <strong>Do not run Phase 0 as a GCP-cost mitigation</strong> — run
+        it only as Actions runner hygiene if/when the repo goes private. See
+        <a href="#open-questions">Open Questions</a>.
+      </div>
+      <p>What this document <em>does</em> cover: a runaway Actions-runtime pattern
+        in the ai_universe family that would be expensive <em>if</em> those repos
+        were private. Provisional findings:</p>
+      <ul>
+        <li><strong>Largest Actions runtime by far:</strong>
+          <code>ai_universe_living_blog</code> Skeptic Cron + Daily Novel Summary,
+          hung on <code>ubuntu-latest</code>, cancelled at the 24-hour timeout.
+          369 of 479 runs (77%) ran for the full 1440-minute timeout before cancellation.</li>
+        <li>Counterfactual cost at private-repo rates: ~498,000 minutes ≈ $3,985
+          over 14 days at $0.008/min. <strong>Actual current GitHub bill for that
+          repo: $0</strong> (public). A private clone or visibility flip is the only
+          scenario where this becomes a billing concern, not a GCP one.</li>
+        <li>The org already has <strong>14 online self-hosted runners</strong>
+          (<code>self-hosted-mikey</code> label, 10 × Linux/X64 + 4 × ARM64). They are
+          unused by the ai_universe family.</li>
+        <li><strong>First action is not migration — it is stopping the runaway
+          timeouts.</strong> Migrating a hung job to self-hosted just saturates the
+          local fleet. Fix the workflow first (<code>timeout-minutes</code> +
+          concurrency <code>cancel-in-progress</code>), then migrate the healthy paths.</li>
+        <li>Migration to self-hosted is still the right move regardless, because the
+          org policy already mandates self-hosted for private ai_universe repos.</li>
+      </ul>
+    </section>
+
+    <section id="cost-drivers">
+      <h2>Top 5 Cost Drivers (14-day window)</h2>
+      <p>Duration is wall-clock between <code>run_started_at</code> and
+        <code>updated_at</code> (a proxy for billable minutes — exact billable minutes
+        need the <code>/timing</code> endpoint per run, but the cancelled-at-1440
+        pattern dominates regardless).</p>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Repo</th><th>Workflow</th>
+            <th>Runs</th><th>Total min</th><th>Avg min</th>
+            <th>Runner</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td><td><code>ai_universe_living_blog</code></td><td>Skeptic Cron</td>
+            <td>456</td><td><strong>483,552</strong></td><td>1060</td>
+            <td><code>ubuntu-latest</code></td>
+            <td><span class="badge badge-red">RUNAWAY</span> 369 cancelled at 1440m timeout</td>
+          </tr>
+          <tr>
+            <td>2</td><td><code>ai_universe_living_blog</code></td><td>Daily Novel Summary</td>
+            <td>15</td><td><strong>14,667</strong></td><td>978</td>
+            <td><code>ubuntu-latest</code></td>
+            <td><span class="badge badge-red">RUNAWAY</span> Multiple cancellations at 1440m</td>
+          </tr>
+          <tr>
+            <td>3</td><td><code>ai_universe_frontend</code></td><td>Deploy PR Preview to GCP</td>
+            <td>42</td><td>229</td><td>5.4</td>
+            <td><code>ubuntu-latest</code></td>
+            <td><span class="badge badge-green">HEALTHY</span> Frequent</td>
+          </tr>
+          <tr>
+            <td>4</td><td><code>ai_universe</code></td><td>CI</td>
+            <td>4</td><td>49</td><td>12.2</td>
+            <td><code>ubuntu-latest</code></td>
+            <td><span class="badge badge-green">HEALTHY</span></td>
+          </tr>
+          <tr>
+            <td>5</td><td><code>ai_universe_frontend</code></td><td>AI Universe Frontend CI</td>
+            <td>50</td><td>161</td><td>3.2</td>
+            <td><code>ubuntu-latest</code></td>
+            <td><span class="badge badge-green">HEALTHY</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Other ai_universe repos run Skeptic Cron on <code>ubuntu-latest</code> every
+        30 min as well (<code>ai_universe</code>, <code>ai_universe_mobile</code>,
+        <code>ai_universe_convo_mcp</code>, <code>ai_universe_frontend</code>), but
+        their average duration is &lt; 1 min — they are healthy at ~150–170 min total
+        each over 14 days, and migration of those alone would save roughly $1.20/repo/month.
+        <strong>The hang in <code>ai_universe_living_blog</code> is the entire
+        problem.</strong></p>
+
+      <h3 id="why-hanging">Why is <code>ai_universe_living_blog</code> Skeptic Cron hanging?</h3>
+      <ul>
+        <li>Schedule: <code>*/30 * * * *</code> (every 30 min). With a 24h cancel
+          timeout and frequent hangs, multiple long runs overlap.</li>
+        <li>No <code>concurrency:</code> block with <code>cancel-in-progress: true</code>,
+          so a hung run does not get preempted by the next 30-minute kick-off — they accumulate.</li>
+        <li>No <code>timeout-minutes:</code> set on the job, so the only safety net is
+          GitHub's hard 1440m ceiling (24 hours of billable Linux minutes per hang).</li>
+      </ul>
+    </section>
+
+    <section id="runners">
+      <h2>Current Runner Infrastructure</h2>
+      <p>Org: <code>jleechanorg</code>. Single runner group <code>Default</code>, public-repo allowed.</p>
+      <table>
+        <thead>
+          <tr><th>Runner</th><th>OS</th><th>Status</th><th>Labels</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>org-runner-1</code> … <code>org-runner-10</code></td>
+            <td>Linux X64</td>
+            <td><span class="badge badge-green">online</span></td>
+            <td><code>self-hosted</code>, <code>Linux</code>, <code>X64</code>, <code>self-hosted-mikey</code></td>
+          </tr>
+          <tr>
+            <td><code>org-runner-mac-1</code> … <code>org-runner-mac-4</code> (hostnames contain 'mac' but OS is Linux ARM64)</td>
+            <td>Linux ARM64</td>
+            <td><span class="badge badge-green">online</span></td>
+            <td><code>self-hosted</code>, <code>Linux</code>, <code>ARM64</code>, <code>self-hosted-mikey</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>14 runners online, all Linux. None of the ai_universe workflows currently pin
+        <code>runs-on</code> to <code>self-hosted</code> or <code>self-hosted-mikey</code>.</p>
+      <p>The <code>smartclaw</code> policy already mandates the selector pattern for
+        private repos:
+        <code>${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}</code>.</p>
+    </section>
+
+    <section id="color-legend">
+      <h2>Color Legend</h2>
+      <table>
+        <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-red">RUNAWAY</span></td><td>Workflow has runs hitting the 1440-min cancellation ceiling — primary remediation target.</td></tr>
+          <tr><td><span class="badge badge-green">HEALTHY</span> / <span class="badge badge-green">online</span></td><td>Normal duration, no anomalies; runner is currently online.</td></tr>
+          <tr><td><span class="badge badge-blue">INFO</span></td><td>Neutral context — informational only.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="plan">
+      <h2>Recommended Plan</h2>
+
+      <h3 id="phase-0">Phase 0 — Stop the bleeding (do this today, <em>before</em> any migration)</h3>
+      <p>This is the highest-leverage change. It does not require any infra work.</p>
+      <ol>
+        <li>In <code>ai_universe_living_blog/.github/workflows/skeptic-cron.yml</code>:
+          <ul>
+            <li>Add <code>timeout-minutes: 15</code> to the <code>skeptic_cron</code> job.</li>
+            <li>Add a top-level <code>concurrency:</code> block:
+              <code>group: skeptic-cron-${{ github.ref }}</code>,
+              <code>cancel-in-progress: true</code>.</li>
+          </ul>
+        </li>
+        <li>Same two changes in <code>daily-summary.yml</code>.</li>
+        <li>Cancel any in-flight <code>queued</code>/<code>in_progress</code> Skeptic
+          Cron runs from the queue.</li>
+      </ol>
+      <p><strong>Expected impact:</strong> drops <code>ai_universe_living_blog</code>
+        Actions burn from ~498,000 min / 14 days to under ~200 min / 14 days —
+        <strong>&gt;99% reduction without touching runners.</strong></p>
+
+      <h3 id="phase-1">Phase 1 — Migrate ai_universe family to self-hosted</h3>
+      <p>Order is by current burn × risk. Migrate Skeptic Cron jobs first because they
+        are private-repo cron jobs that should not be on GitHub-hosted per the org policy.</p>
+      <table>
+        <thead>
+          <tr><th>Order</th><th>Repo</th><th>Workflow(s)</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>ai_universe_living_blog</code></td>
+            <td><code>skeptic-cron.yml</code>, <code>daily-summary.yml</code>, <code>ci.yml</code>, <code>novel-entry.yml</code></td>
+            <td>Highest current burn — <strong>only after Phase 0 lands</strong></td></tr>
+          <tr><td>2</td><td><code>ai_universe</code></td>
+            <td><code>skeptic-cron.yml</code>, <code>ci.yml</code> (private)</td>
+            <td>Private repo policy says self-hosted by default</td></tr>
+          <tr><td>3</td><td><code>ai_universe_mobile</code></td>
+            <td><code>skeptic-cron.yml</code></td><td>Private</td></tr>
+          <tr><td>4</td><td><code>ai_universe_convo_mcp</code></td>
+            <td><code>skeptic-cron.yml</code></td><td>Private</td></tr>
+          <tr><td>5</td><td><code>ai_universe_frontend</code></td>
+            <td><code>ci.yml</code>, deploy-pr-preview</td>
+            <td>Highest non-cron burn; deploy step talks to GCP, verify auth before flipping</td></tr>
+          <tr><td>—</td><td><code>ai_universe_chatgpt_sdk</code></td>
+            <td>(very low traffic — defer)</td>
+            <td>Public repo, low priority</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="recipe">Migration recipe per repo (PR per repo)</h3>
+      <ol>
+        <li>Replace <code>runs-on: ubuntu-latest</code> with:
+<pre><code>runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}</code></pre>
+        </li>
+        <li>Set <code>vars.SELF_HOSTED_RUNNER_LABELS</code> at org level (already
+          required by smartclaw policy) to keep the selector overridable.</li>
+        <li>Keep <code>timeout-minutes</code> from Phase 0; it matters more on shared
+          runners than on GitHub-hosted, since a hung job blocks a real shared machine.</li>
+        <li>For workflows that need GCP auth (e.g. <code>Deploy PR Preview to GCP</code>),
+          confirm the self-hosted runner already has <code>gcloud</code> configured for
+          the right service account before merging the migration PR.</li>
+        <li>After merge, watch the runner pool for queue depth. With 14 runners and 5
+          repos running Skeptic Cron every 30 min plus PR CI, peak concurrency should
+          remain well under 14, but fix Phase 0 first or hangs will saturate the
+          fleet immediately.</li>
+      </ol>
+
+      <h3 id="phase-2">Phase 2 — Org-level guardrails</h3>
+      <ol>
+        <li>Add a CI gate (<code>actions-runner-policy.yml</code> or a Skeptic check)
+          that fails any PR touching <code>.github/workflows/*.yml</code> in a
+          <strong>private</strong> ai_universe repo if it reintroduces
+          <code>ubuntu-latest</code>. Mirrors the policy already enforced in
+          <code>worldarchitect.ai</code>.</li>
+        <li>Add a <code>monitor-actions-burn.sh</code> cron that pulls per-repo run
+          durations daily and alerts in Slack <code>#ai-slack-test</code> if any single
+          workflow exceeds 5,000 minutes / day — would have caught the living_blog
+          runaway within 24 hours instead of 14 days.</li>
+        <li>Document the runaway pattern in <code>~/.smartclaw/CLAUDE.md</code> under a
+          new "Workflow timeout discipline" section: every scheduled workflow MUST
+          set both <code>timeout-minutes</code> and
+          <code>concurrency.cancel-in-progress</code>.</li>
+      </ol>
+    </section>
+
+    <section id="savings">
+      <h2>Counterfactual Estimated Savings (private-repo only — not actual billed spend)</h2>
+      <p><strong>These figures are counterfactual.</strong> The dominant
+        <code>ai_universe_living_blog</code> repo is currently public, so its Actions
+        minutes are free and contribute $0 to current GitHub or GCP billing. The
+        numbers below model what the burn <em>would</em> cost if these workloads were
+        billed at private-repo GitHub-hosted rates — useful for sizing the risk if
+        repos go private, not for explaining the current GCP alert.</p>
+      <p>Assumptions:</p>
+      <ul>
+        <li>GitHub-hosted Linux: $0.008/min (post-free-tier private repo rate).</li>
+        <li>Current 14-day measured burn (ai_universe family):
+          <strong>~498,750 min ≈ $3,990</strong>. Annualized at the same rate:
+          <strong>~$104,000/year</strong>. Almost all of that is the living_blog hang.</li>
+        <li>Self-hosted runner cost: amortized hardware/electricity for the existing
+          fleet, treat as ~$0 marginal because the 14 runners are already provisioned
+          and online.</li>
+      </ul>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Min saved / 14d</th><th>$ saved / 14d</th><th>$ saved / yr</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Phase 0 (timeout + concurrency on living_blog)</td>
+            <td style="text-align:right">~498,000</td>
+            <td style="text-align:right">~$3,984</td>
+            <td style="text-align:right">~$103,800</td></tr>
+          <tr><td>Phase 1 (full ai_universe migration)</td>
+            <td style="text-align:right">additional ~700</td>
+            <td style="text-align:right">additional ~$6</td>
+            <td style="text-align:right">~$150</td></tr>
+          <tr><td><strong>Total</strong></td>
+            <td style="text-align:right"><strong>~498,700</strong></td>
+            <td style="text-align:right"><strong>~$3,990</strong></td>
+            <td style="text-align:right"><strong>~$104,000</strong></td></tr>
+        </tbody>
+      </table>
+      <p>These savings are a <strong>counterfactual</strong> for private-repo
+        GitHub-hosted billing only. For the current public
+        <code>ai_universe_living_blog</code> repo, Actions minutes are not the
+        present GCP budget driver; use the GCP billing-export-by-service to identify
+        the actual spend sources.</p>
+    </section>
+
+    <section id="open-questions">
+      <h2>Open Questions</h2>
+      <ul>
+        <li>Confirm whether <code>ai_universe_living_blog</code> is private or public —
+          <code>gh repo list</code> shows PUBLIC, in which case GitHub Actions minutes
+          for that single repo are free and the budget alert source is elsewhere
+          (likely GCP Cloud Run from <code>Deploy to GCP</code> workflows in
+          <code>ai_universe_frontend</code>, or unrelated GCP services). This needs
+          cross-checking against the actual GCP billing line items before declaring
+          the case closed.</li>
+        <li>If the budget alert is GCP-side (Cloud Run / Cloud Build), then Phase 1
+          still applies for org-policy reasons but Phase 0 will not move the GCP needle.
+          Pull the GCP billing export by service before assuming Actions is the cause.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

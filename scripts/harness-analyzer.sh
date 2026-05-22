@@ -10,7 +10,7 @@ set -e
 REPO="jleechanorg/smartclaw"
 WORK_DIR="/tmp/harness-analyzer-$$"
 LOG_FILE="$HOME/.smartclaw/logs/harness-analyzer.log"
-GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN-$HOME/.github_token}"
+GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN:-$HOME/.github_token}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -102,7 +102,7 @@ check_harness_files() {
         "SOUL.md"
         "TOOLS.md"
         "USER.md"
-        "openclaw.json"
+        "hermes.json"
         "agent-orchestrator.yaml"
     )
     
@@ -388,7 +388,7 @@ comment_on_open_prs() {
         fi
         
         # Check for config changes
-        if echo "$files" | grep -qE "(openclaw\.json|agent-orchestrator\.yaml|\.claude)"; then
+        if echo "$files" | grep -qE "(hermes\.json|agent-orchestrator\.yaml|\.claude)"; then
             suggestions+=("- Config changes: verify new settings follow harness engineering principles (deterministic first, LLM for judgment)")
         fi
         
@@ -399,7 +399,7 @@ comment_on_open_prs() {
         
         # Check for launchd changes
         if echo "$files" | grep -q "launchd/"; then
-            suggestions+=("- Launchd changes: verify plist follows OpenClaw conventions and has proper environment variables")
+            suggestions+=("- Launchd changes: verify plist follows Hermes conventions and has proper environment variables")
         fi
         
         # Add general suggestions

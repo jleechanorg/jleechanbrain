@@ -4,6 +4,10 @@ This test catches regressions where a file that should be synced to prod
 (e.g. a policy/config file tracked in git) is inadvertently removed from
 the deploy sync list.
 
+Also validates provider-key consistency in config.yaml: no provider name
+should appear in both `providers` and `custom_providers`, and api_keys
+should not be empty strings (except for local providers like ollama).
+
 Run: python -m pytest tests/test_deploy_sync_completeness.py -v
 """
 
@@ -11,11 +15,14 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
-HERMES_REPO = Path(os.environ.get("HERMES_REPO", str(Path.home() / ".hermes")))
+HERMES_REPO = Path(os.environ.get("HERMES_REPO", str(Path.home() / ".smartclaw")))
 DEPLOY_SCRIPT = HERMES_REPO / "scripts" / "deploy.sh"
 
 
@@ -109,4 +116,167 @@ def test_config_yaml_is_synced():
     # config.yaml is synced via explicit cp, not the loop
     assert "config.yaml" in script_content and "cp" in script_content, (
         "config.yaml must be synced via hermes_sync_config()"
+    )
+
+
+# ─── Provider key consistency ────────────────────────────────────────────────────
+
+CONFIG_YAML = HERMES_REPO / "config.yaml"
+
+
+def _load_config_yaml() -> dict:
+    """Load and return config.yaml as a dict."""
+    return yaml.safe_load(CONFIG_YAML.read_text())
+
+
+def _provider_names_from_providers(providers: dict | None) -> set[str]:
+    """Extract provider names from the `providers` section.
+
+    The section is a dict keyed by provider name, e.g.:
+        providers:
+          wafer:
+            name: wafer
+            base_url: ...
+            api_key: ...
+    """
+    if not providers:
+        return set()
+    return set(providers.keys())
+
+
+def _provider_names_from_custom_providers(custom_providers: list | None) -> set[str]:
+    """Extract provider names from the `custom_providers` section.
+
+    The section is a list of dicts, each with a `name` key, e.g.:
+        custom_providers:
+          - name: wafer
+            base_url: ...
+            api_key: ...
+    """
+    if not custom_providers:
+        return set()
+    names: set[str] = set()
+    for entry in custom_providers:
+        name = entry.get("name")
+        if name:
+            names.add(name)
+    return names
+
+
+def _is_local_provider(base_url: str | None) -> bool:
+    """Return True if the base_url points to localhost (no auth needed)."""
+    if not base_url:
+        return False
+    return "localhost" in base_url or "127.0.0.1" in base_url
+
+
+def test_no_duplicate_provider_entries():
+    """No provider name should appear in both `providers` and `custom_providers`.
+
+    Duplicate entries cause key-resolution ambiguity: one section may have an
+    empty api_key while the other has the real key, leading to 401 errors
+    when the wrong entry is resolved first (e.g. compression picking the
+    empty-key variant).
+    """
+    cfg = _load_config_yaml()
+
+    providers_names = _provider_names_from_providers(cfg.get("providers"))
+    custom_names = _provider_names_from_custom_providers(cfg.get("custom_providers"))
+
+    duplicates = providers_names & custom_names
+    assert not duplicates, (
+        f"Provider names found in BOTH `providers` and `custom_providers`: {sorted(duplicates)}\n"
+        "This causes key-resolution ambiguity — one entry may have an empty "
+        "api_key while the other has the real key, leading to 401 failures. "
+        "Remove the duplicate or merge the entries."
+    )
+
+
+def test_provider_api_keys_not_empty():
+    """Provider api_key fields must not be empty strings.
+
+    Empty api_key values cause 401 errors when the provider is used
+    (e.g. for compression, vision, or auxiliary tasks). Local providers
+    (localhost/127.0.0.1 base_url) are exempt since they typically
+    require no authentication.
+    """
+    cfg = _load_config_yaml()
+
+    empty_key_providers: list[str] = []
+
+    # Check `providers` section
+    providers = cfg.get("providers")
+    if providers and isinstance(providers, dict):
+        for name, entry in providers.items():
+            if not isinstance(entry, dict):
+                continue
+            base_url = entry.get("base_url", "")
+            api_key = entry.get("api_key")
+            if _is_local_provider(base_url):
+                continue
+            if api_key == "":
+                empty_key_providers.append(f"providers.{name}")
+
+    # Check `custom_providers` section
+    custom_providers = cfg.get("custom_providers")
+    if custom_providers and isinstance(custom_providers, list):
+        for entry in custom_providers:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name", "<unnamed>")
+            base_url = entry.get("base_url", "")
+            api_key = entry.get("api_key")
+            if _is_local_provider(base_url):
+                continue
+            if api_key == "":
+                empty_key_providers.append(f"custom_providers[{name}]")
+
+    assert not empty_key_providers, (
+        f"Providers with empty api_key (non-local): {empty_key_providers}\n"
+        "Empty api_key causes 401 errors when the provider is used. "
+        "Either set the key or, for local/authless providers, ensure "
+        "base_url contains 'localhost' or '127.0.0.1'."
+    )
+
+
+# ─── Launchd watchdog presence ──────────────────────────────────────────────────
+
+
+def test_watchdog_launchd_loaded():
+    """Verify ai.smartclaw-watchdog is loaded in launchd on macOS.
+
+    The watchdog runs every 5 minutes and restarts the prod gateway if it
+    crashes. If the watchdog is not loaded, gateway outages go undetected
+    and unrecovered until a human intervenes.
+    """
+    if sys.platform != "darwin":
+        pytest.skip("launchd is macOS-only")
+
+    result = subprocess.run(
+        ["launchctl", "list"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.fail(
+            f"launchctl list failed (exit {result.returncode}): {result.stderr.strip()}"
+        )
+
+    assert "ai.smartclaw-watchdog" in result.stdout, (
+        "Watchdog not loaded — run:\n"
+        "  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.smartclaw-watchdog.plist"
+    )
+
+
+def test_watchdog_plist_template_in_repo():
+    """Verify the watchdog plist template is tracked in the repo.
+
+    Without this template, a fresh clone/reinstall loses the watchdog and gateway
+    outages go undetected and unrecovered until a human intervenes.
+    """
+    template = HERMES_REPO / "launchd" / "ai.smartclaw-watchdog.plist.template"
+    assert template.exists(), (
+        f"Watchdog plist template missing from repo: {template}\n"
+        "Create launchd/ai.smartclaw-watchdog.plist.template so install-launchagents.sh "
+        "can bootstrap the watchdog on a fresh clone."
     )

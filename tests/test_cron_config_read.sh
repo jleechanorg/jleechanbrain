@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regression: openclaw cron help/list must not die during config read when
+# Regression: hermes cron help/list must not die during config read when
 # plugin doctor scans Slack contracts.
 set -euo pipefail
 
@@ -15,14 +15,14 @@ trap cleanup EXIT
 
 STATE_DIR="$TMP_ROOT/.smartclaw"
 mkdir -p "$STATE_DIR"
-cp ${HOME}/.smartclaw/openclaw.json "$STATE_DIR/openclaw.json"
+cp ${HOME}/.smartclaw/hermes.json "$STATE_DIR/hermes.json"
 
 HELP_OUT="$TMP_ROOT/cron-help.out"
 LIST_OUT="$TMP_ROOT/cron-list.out"
 
-if env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-  OPENCLAW_CONFIG_PATH="$STATE_DIR/openclaw.json" \
-  openclaw cron --help >"$HELP_OUT" 2>&1
+if env -u HERMES_GATEWAY_TOKEN -u HERMES_GATEWAY_REMOTE_TOKEN \
+  HERMES_CONFIG_PATH="$STATE_DIR/hermes.json" \
+  hermes cron --help >"$HELP_OUT" 2>&1
 then
   pass "cron --help exits zero"
 else
@@ -35,15 +35,15 @@ else
   pass "cron --help no longer emits config-read TypeError"
 fi
 
-if grep -q 'Usage: openclaw cron' "$HELP_OUT"; then
+if grep -q 'Usage: hermes cron' "$HELP_OUT"; then
   pass "cron --help still prints usage"
 else
   fail "cron --help missing usage text"
 fi
 
-if env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-  OPENCLAW_CONFIG_PATH="$STATE_DIR/openclaw.json" \
-  openclaw cron list --json >"$LIST_OUT" 2>&1
+if env -u HERMES_GATEWAY_TOKEN -u HERMES_GATEWAY_REMOTE_TOKEN \
+  HERMES_CONFIG_PATH="$STATE_DIR/hermes.json" \
+  hermes cron list --json >"$LIST_OUT" 2>&1
 then
   pass "cron list --json exits zero"
 else

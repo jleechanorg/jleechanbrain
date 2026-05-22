@@ -1,7 +1,7 @@
 # Staging → Production Pipeline Skill
 
 **Skill**: `staging-prod-pipeline`
-**Purpose**: Install, verify, operate, and troubleshoot the OpenClaw staging→production deployment pipeline
+**Purpose**: Install, verify, operate, and troubleshoot the Hermes staging→production deployment pipeline
 **Scope**: `~/.smartclaw/` (staging, port 18810) ↔ `~/.smartclaw_prod/` (production, port 18789)
 
 ---
@@ -11,7 +11,7 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  ~/.smartclaw/  (STAGING — the git repo)                      │
-│  ├── openclaw.json         ← staging config                 │
+│  ├── hermes.json         ← staging config                 │
 │  ├── staging-canary.sh     ← pre-deploy validation          │
 │  ├── gateway-preflight.sh  ← pre-upgrade checks              │
 │  ├── deploy.sh             ← promotes staging → prod         │
@@ -24,7 +24,7 @@
                            ↓ deploy.sh
 ┌──────────────────────────────────────────────────────────────┐
 │  ~/.smartclaw_prod/  (PRODUCTION — separate dir)             │
-│  ├── openclaw.json         ← synced from staging            │
+│  ├── hermes.json         ← synced from staging            │
 │  ├── cron/                  ← synced from staging            │
 │  ├── scripts/               ← synced from staging            │
 │  ├── workspace/             ← synced from staging            │
@@ -35,7 +35,7 @@
 
 ### Key Constraints
 - `~/.smartclaw/` = staging. `~/.smartclaw_prod/` = production. They are **separate directories**.
-- Tokens live in `openclaw.json` — never in plist files.
+- Tokens live in `hermes.json` — never in plist files.
 - Node binary for production plist is **nvm Node 22** (`~/.nvm/versions/node/v22.22.0/bin/node`), NOT Homebrew Node.
 - `ThrottleInterval` must be ≥ 10 (preferably 30) — values < 10 cause restart storms.
 - Gateway plist **must be XML** (not binary) — binary plists cause launchd to misread `RunAtLoad`/`KeepAlive`/`PATH`.
@@ -49,9 +49,9 @@ Before the pipeline works, the following must be true:
 | Requirement | How to verify |
 |---|---|
 | macOS (launchd) | `uname -s` → `Darwin` |
-| openclaw CLI installed | `openclaw --version` |
+| hermes CLI installed | `hermes --version` |
 | Node.js (nvm v22.22.0) | `~/.nvm/versions/node/v22.22.0/bin/node --version` |
-| `~/.smartclaw/` cloned | `ls ~/.smartclaw/openclaw.json` |
+| `~/.smartclaw/` cloned | `ls ~/.smartclaw/hermes.json` |
 | `~/.smartclaw_prod/` created | `ls ~/.smartclaw_prod/` |
 | Git remote points to jleechanorg/smartclaw | `git remote get-url origin` (must contain `smartclaw`) |
 
@@ -76,7 +76,7 @@ bash ~/.smartclaw/scripts/bootstrap.sh
 This installs:
 - `~/agent-orchestrator.yaml` → symlink to `~/.smartclaw/agent-orchestrator.yaml`
 - LaunchAgents (core + scheduled jobs)
-- openclaw CLI via npm
+- hermes CLI via npm
 - webhook secret → `~/.smartclaw/webhook.json`
 - gog auth check
 
@@ -85,7 +85,7 @@ This installs:
 ```bash
 mkdir -p ~/.smartclaw_prod/logs
 # Seed config from staging (if staging exists)
-[[ -f ~/.smartclaw/openclaw.json ]] && cp ~/.smartclaw/openclaw.json ~/.smartclaw_prod/openclaw.json
+[[ -f ~/.smartclaw/hermes.json ]] && cp ~/.smartclaw/hermes.json ~/.smartclaw_prod/hermes.json
 # Symlink shared resources
 for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
   [[ -e ~/.smartclaw/$target ]] && ln -sf ~/.smartclaw/$target ~/.smartclaw_prod/$target
@@ -105,7 +105,7 @@ bash ~/.smartclaw/scripts/install-launchagents.sh
 ```
 
 This:
-1. Substitutes `@HOME@`, `@NODE_PATH@`, `@OPENCLAW_BIN@`, etc. in plist templates
+1. Substitutes `@HOME@`, `@NODE_PATH@`, `@HERMES_BIN@`, etc. in plist templates
 2. Creates `~/Library/LaunchAgents/ai.smartclaw.staging.plist`
 3. Creates `~/Library/LaunchAgents/com.smartclaw.gateway.plist`
 4. Bootstraps both via `launchctl bootstrap gui/$(id -u) <plist>`
@@ -148,7 +148,7 @@ bash scripts/deploy.sh
 1. **Preflight** — `gateway-preflight.sh` validates plists, SDK version, config keys; add `--fix` to auto-repair
 2. **Staging validation** — start staging gateway, run `staging-canary.sh --port 18810`, run `monitor-agent.sh` against staging
 3. **Push to origin/main** — merge current branch, push to `origin/main` (BLOCKED if monitor fails)
-4. **Sync config** — `rsync` scripts/, workspace/, memory/, cron/ from staging → prod; `cp openclaw.json`
+4. **Sync config** — `rsync` scripts/, workspace/, memory/, cron/ from staging → prod; `cp hermes.json`
 5. **Symlink shared resources** — SOUL.md, TOOLS.md, HEARTBEAT.md, extensions, agents, credentials
 6. **Restart prod gateway** — stop → start → wait 20s → canary + monitor-agent
 7. **Success alert** — Slack DM to `C0AP8LRKM9N` (success channel), `${SLACK_CHANNEL_ID}` (failure channel)
@@ -168,7 +168,7 @@ bash scripts/deploy.sh
 bash ~/.smartclaw/scripts/staging-canary.sh --port 18810
 
 # Production (port 18789)
-OPENCLAW_STAGING_CONFIG="$HOME/.smartclaw_prod/openclaw.json" \
+HERMES_STAGING_CONFIG="$HOME/.smartclaw_prod/hermes.json" \
   bash ~/.smartclaw/scripts/staging-canary.sh --port 18789
 ```
 
@@ -196,9 +196,9 @@ OPENCLAW_STAGING_CONFIG="$HOME/.smartclaw_prod/openclaw.json" \
 launchctl stop gui/$(id -u)/com.smartclaw.gateway
 
 # 2. Restore config from staging (no .bak file created by deploy.sh)
-cp ~/.smartclaw/openclaw.json ~/.smartclaw_prod/openclaw.json
+cp ~/.smartclaw/hermes.json ~/.smartclaw_prod/hermes.json
 # If staging config is also bad, restore from git:
-# git -C ~/.smartclaw show HEAD:openclaw.json > ~/.smartclaw_prod/openclaw.json
+# git -C ~/.smartclaw show HEAD:hermes.json > ~/.smartclaw_prod/hermes.json
 
 # 3. Restart prod
 launchctl start gui/$(id -u)/com.smartclaw.gateway
@@ -215,7 +215,7 @@ bash ~/.smartclaw/scripts/staging-canary.sh --port 18789
 bash ~/.smartclaw/scripts/gateway-preflight.sh --fix
 ```
 
-This auto-corrects `meta.lastTouchedVersion` in `~/.smartclaw-consensus/openclaw.json` to match the running binary version.
+This auto-corrects `meta.lastTouchedVersion` in `~/.smartclaw-consensus/hermes.json` to match the running binary version.
 
 ---
 
@@ -223,8 +223,8 @@ This auto-corrects `meta.lastTouchedVersion` in `~/.smartclaw-consensus/openclaw
 
 | File | Purpose |
 |---|---|
-| `~/.smartclaw/openclaw.json` | Staging config (port 18810) |
-| `~/.smartclaw_prod/openclaw.json` | Production config (port 18789) |
+| `~/.smartclaw/hermes.json` | Staging config (port 18810) |
+| `~/.smartclaw_prod/hermes.json` | Production config (port 18789) |
 | `~/.smartclaw/scripts/deploy.sh` | Main deploy script |
 | `~/.smartclaw/scripts/staging-canary.sh` | 7-point canary test |
 | `~/.smartclaw/scripts/gateway-preflight.sh` | Pre-upgrade validation + SDK compat check |
@@ -241,8 +241,8 @@ This auto-corrects `meta.lastTouchedVersion` in `~/.smartclaw-consensus/openclaw
 | `~/.smartclaw/.gateway-node-version` | NODE_MODULE_VERSION baseline for staging |
 | `~/.smartclaw_prod/.gateway-node-version` | NODE_MODULE_VERSION baseline for prod |
 | `~/.smartclaw/.current-sdk-version` | @agentclientprotocol/sdk baseline |
-| `~/.smartclaw-consensus/openclaw.json` | Consensus config (AJV version tracking) |
-| `~/.smartclaw_prod/openclaw.json.bak.*` | Rotating backups created by `install-launchagents.sh` (not by deploy.sh) |
+| `~/.smartclaw-consensus/hermes.json` | Consensus config (AJV version tracking) |
+| `~/.smartclaw_prod/hermes.json.bak.*` | Rotating backups created by `install-launchagents.sh` (not by deploy.sh) |
 | `/tmp/staging-canary.log` | Staging canary output |
 | `/tmp/prod-canary.log` | Production canary output |
 | `/tmp/staging-monitor.log` | Staging monitor-agent output |
@@ -292,12 +292,12 @@ launchctl stop gui/$(id -u)/com.smartclaw.gateway && launchctl start gui/$(id -u
 ```bash
 # Verify NODE_MODULE_VERSION baseline
 GATEWAY_NODE="$HOME/.nvm/versions/node/v22.22.0/bin/node"
-"$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null || echo "FAIL"
+"$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3')" 2>/dev/null || echo "FAIL"
 # If fails: rebuild
-cd ~/.smartclaw/extensions/openclaw-mem0
+cd ~/.smartclaw/extensions/hermes-mem0
 "$GATEWAY_NODE" npm rebuild better-sqlite3
 # Verify
-"$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" && echo "OK"
+"$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3')" && echo "OK"
 ```
 
 ### plist binary encoding issue (RunAtLoad/KeepAlive/PATH read as absent)
@@ -305,7 +305,7 @@ cd ~/.smartclaw/extensions/openclaw-mem0
 ```bash
 # Detect
 file ~/Library/LaunchAgents/com.smartclaw.gateway.plist
-# Fix — convert to XML so openclaw CLI / gateway status commands can parse it
+# Fix — convert to XML so hermes CLI / gateway status commands can parse it
 plutil -convert xml1 ~/Library/LaunchAgents/com.smartclaw.gateway.plist
 launchctl kickstart -k gui/$(id -u)/com.smartclaw.gateway
 ```
@@ -314,7 +314,7 @@ launchctl kickstart -k gui/$(id -u)/com.smartclaw.gateway
 
 ```bash
 # Find all gateway plists
-ls ~/Library/LaunchAgents/*openclaw*gateway*
+ls ~/Library/LaunchAgents/*hermes*gateway*
 # Two gateways run simultaneously on different ports — both are needed:
 #   com.smartclaw.gateway  (port 18789, production)
 #   ai.smartclaw.staging    (port 18810, staging)
@@ -334,18 +334,18 @@ launchctl kickstart -k gui/$(id -u)/com.smartclaw.gateway
 
 ## Maintenance
 
-### Upgrading openclaw through the staging gate
+### Upgrading hermes through the staging gate
 
 ```bash
 # 1. Validate new version's SDK compatibility
 bash ~/.smartclaw/scripts/gateway-preflight.sh
 # The script exports validate_sdk_compatibility() — call it:
 source ~/.smartclaw/scripts/gateway-preflight.sh
-validate_sdk_compatibility <new-openclaw-version>
+validate_sdk_compatibility <new-hermes-version>
 # If FAIL: major SDK jump — do NOT upgrade
 
 # 2. Upgrade staging
-npm install -g openclaw@<new-version>
+npm install -g hermes@<new-version>
 
 # 3. Run full staging canary
 bash ~/.smartclaw/scripts/staging-canary.sh --port 18810
@@ -391,5 +391,5 @@ bash ~/.smartclaw/monitor-agent.sh
 
 - **Production gateway**: `launchctl print gui/$(id -u)/com.smartclaw.gateway`
 - **Staging gateway**: `launchctl print gui/$(id -u)/ai.smartclaw.staging`
-- **Slack health channel**: `#C0AJ3SD5C79` (OpenClaw design channel)
+- **Slack health channel**: `#C0AJ3SD5C79` (Hermes design channel)
 - **Logs**: `~/.smartclaw_prod/logs/gateway.err.log` (look for `session file locked`, `cmuxBotToken`, `AJV`, `ws-stream`)

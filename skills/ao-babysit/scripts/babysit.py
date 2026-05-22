@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_HERMES", "")
-STATE_DIR = Path.home() / ".hermes" / "skills" / "ao-babysit" / "state"
+STATE_DIR = Path.home() / ".smartclaw" / "skills" / "ao-babysit" / "state"
 AO_SERVER_UUID = "9cc70dbf8ac4"  # embedded in tmux session names
 
 # ── Slack ──────────────────────────────────────────────────────────────────────

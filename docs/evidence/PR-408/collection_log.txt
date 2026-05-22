@@ -13,12 +13,12 @@ STATUS=spawned
 $ bash /tmp/phase1e_test.sh
 
 === Phase 1e: Dispatch Delivery Verification ===
---- /tmp/openclaw/.claw-track-orch-sga ---
+--- /tmp/hermes/.claw-track-orch-sga ---
 ISSUE_ID=orch-sga
 SESSION_NAME=jc-925
 PROJECT_ID=smartclaw
 SPAWNED_AT=2026-03-26T21:15:00Z
-TASK_FILE=/tmp/openclaw/claw-task-eloop-system-audit.md
+TASK_FILE=/tmp/hermes/claw-task-eloop-system-audit.md
 STATUS=spawned
 [ORPHAN] Session jc-925 is dead — orphaned dispatch for issue orch-sga
 
@@ -30,8 +30,8 @@ Orphaned dispatches: 1
 PASS: Phase 1e correctly identifies orphaned dispatches using /claw tracking files
 NOTE: The orphaned dispatch (jc-925) is a real orphan — this tmux session is no longer active
 
---- Current tracking files in /tmp/openclaw/ ---
-$(ls -la /tmp/openclaw/.claw-track-* /tmp/openclaw/.claw-spawn-* 2>/dev/null || echo "(none)")
+--- Current tracking files in /tmp/hermes/ ---
+$(ls -la /tmp/hermes/.claw-track-* /tmp/hermes/.claw-spawn-* 2>/dev/null || echo "(none)")
 
 --- Active tmux sessions ---
 $(tmux list-sessions 2>/dev/null | grep -E '^(ao|jc|wa|cc|ra|wc)-' || echo "(none)")

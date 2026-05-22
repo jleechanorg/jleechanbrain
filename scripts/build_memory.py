@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build OpenClaw memory from git history, PRs, and beads.
+"""Build Hermes memory from git history, PRs, and beads.
 
 Three stages run in sequence:
   1. collect  — gather raw commits, PRs, beads from configured repos
@@ -219,7 +219,7 @@ RAW DATA:
 SOUL_PROMPT = """You are updating an AI agent's "Learned Patterns" section in SOUL.md.
 
 Given this week's activity across all projects, extract durable behavioral patterns and preferences.
-These will be used by an AI agent (OpenClaw) to make decisions on behalf of the developer.
+These will be used by an AI agent (Hermes) to make decisions on behalf of the developer.
 
 Focus on:
 - How the developer prefers to handle specific situations (CI failures, PR reviews, test failures)

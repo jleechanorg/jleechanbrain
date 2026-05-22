@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Create or verify the openclaw-mem0-qdrant Docker container.
+# Create or verify the hermes-mem0-qdrant Docker container.
 # Idempotent: skips creation if container already exists.
 # Storage is persisted at ~/.smartclaw/qdrant_storage/
 set -euo pipefail
 
-CONTAINER="openclaw-mem0-qdrant"
+CONTAINER="hermes-mem0-qdrant"
 IMAGE="qdrant/qdrant:latest"
 STORAGE_DIR="${HOME}/.smartclaw/qdrant_storage"
 HOST_PORT=6333
 DOCKER_BIN="${DOCKER_BIN:-docker}"
 
 docker_cmd() {
-  if [[ -n "${OPENCLAW_QDRANT_DOCKER_CONTEXT:-}" ]]; then
-    "$DOCKER_BIN" --context "$OPENCLAW_QDRANT_DOCKER_CONTEXT" "$@"
+  if [[ -n "${HERMES_QDRANT_DOCKER_CONTEXT:-}" ]]; then
+    "$DOCKER_BIN" --context "$HERMES_QDRANT_DOCKER_CONTEXT" "$@"
   else
     "$DOCKER_BIN" "$@"
   fi

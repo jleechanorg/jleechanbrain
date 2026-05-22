@@ -1,0 +1,39 @@
+{
+  "pr": 565,
+  "repository": "jleechanorg/jleechanclaw",
+  "title": "feat: rewrite install.sh as Hermes setup validator",
+  "evidence_class": "Terminal/Backend",
+  "provenance": {
+    "git_head": "7f10d9b6523a39ed5603bba204a78608c09f7299",
+    "git_branch": "feat/hermes-install-sh",
+    "merge_base": "ac768576fa65a3bc1a3ff9ef4fe1aa7deaba7a96",
+    "commits_ahead_of_main": 8,
+    "diff_stat": "scripts/install.sh | 816 insertions, 49 deletions (1 file changed, 767 net)"
+  },
+  "runtime": {
+    "hostname": "jleechan-macbook",
+    "platform": "darwin",
+    "hermes_version": "Hermes Agent v0.13.0 (2026.5.7)",
+    "python_version": "3.14.4",
+    "test_command": "bash scripts/install.sh --fix",
+    "test_timestamp": "2026-05-12T13:15:00Z"
+  },
+  "results": {
+    "pass": 42,
+    "fail": 0,
+    "warn": 3,
+    "fix_applied": 0
+  },
+  "warnings": [
+    "Hermes update available (90 commits behind)",
+    "MEM0_API_KEY not set (optional — cloud mem0 disabled, self-hosted available)",
+    "Cloud mem0 disabled but self-hosted mem0 server is available"
+  ],
+  "key_validations": {
+    "prod_gateway": {"pid": 40325, "port": 8642, "health": "ok", "slack_identity": "@hermes"},
+    "staging_gateway": {"pid": 84015, "port": 8643, "health": "ok", "slack_identity": "@hermes_staging"},
+    "mem0_server": {"pid": 43572, "port": 8000, "health": "ok"},
+    "slack_token_conflict": "none (separate staging app A0APZAC659P)",
+    "config_parity": "OK (staging and prod config.yaml match except port)"
+  }
+}

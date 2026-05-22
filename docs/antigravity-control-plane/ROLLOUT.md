@@ -210,4 +210,4 @@ For canary rollout within v2:
 | `antig_control_plane.slack.notify.completed` | `true` | Send Slack notification on job completion |
 | `antig_control_plane.slack.notify.deadlettered` | `true` | Send alert on deadletter (pager-worthy) |
 
-Feature flags are set in `openclaw.json` under `antig_control_plane:` section, following the surgical update pattern (never rewrite full file).
+Feature flags are set in `hermes.json` under `antig_control_plane:` section, following the surgical update pattern (never rewrite full file).

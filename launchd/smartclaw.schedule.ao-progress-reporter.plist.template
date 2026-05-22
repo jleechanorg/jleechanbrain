@@ -8,7 +8,9 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>@HOME@/.smartclaw/scripts/ao-progress-reporter.sh</string>
+        <string>@REPO_ROOT@/scripts/launchd-env-wrapper.sh</string>
+        <string>/bin/bash</string>
+        <string>@REPO_ROOT@/scripts/ao-progress-reporter.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -16,9 +18,7 @@
         <key>HOME</key>
         <string>@HOME@</string>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-        <key>SLACK_BOT_TOKEN</key>
-        <string>@SLACK_BOT_TOKEN@</string>
+        <string>@HERMES_EXTRA_PATH@@HOME@/.local/bin:@HOME@/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>AOPR_SLACK_THREAD_TS</key>
         <string>1775197044.035089</string>
     </dict>

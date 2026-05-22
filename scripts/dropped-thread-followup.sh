@@ -17,8 +17,8 @@
 #   - IS_SOURCED=1: allows source for test coverage without running main
 #   - Overlap lock prevents concurrent runs
 #
-# Env: DROP_EXCLUDE_CHANNELS — unset → default skip ${SLACK_CHANNEL_ID}; set to "" → skip nothing;
-#   set to space-separated IDs to exclude only those. (Do not use bash :- for "empty means none".)
+# Env: DROP_CHANNELS — override channel list (space-separated IDs); default: all bot-member channels via API.
+#   DROP_EXCLUDE_CHANNELS — unset → skip nothing; set to space-separated IDs to exclude.
 #   DROP_THREAD_REPLY_LIMIT — conversations.replies limit (default 200).
 #   DROP_JEFFREY_ONLY_CHANNELS — unset → default ${SLACK_CHANNEL_ID}; set to "" → no jeffrey-only gating.
 
@@ -33,8 +33,8 @@ trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
 LOCK_DIR="${DROP_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-dropped-thread.lock}"
-LOG_DIR="${DROP_LOG_DIR:-${HOME}/.hermes_prod/logs}"
-STATE_FILE="${DROP_STATE_FILE:-$HOME/.hermes_prod/logs/dropped-thread-state.json}"
+LOG_DIR="${DROP_LOG_DIR:-${HOME}/.smartclaw_prod/logs}"
+STATE_FILE="${DROP_STATE_FILE:-$HOME/.smartclaw_prod/logs/dropped-thread-state.json}"
 NUDGE_INTERVAL_SECS="${DROP_NUDGE_INTERVAL_SECS:-1800}"   # 30 minutes default
 LOOKBACK_HOURS="${DROP_LOOKBACK_HOURS:-8}"               # scan last N hours
 PROGRESS_STALE_MINUTES="${DROP_PROGRESS_STALE_MINUTES:-5}"  # dispatched task with no progress
@@ -50,6 +50,7 @@ fi
 POST_AS_BOT="${DROP_POST_AS_BOT:-1}"                      # 0 = post as user
 AGENT_USER_ID="${HERMES_BOT_USER_ID:-${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}}"  # bot user ID for classification
 JEFFREY_USER_ID="${JLEECHAN_USER_ID:-U09GH5BR3QU}"        # Jeffrey's Slack user ID (standalone msg detection)
+ESCALATION_CHANNEL="${DROP_ESCALATION_CHANNEL:-${SLACK_CHANNEL_ID}}"  # channel for uncertain-classification escalations
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$STATE_FILE")"
@@ -226,7 +227,7 @@ dispatched_ao = "spawning agent for" in agent_text or "session " in agent_text a
 
 
 def _agent_reported_timeout(text: str) -> bool:
-    """OpenClaw/LLM timeout or gateway overload — user-visible failure, not a completed task."""
+    """Hermes/LLM timeout or gateway overload — user-visible failure, not a completed task."""
     return bool(
         re.search(
             r"request timed out|timed out before|timeout before a response|"
@@ -305,9 +306,27 @@ def _is_automated_report(text: str) -> bool:
     if "canary thread test" in t:
         return True
     # Monitor ping/status reports — automated health checks, not operator tasks
-    if "*openclaw monitor*" in t or "*hermes monitor*" in t:
+    if "*hermes monitor*" in t or "*hermes monitor*" in t:
         return True
     if t.startswith("status=") or ("status=" in t[:80] and ("pass=" in t or "fail=" in t)):
+        return True
+    # Disk usage alert posts from disk_usage_alert.sh
+    if "disk-alert" in t or "disk usage threshold" in t:
+        return True
+    # Cron backup / sync posts — automated git state reports, not operator tasks
+    if t.startswith("cron backup:") or "cron backup:" in t[:80]:
+        return True
+    # Weekly error trends reports — automated log analysis
+    if "weekly error trends" in t[:200]:
+        return True
+    # Gateway lifecycle messages — infra noise, not tasks
+    if t.startswith("gateway shutting down") or "gateway shutting down" in t[:80]:
+        return True
+    # Cronjob response / failure reports — automated job output
+    if t.startswith("cronjob response:") or "cronjob response:" in t[:80]:
+        return True
+    # Self-referential dropped-thread nudges / escalations — prevent recursive loops
+    if t.startswith("[dropped-thread followup]") or t.startswith("[dropped-thread escalation]"):
         return True
     return False
 
@@ -461,8 +480,8 @@ PYEOF
 }
 
 # ── Slack token resolution ─────────────────────────────────────────────────────
-# SLACK_TOKEN (reads): OpenClaw bot primary (broader channel access).
-# post_reply (writes): MCP mail bot (U0A4G7LDJ4R) primary, OpenClaw fallback.
+# SLACK_TOKEN (reads): Hermes bot primary (broader channel access).
+# post_reply (writes): MCP mail bot (U0A4G7LDJ4R) primary, Hermes fallback.
 resolve_mcp_mail_token() {
   local creds="${HOME}/.mcp_mail/credentials.json"
   if [[ -f "$creds" ]] && command -v python3 >/dev/null 2>&1; then
@@ -483,36 +502,50 @@ MCP_MAIL_BOT_TOKEN="${MCP_MAIL_SLACK_TOKEN:-$(resolve_mcp_mail_token)}"
 
 # ── Slack API via curl ──────────────────────────────────────────────────────────
 # Uses MCP mail bot (U0A4G7LDJ4R) for posting nudge messages.
-# Falls back to OpenClaw bot (U0AEZC7RX1Q) only if MCP mail bot unavailable.
+# Falls back to Hermes bot (U0AEZC7RX1Q) only if MCP mail bot unavailable.
 SLACK_TOKEN="${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}}"
 
 resolve_channels() {
-  local config="${HERMES_CONFIG_FILE:-${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}}"
-  if [[ -f "$config" ]] && command -v python3 >/dev/null 2>&1; then
-    python3 - "$config" <<'PYEOF'
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        d = json.load(f)
-    ch = d.get("channels", {}).get("slack", {}).get("channels", {})
-    ids = [k for k in ch if k != "*"]
-    print(" ".join(ids))
-except Exception:
-    pass
+  # Dynamically fetch all channels the bot is a member of via conversations.list.
+  # Paginates until all channels are collected. Falls back to empty on error.
+  [[ -z "$SLACK_TOKEN" ]] && return
+  python3 - "$SLACK_TOKEN" <<'PYEOF'
+import sys, json, urllib.request, urllib.parse
+
+token = sys.argv[1]
+ids = []
+cursor = ""
+while True:
+    params = {"types": "public_channel,private_channel", "exclude_archived": "true",
+              "limit": "200"}
+    if cursor:
+        params["cursor"] = cursor
+    url = "https://slack.com/api/conversations.list?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read())
+    except Exception:
+        break
+    if not d.get("ok"):
+        break
+    ids += [ch["id"] for ch in d.get("channels", []) if ch.get("is_member")]
+    cursor = d.get("response_metadata", {}).get("next_cursor", "")
+    if not cursor:
+        break
+print(" ".join(ids))
 PYEOF
-  fi
 }
 
 DEFAULT_CHANNELS="${DROP_CHANNELS:-$(resolve_channels)}"
-DEFAULT_CHANNELS="${DEFAULT_CHANNELS:-${SLACK_CHANNEL_ID} C0AJQ5M0A0Y}"
 
-# Channels excluded from dropped-thread scanning (#all-jleechan-ai is high-churn).
-# Semantics: unset → default exclude ${SLACK_CHANNEL_ID} | explicitly set (incl. empty) → use that list
-# (empty = exclude nothing). Using :- would treat "" as unset and wrongly re-apply default.
+# Channels excluded from dropped-thread scanning.
+# Default excludes C0AKNDEARS5 (disk-alert channel — only automated reports, never real work).
+# Semantics: unset → use default | explicitly set (incl. empty) → use that list.
 if [[ "${DROP_EXCLUDE_CHANNELS+x}" = x ]]; then
   EXCLUDE_CHANNELS="$DROP_EXCLUDE_CHANNELS"
 else
-  EXCLUDE_CHANNELS="${SLACK_CHANNEL_ID}"
+  EXCLUDE_CHANNELS="C0AKNDEARS5"  # disk-alert channel — only automated disk reports
 fi
 filter_channels() {
   local result=""
@@ -526,7 +559,7 @@ filter_channels() {
   echo "$result"
 }
 
-# Always include DM channel — resolve_channels() only returns C-prefixed IDs from config.
+# Always include DM channel — conversations.list only returns C/G-prefixed channels.
 # DM channels (D-prefix) are never in that list, so we add it unless already present.
 DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-${SLACK_CHANNEL_ID}}"
 case " ${DEFAULT_CHANNELS} " in
@@ -626,9 +659,27 @@ def _is_automated_report(text: str) -> bool:
     if "canary thread test" in t:
         return True
     # Monitor ping/status reports — automated health checks, not operator tasks
-    if "*openclaw monitor*" in t or "*hermes monitor*" in t:
+    if "*hermes monitor*" in t or "*hermes monitor*" in t:
         return True
     if t.startswith("status=") or ("status=" in t[:80] and ("pass=" in t or "fail=" in t)):
+        return True
+    # Disk usage alert posts from disk_usage_alert.sh
+    if "disk-alert" in t or "disk usage threshold" in t:
+        return True
+    # Cron backup / sync posts — automated git state reports, not operator tasks
+    if t.startswith("cron backup:") or "cron backup:" in t[:80]:
+        return True
+    # Weekly error trends reports — automated log analysis
+    if "weekly error trends" in t[:200]:
+        return True
+    # Gateway lifecycle messages — infra noise, not tasks
+    if t.startswith("gateway shutting down") or "gateway shutting down" in t[:80]:
+        return True
+    # Cronjob response / failure reports — automated job output
+    if t.startswith("cronjob response:") or "cronjob response:" in t[:80]:
+        return True
+    # Self-referential dropped-thread nudges / escalations — prevent recursive loops
+    if t.startswith("[dropped-thread followup]") or t.startswith("[dropped-thread escalation]"):
         return True
     return False
 
@@ -674,7 +725,8 @@ for i, m in enumerate(msgs_sorted):
     if not agent_replied:
         if _is_automated_report(m.get("text", "")):
             continue
-        print(m["ts"])
+        safe_text = (m.get("text") or "").replace("\t", " ").replace("\n", " ")[:300]
+        print(m["ts"] + "\t" + safe_text)
 PYEOF
 }
 
@@ -708,6 +760,49 @@ post_reply() {
 
   echo "$response" | jq -e '.ok == true' > /dev/null 2>&1 || return 1
   return 0
+}
+
+# Classify a thread context via LLM to determine if it warrants a nudge.
+# Returns: real_work | testing | uncertain
+# Fails open (real_work) if API unavailable or response unrecognized.
+classify_thread_with_llm() {
+  local context="$1"
+  local api_key="${WAFER_API_KEY:-}"
+  if [[ -z "$api_key" ]]; then
+    echo "real_work"
+    return 0
+  fi
+
+  local prompt="You are classifying Slack thread content to decide if it needs agent follow-up.
+
+Thread context:
+${context}
+
+Classify this as exactly one of:
+- real_work: A genuine operator request, task, bug report, or work discussion
+- testing: A test message, canary ping, automated report, monitoring probe, or throwaway message
+- uncertain: Ambiguous — cannot determine clearly without more context
+
+Respond with ONLY the single classification word (real_work, testing, or uncertain), nothing else."
+
+  local response classification
+  response=$(curl --silent --show-error \
+    --connect-timeout 10 --max-time 30 \
+    -X POST "https://pass.wafer.ai/v1/chat/completions" \
+    -H "Authorization: Bearer $api_key" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg p "$prompt" \
+      '{model:"GLM-5.1",messages:[{role:"user",content:$p}],max_tokens:10,temperature:0}')" \
+    2>/dev/null) || { echo "real_work"; return 0; }
+
+  classification=$(echo "$response" | \
+    jq -r '.choices[0].message.content // ""' 2>/dev/null | \
+    tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+  case "$classification" in
+    real_work|testing|uncertain) echo "$classification" ;;
+    *) echo "real_work" ;;
+  esac
 }
 
 # Source guard — after functions are defined so tests can source and call them
@@ -774,17 +869,40 @@ for channel in $SCAN_CHANNELS; do
       | .text // empty
     ' 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-500)
 
-    # Build nudge message
+    # LLM classification — skip testing threads, escalate uncertain to Jeffrey
+    llm_context="Channel: ${channel}
+Kind: ${kind}
+Reason: ${reason}
+Message excerpt: ${original_msg:-[empty]}"
+    classification=$(classify_thread_with_llm "$llm_context")
+    if [[ "$classification" == "testing" ]]; then
+      log "  SKIP (LLM: testing): $channel $thread_ts"
+      continue
+    elif [[ "$classification" == "uncertain" ]]; then
+      permalink="https://jleechanai.slack.com/archives/${channel}/p${thread_ts//./}"
+      esc_text="<@${JEFFREY_USER_ID}> [Dropped-thread escalation] Uncertain thread needs your review: ${permalink} (reason: ${reason})"
+      slack_token="${MCP_MAIL_BOT_TOKEN:-${SLACK_BOT_TOKEN:-${OPENCLAW_SLACK_BOT_TOKEN:-}}}"
+      curl --silent --show-error --connect-timeout 10 --max-time 30 \
+        -X POST "https://slack.com/api/chat.postMessage" \
+        -H "Authorization: Bearer $slack_token" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg ch "$ESCALATION_CHANNEL" --arg txt "$esc_text" \
+          '{channel: $ch, text: $txt}')" > /dev/null 2>&1 || true
+      log "  ESCALATED (LLM: uncertain): $channel $thread_ts"
+      continue
+    fi
+
+    # Build nudge message — prefix with @agent so allow_bots:mentions passes it through
     if [[ "$kind" == "stale-dispatch" ]]; then
-      nudge_text="[Dropped-thread followup] This dispatched AO task has been running with no progress update. "
+      nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] This dispatched AO task has been running with no progress update. "
       nudge_text+="Please post a concise status update in-thread now (current step, blocker if any, and next checkpoint). "
       nudge_text+="If work is complete, post proof links (PR/commit/artifact) instead."
     elif [[ "$kind" == "timeout-failure" ]]; then
-      nudge_text="[Dropped-thread followup] This thread shows a gateway/model timeout or overload — that counts as a dropped run. "
+      nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] This thread shows a gateway/model timeout or overload — that counts as a dropped run. "
       nudge_text+="Please retry with a smaller step, lower concurrency, or post the blocker. "
       nudge_text+="Original ask: \"${original_msg:-[could not retrieve]}\"."
     else
-      nudge_text="[Dropped-thread followup] This thread appears to have gone cold. "
+      nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] This thread appears to have gone cold. "
       nudge_text+="Original request: \"${original_msg:-[could not retrieve]}\". "
       nudge_text+="Please provide a status update on the requested action, or confirm if work is complete. "
       nudge_text+="If you admitted to not executing something, please do so now and either complete the work "
@@ -816,6 +934,10 @@ done
 log "Scanning for standalone unanswered messages..."
 
 for channel in $SCAN_CHANNELS; do
+  # Skip DM channels (D-prefix) in standalone scan — bot nudges posted via SLACK_USER_TOKEN
+  # appear as Jeffrey messages, creating a recursive self-nudge loop.
+  [[ "$channel" == D* ]] && { log "  SKIP standalone (DM channel): $channel"; continue; }
+
   log "  Standalone scan: $channel"
 
   standalone_msgs=$(fetch_standalone_user_messages "$channel" 2>/dev/null) || {
@@ -823,7 +945,7 @@ for channel in $SCAN_CHANNELS; do
     continue
   }
 
-  while IFS= read -r msg_ts; do
+  while IFS=$'\t' read -r msg_ts msg_text; do
     [[ -z "$msg_ts" ]] && continue
 
     if was_nudged_recently "$channel" "$msg_ts"; then
@@ -832,7 +954,28 @@ for channel in $SCAN_CHANNELS; do
       continue
     fi
 
-    nudge_text="[Dropped-thread followup] You sent a message in this channel that never received a reply. "
+    # LLM classification — skip testing messages, escalate uncertain to Jeffrey
+    standalone_context="Channel: ${channel}
+Message: ${msg_text:-[empty]}"
+    classification=$(classify_thread_with_llm "$standalone_context")
+    if [[ "$classification" == "testing" ]]; then
+      log "  SKIP standalone (LLM: testing): $channel $msg_ts"
+      continue
+    elif [[ "$classification" == "uncertain" ]]; then
+      permalink="https://jleechanai.slack.com/archives/${channel}/p${msg_ts//./}"
+      esc_text="<@${JEFFREY_USER_ID}> [Dropped-thread escalation] Uncertain standalone message needs your review: ${permalink}"
+      slack_token="${MCP_MAIL_BOT_TOKEN:-${SLACK_BOT_TOKEN:-${OPENCLAW_SLACK_BOT_TOKEN:-}}}"
+      curl --silent --show-error --connect-timeout 10 --max-time 30 \
+        -X POST "https://slack.com/api/chat.postMessage" \
+        -H "Authorization: Bearer $slack_token" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg ch "$ESCALATION_CHANNEL" --arg txt "$esc_text" \
+          '{channel: $ch, text: $txt}')" > /dev/null 2>&1 || true
+      log "  ESCALATED standalone (LLM: uncertain): $channel $msg_ts"
+      continue
+    fi
+
+    nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] You sent a message in this channel that never received a reply. "
     nudge_text+="Please respond to Jeffrey's message (ts: ${msg_ts}) now."
 
     if [[ "${DRY_RUN:-0}" == "1" ]]; then

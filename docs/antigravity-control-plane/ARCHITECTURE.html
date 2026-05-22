@@ -395,7 +395,7 @@ class EnqueueResponse:
       <p>Enforces that only one instance of the control plane runs at a time. Uses OS-level file locking + a heartbeat lease.</p>
       <p><strong>Mechanism:</strong></p>
       <ol>
-        <li>Acquire <code>flock(LOCKFILE, LOCK_EX | LOCK_NB)</code> on <code>$OPENCLAW_STATE_DIR/antig_control_plane.lock</code></li>
+        <li>Acquire <code>flock(LOCKFILE, LOCK_EX | LOCK_NB)</code> on <code>$HERMES_STATE_DIR/antig_control_plane.lock</code></li>
         <li>Write <code>{pid, hostname, started_at}</code> to lockfile</li>
         <li>Heartbeat thread updates <code>locked_at</code> every 30 seconds</li>
         <li>On startup: if lockfile exists and process is alive, refuse to start</li>
@@ -599,8 +599,8 @@ Result: https://github.com/jleechanorg/smartclaw/pull/XXX</code></pre>
       <ul>
         <li><code>KeepAlive</code>: false (singleton — if it crashes, LaunchControl can restart)</li>
         <li><code>RunAtLoad</code>: false (started manually or by orchestrator)</li>
-        <li><code>StandardOutPath</code>: <code>$OPENCLAW_LOG_DIR/antig-control-plane.log</code></li>
-        <li><code>StandardErrorPath</code>: <code>$OPENCLAW_LOG_DIR/antig-control-plane.err</code></li>
+        <li><code>StandardOutPath</code>: <code>$HERMES_LOG_DIR/antig-control-plane.log</code></li>
+        <li><code>StandardErrorPath</code>: <code>$HERMES_LOG_DIR/antig-control-plane.err</code></li>
       </ul>
     </section>
 

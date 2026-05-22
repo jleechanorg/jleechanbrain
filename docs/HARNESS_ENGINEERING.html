@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Engineering Philosophy</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#harness-engineering-philosophy">Harness Engineering Philosophy</a>
+<a class="toc-l2" href="#what-is-harness-engineering">What Is Harness Engineering?</a>
+<a class="toc-l2" href="#how-this-repo-is-a-harness">How This Repo Is a Harness</a>
+<a class="toc-l3" href="#layer-1-agent-environment-config-first">Layer 1: Agent Environment (config-first)</a>
+<a class="toc-l3" href="#layer-2-deterministic-feedback-loops-agent-orchestrator">Layer 2: Deterministic Feedback Loops (agent-orchestrator)</a>
+<a class="toc-l3" href="#layer-3-llm-judgment-hermes">Layer 3: LLM Judgment (Hermes)</a>
+<a class="toc-l3" href="#layer-4-entropy-management">Layer 4: Entropy Management</a>
+<a class="toc-l2" href="#key-principles">Key Principles</a>
+<a class="toc-l3" href="#1-documentation-is-infrastructure">1. Documentation Is Infrastructure</a>
+<a class="toc-l3" href="#2-deterministic-first-llm-for-judgment">2. Deterministic First, LLM for Judgment</a>
+<a class="toc-l3" href="#3-fresh-context-not-accumulated-context">3. Fresh Context, Not Accumulated Context</a>
+<a class="toc-l3" href="#4-build-rippable-harnesses">4. Build Rippable Harnesses</a>
+<a class="toc-l3" href="#5-llm-decides-server-executes">5. LLM Decides, Server Executes</a>
+<a class="toc-l2" href="#harness-maturity-model">Harness Maturity Model</a>
+<a class="toc-l2" href="#references">References</a></nav><main><p><a href="HARNESS_ENGINEERING.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="harness-engineering-philosophy">Harness Engineering Philosophy</h1>
+<p>&gt; &quot;The discipline of building systems that make AI agents actually work.&quot;</p>
+<p>&gt; -- OpenAI, February 2026</p>
+<p>This repo is a <strong>harness</strong> — not a codebase that agents work on, but the</p>
+<p>environment, constraints, and feedback loops that enable agents to do reliable</p>
+<p>work across all jleechanorg projects.</p>
+<h2 id="what-is-harness-engineering">What Is Harness Engineering?</h2>
+<p>Harness engineering shifts human engineers from writing code to designing:</p>
+<ol>
+<li>1. <strong>Environments</strong> — isolated workspaces, tool access, credentials</li>
+<li>2. <strong>Constraints</strong> — architectural rules, CLAUDE.md policies, dependency layering</li>
+<li>3. <strong>Feedback loops</strong> — CI reactions, review automation, escalation policies</li>
+<li>4. <strong>Intent specifications</strong> — prompts, task descriptions, acceptance criteria</li>
+</ol>
+<p>The harness encodes all of this into machine-readable artifacts that agents</p>
+<p>consume at runtime. From the agent&#x27;s perspective, anything not in context</p>
+<p>doesn&#x27;t exist — so the harness must make everything accessible.</p>
+<p>Reference: <a href="https://openai.com/index/harness-engineering/">OpenAI: Harness Engineering</a></p>
+<h2 id="how-this-repo-is-a-harness">How This Repo Is a Harness</h2>
+<h3 id="layer-1-agent-environment-config-first">Layer 1: Agent Environment (config-first)</h3>
+<p>| Artifact | What It Does |</p>
+<p>|----------|-------------|</p>
+<p>| <code>SOUL.md</code> | Agent personality, goals, decision-making rules |</p>
+<p>| <code>TOOLS.md</code> | Tool allow/deny list and usage policy |</p>
+<p>| <code>CLAUDE.md</code> | Project rules, coding style, safety rails |</p>
+<p>| <code>AGENTS.md</code> | Agent-specific guidelines and conventions |</p>
+<p>| <code>hermes.json</code> | Runtime config (memory, compaction, gateway) |</p>
+<p>| <code>agents/*/models.json</code> | Per-agent model configuration |</p>
+<p>| <code>skills/</code> | Custom agent skills (agento, browser, etc.) |</p>
+<p>These are the &quot;scaffolding&quot; — agents read them directly and operate within</p>
+<p>their constraints. Changes here take effect immediately because the repo</p>
+<p>root IS <code>~/.smartclaw/</code>.</p>
+<h3 id="layer-2-deterministic-feedback-loops-agent-orchestrator">Layer 2: Deterministic Feedback Loops (agent-orchestrator)</h3>
+<p>The <a href="https://github.com/ComposioHQ/agent-orchestrator">agent-orchestrator</a></p>
+<p>provides the reaction engine — deterministic responses to predictable events:</p>
+<pre><code>reactions:
+  ci-failed:     { auto: true, action: send-to-agent, retries: 2 }
+  changes-requested: { auto: true, action: send-to-agent, escalateAfter: 30m }
+  agent-stuck:   { threshold: 10m, action: notify, priority: urgent }</code></pre>
+<p>This is the inner feedback loop: agent acts, CI/review state changes, AO</p>
+<p>reacts, agent acts again. No LLM needed for the predictable 80%.</p>
+<h3 id="layer-3-llm-judgment-hermes">Layer 3: LLM Judgment (Hermes)</h3>
+<p>Hermes sits above the reaction engine and handles the 20% that requires</p>
+<p>judgment — vague reviews, task decomposition, conflicting failures, strategy</p>
+<p>decisions. It has persistent memory, tools, and full project context.</p>
+<p>This is the outer loop: when deterministic reactions exhaust their budget,</p>
+<p>AO escalates to Hermes. Hermes decides what to do next — retry with a</p>
+<p>different strategy, decompose the problem, or escalate to Jeffrey.</p>
+<h3 id="layer-4-entropy-management">Layer 4: Entropy Management</h3>
+<p>Harnesses degrade over time. Documentation drifts from code. Constraints</p>
+<p>get bypassed. Prompts that worked stop working as models update.</p>
+<p>Planned entropy management:</p>
+<ul>
+<li>- <strong>Self-improving prompts</strong> (ORCH-04k) — log which prompts succeed vs fail,</li>
+</ul>
+<p>  build a project-specific prompt library</p>
+<ul>
+<li>- <strong>Autonomous PR review</strong> (ORCH-apr) — Hermes reviews PRs using memory,</li>
+</ul>
+<p>  CLAUDE.md rules, and historical patterns before Jeffrey sees them</p>
+<ul>
+<li>- <strong>Convergence intelligence</strong> (ORCH-cil) — learning, anomaly detection,</li>
+</ul>
+<p>  escalation tier tuning based on historical success rates</p>
+<h2 id="key-principles">Key Principles</h2>
+<h3 id="1-documentation-is-infrastructure">1. Documentation Is Infrastructure</h3>
+<p>&gt; &quot;From the agent&#x27;s perspective, anything it can&#x27;t access in-context doesn&#x27;t exist.&quot;</p>
+<p>CLAUDE.md, AGENTS.md, and SOUL.md are not documentation — they are</p>
+<p>infrastructure. They are read by agents on every turn and directly control</p>
+<p>agent behavior. Treat them with the same rigor as production config.</p>
+<h3 id="2-deterministic-first-llm-for-judgment">2. Deterministic First, LLM for Judgment</h3>
+<p>Don&#x27;t use an LLM when a rule will do. CI failed? That&#x27;s a deterministic</p>
+<p>reaction. Review comment? Deterministic. The LLM is called only when the</p>
+<p>deterministic router has no rule — ambiguous reviews, strategy decisions,</p>
+<p>task decomposition.</p>
+<p>This follows the Spotify Honk pattern: &quot;reduced flexibility increases</p>
+<p>predictability.&quot;</p>
+<h3 id="3-fresh-context-not-accumulated-context">3. Fresh Context, Not Accumulated Context</h3>
+<p>Each headless agent call gets a clean prompt with all context injected</p>
+<p>upfront. No memory of previous attempts — that&#x27;s the harness&#x27;s job</p>
+<p>(AO session metadata + Hermes memory). The coding agent never</p>
+<p>accumulates context, avoiding the context bloat that kills performance</p>
+<p>in long-running agent loops.</p>
+<h3 id="4-build-rippable-harnesses">4. Build Rippable Harnesses</h3>
+<p>&gt; &quot;If you over-engineer the control flow, the next model update will break</p>
+<p>&gt; your system.&quot;</p>
+<p>The orchestration layer (~3k lines of Python) is thin and replaceable.</p>
+<p>If AO adds native judgment support, or if Claude Agent Teams subsumes</p>
+<p>the reaction engine, the Python layer can be removed without touching</p>
+<p>agent configs or project structure.</p>
+<h3 id="5-llm-decides-server-executes">5. LLM Decides, Server Executes</h3>
+<p>For AI-driven features: the LLM gets full context and makes decisions.</p>
+<p>The server executes actions. Don&#x27;t strip information &quot;to optimize.&quot;</p>
+<p>Don&#x27;t pre-compute what the LLM should decide. Don&#x27;t add keyword-based</p>
+<p>intent detection to bypass LLM judgment.</p>
+<h2 id="harness-maturity-model">Harness Maturity Model</h2>
+<p>Based on the NxCode framework:</p>
+<p>| Level | What You Have | Where We Are |</p>
+<p>|-------|-------------|--------------|</p>
+<p>| <strong>1. Individual</strong> | CLAUDE.md, pre-commit hooks, test suite, naming conventions | Done |</p>
+<p>| <strong>2. Team</strong> | AGENTS.md, CI architectural constraints, shared prompt templates, documentation validation | Done |</p>
+<p>| <strong>3. Organization</strong> | Custom middleware, observability integration, harness versioning, agent performance dashboards, escalation policies | In progress (ORCH-cvg, ORCH-cil) |</p>
+<h2 id="references">References</h2>
+<ul>
+<li>- <a href="https://openai.com/index/harness-engineering/">OpenAI: Harness Engineering</a></li>
+<li>- <a href="https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html">Martin Fowler: Harness Engineering</a></li>
+<li>- <a href="https://www.nxcode.io/resources/news/harness-engineering-complete-guide-ai-agent-codex-2026">NxCode: Complete Guide to Harness Engineering</a></li>
+<li>- <a href="https://engineering.atspotify.com/2025/12/feedback-loops-background-coding-agents-part-3">Spotify: Background Coding Agents (Honk)</a></li>
+<li>- <a href="https://pkarnal.com/blog/open-sourcing-agent-orchestrator">Composio: Agent Orchestrator</a></li>
+</ul></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

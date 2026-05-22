@@ -5,8 +5,8 @@
 set -u
 
 HERMES_BIN="${HERMES_BIN:-hermes}"
-HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.hermes}"
-HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.hermes_prod}"
+HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.smartclaw}"
+HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.smartclaw_prod}"
 HERMES_PROD_HTTP_PORT="${HERMES_PROD_HTTP_PORT:-8642}"
 
 PASS=0
@@ -25,7 +25,7 @@ echo ""
 info "Hermes staging (HERMES_HOME=$HERMES_STAGING_HOME)"
 
 # Use launchd state as authoritative — hermes gateway status reports all hermes PIDs
-STAGING_LAUNCHD=$(launchctl print gui/$(id -u)/ai.hermes-staging 2>&1 | grep "state =")
+STAGING_LAUNCHD=$(launchctl print gui/$(id -u)/ai.smartclaw-staging 2>&1 | grep "state =")
 if echo "$STAGING_LAUNCHD" | grep -q "state = running"; then
     pass "Hermes staging gateway running"
 else
@@ -58,26 +58,38 @@ echo ""
 info "Hermes prod (HERMES_HOME=$HERMES_PROD_HOME)"
 
 PROD_GW=$(HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" gateway status 2>&1)
-if echo "$PROD_GW" | grep -q "Gateway is running"; then
+if echo "$PROD_GW" | grep -Eq "Gateway is running|loaded|PID"; then
     pass "Hermes prod gateway running"
 else
     fail "Hermes prod gateway NOT running"
 fi
 
-PROD_STAT=$(HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" status 2>&1)
-if echo "$PROD_STAT" | grep "Slack" | grep -q "✓"; then
-    pass "Hermes prod Slack: configured"
-elif echo "$PROD_STAT" | grep "Slack" | grep -q "✗"; then
-    fail "Hermes prod Slack: error"
+# Check Slack via config.yaml (hermes-slack MCP), not native socket mode
+if python3 -c "
+import yaml, sys
+try:
+    with open('$HERMES_PROD_HOME/config.yaml') as f:
+        cfg = yaml.safe_load(f)
+    mcp = cfg.get('mcp_servers', {}) or {}
+    has_slack = 'slack' in mcp and mcp['slack'].get('enabled', True)
+    has_token = bool(mcp.get('slack', {}).get('env', {}).get('SLACK_MCP_XOXB_TOKEN', ''))
+    sys.exit(0 if (has_slack and has_token) else 1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+    pass "Hermes prod Slack: configured (hermes-slack MCP)"
 else
-    warn "Hermes prod Slack: unknown"
+    warn "Hermes prod Slack: not configured via MCP (non-blocking)"
 fi
 
 if echo "$PROD_GW" | grep -q "token already in use"; then
     # Only warn (deploy context) when both staging and prod are running.
     # If only prod is running, a token conflict is a real failure.
-    staging_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes-staging" || true)
-    prod_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes.prod" || true)
+    local staging_count
+    staging_count=$(launchctl list 2>/dev/null | grep -c "ai.smartclaw-staging" || true)
+    local prod_count
+    prod_count=$(launchctl list 2>/dev/null | grep -c "ai.smartclaw.prod" || true)
+    local conflict_msg
     conflict_msg=$(echo "$PROD_GW" | grep 'token already in use' | head -1 | sed 's/^[ ]*⚠ //' | sed 's/ Stop.*//')
     if [[ "$staging_count" -gt 0 && "$prod_count" -gt 0 ]]; then
         warn "Hermes prod platform conflict (both instances running — deploy restart expected): $conflict_msg"

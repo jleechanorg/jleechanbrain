@@ -1,7 +1,7 @@
 #!/bin/bash
 # Integration-style smoke test for monitor-agent.sh against a temp prod-like state dir.
 #
-# Proves the monitor targets OPENCLAW_CONFIG_PATH / OPENCLAW_STATE_DIR instead of the
+# Proves the monitor targets HERMES_CONFIG_PATH / HERMES_STATE_DIR instead of the
 # repo-root stub config, and treats a healthy mem0 empty-corpus response as STATUS=GOOD.
 set -euo pipefail
 
@@ -28,7 +28,7 @@ mkdir -p "$HOME_DIR/bin" "$STATE_DIR/logs" "$STATE_DIR/cron" "$OC_DIR/workspace"
 cat > "$STATE_DIR/cron/jobs.json" <<'JSON'
 {"jobs":[]}
 JSON
-cat > "$STATE_DIR/openclaw.json" <<'JSON'
+cat > "$STATE_DIR/hermes.json" <<'JSON'
 {
   "gateway": { "auth": { "token": "gateway-token" } },
   "channels": {
@@ -43,9 +43,9 @@ cat > "$STATE_DIR/openclaw.json" <<'JSON'
     "discord": { "enabled": false }
   },
   "plugins": {
-    "slots": { "memory": "openclaw-mem0" },
+    "slots": { "memory": "hermes-mem0" },
     "entries": {
-      "openclaw-mem0": {
+      "hermes-mem0": {
         "enabled": true,
         "config": {
           "oss": {
@@ -68,7 +68,7 @@ for name in SOUL TOOLS USER IDENTITY HEARTBEAT AGENTS MEMORY; do
   printf '# %s\n' "$name" > "$OC_DIR/workspace/${name}.md"
 done
 
-cat > "$HOME_DIR/bin/openclaw" <<'EOF'
+cat > "$HOME_DIR/bin/hermes" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 if [[ "${1:-}" == "message" && "${2:-}" == "read" ]]; then
@@ -95,7 +95,7 @@ if [[ "${1:-}" == "--version" ]]; then
 fi
 echo '{"ok":true}'
 EOF
-chmod +x "$HOME_DIR/bin/openclaw"
+chmod +x "$HOME_DIR/bin/hermes"
 
 cat > "$HOME_DIR/bin/ao" <<'EOF'
 #!/bin/bash
@@ -148,20 +148,20 @@ chmod +x "$HOME_DIR/bin/curl"
 HOME="$HOME_DIR" \
 PATH="$HOME_DIR/bin:$PATH" \
 MEMORY_SURFACE_FILE="$MEMORY_SURFACE_FILE" \
-OPENCLAW_STATE_DIR="$STATE_DIR" \
-OPENCLAW_CONFIG_PATH="$STATE_DIR/openclaw.json" \
-OPENCLAW_MONITOR_OC_DIR="$OC_DIR" \
-OPENCLAW_MONITOR_THREAD_REPLY_CHECK=0 \
-OPENCLAW_MONITOR_LOCK_DIR="$LOCK_DIR" \
-OPENCLAW_MONITOR_DOCTOR_SH_ENABLE=0 \
-OPENCLAW_MONITOR_AO_DOCTOR_ENABLE=0 \
-OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE=0 \
-OPENCLAW_MONITOR_RUN_CANARY=0 \
-OPENCLAW_MONITOR_SLACK_E2E_MATRIX_ENABLE=0 \
-OPENCLAW_MONITOR_WS_CHURN_THRESHOLD=999999 \
-OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE=0 \
-OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0 \
-OPENCLAW_MONITOR_LOG_FILE="$LOG_FILE" \
+HERMES_STATE_DIR="$STATE_DIR" \
+HERMES_CONFIG_PATH="$STATE_DIR/hermes.json" \
+HERMES_MONITOR_OC_DIR="$OC_DIR" \
+HERMES_MONITOR_THREAD_REPLY_CHECK=0 \
+HERMES_MONITOR_LOCK_DIR="$LOCK_DIR" \
+HERMES_MONITOR_DOCTOR_SH_ENABLE=0 \
+HERMES_MONITOR_AO_DOCTOR_ENABLE=0 \
+HERMES_MONITOR_INFERENCE_PROBE_ENABLE=0 \
+HERMES_MONITOR_RUN_CANARY=0 \
+HERMES_MONITOR_SLACK_E2E_MATRIX_ENABLE=0 \
+HERMES_MONITOR_WS_CHURN_THRESHOLD=999999 \
+HERMES_MONITOR_STATUS_BROADCAST_ENABLE=0 \
+HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0 \
+HERMES_MONITOR_LOG_FILE="$LOG_FILE" \
 bash "$SCRIPT"
 
 if grep -q '^STATUS=GOOD' "$LOG_FILE"; then

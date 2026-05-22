@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration System Design Justification</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#orchestration-system-design-justification">Orchestration System Design Justification</a>
+<a class="toc-l2" href="#core-question-why-not-just-use-gh-cli-directly">Core Question: Why not just use `gh` CLI directly?</a>
+<a class="toc-l2" href="#alternatives-considered">Alternatives Considered</a>
+<a class="toc-l3" href="#why-not-gh-cli-scripts-directly">Why not `gh` CLI scripts directly?</a>
+<a class="toc-l3" href="#why-not-hermeshermes-code">Why not hermes/hermes code?</a>
+<a class="toc-l3" href="#why-not-hermes-mission-control-code">Why not hermes Mission Control code?</a>
+<a class="toc-l3" href="#why-not-aiorch-code">Why not `ai_orch` code?</a>
+<a class="toc-l3" href="#why-not-pygithub-githubkit-ghapi-gql-or-other-python-github-sdks">Why not PyGithub, GitHubKit, ghapi, gql, or other Python GitHub SDKs?</a>
+<a class="toc-l3" href="#why-not-kodiak-mergify-or-bulldozer-merge-automation-bots">Why not Kodiak, Mergify, or Bulldozer (merge automation bots)?</a>
+<a class="toc-l3" href="#why-not-github-actions-unresolved-review-threads-action">Why not GitHub Actions (Unresolved Review Threads Action)?</a>
+<a class="toc-l3" href="#why-not-gh-pr-review-cli-extension">Why not gh-pr-review (CLI extension)?</a>
+<a class="toc-l2" href="#file-by-file-justification-pr-30-changes">File-by-File Justification (PR #30 Changes)</a>
+<a class="toc-l3" href="#srcorchestrationghintegrationpy-12-lines-changed">`src/orchestration/gh_integration.py` (+12 lines changed)</a>
+<a class="toc-l3" href="#srcteststestghintegrationpy-73-lines-changed">`src/tests/test_gh_integration.py` (+73 lines changed)</a>
+<a class="toc-l3" href="#roadmapmctrlnoossmissioncontrolmd">`roadmap/MCTRL_NO_OSS_MISSION_CONTROL.md`</a>
+<a class="toc-l3" href="#roadmaptddexecutionroadmapmd-new-90-lines">`roadmap/TDD_EXECUTION_ROADMAP.md` (new, 90 lines)</a>
+<a class="toc-l3" href="#roadmaporchestrationdesignmd-1-line">`roadmap/ORCHESTRATION_DESIGN.md` (+1 line)</a>
+<a class="toc-l3" href="#claudemd-5-lines-and-agentsmd-5-lines">`CLAUDE.md` (+5 lines) and `AGENTS.md` (+5 lines)</a></nav><main><p><a href="orchestration-system-justification.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="orchestration-system-design-justification">Orchestration System Design Justification</h1>
+<p>&gt; Why each file in the orchestration layer exists and why we didn&#x27;t use an existing tool.</p>
+<p>Current architecture: <code>Hermes -&gt; mctrl -&gt; ai_orch</code>.</p>
+<h2 id="core-question-why-not-just-use-gh-cli-directly">Core Question: Why not just use <code>gh</code> CLI directly?</h2>
+<p><strong>We do use <code>gh</code> CLI.</strong> The <code>gh_integration.py</code> module is a thin Python wrapper around <code>gh</code> — every GitHub API call shells out to <code>gh</code> (see <code>gh()</code> function at line 85). The wrapper exists because:</p>
+<ol>
+<li>1. <strong>Type-safe orchestration</strong>: Python dataclasses (<code>PRInfo</code>, <code>MergeReadiness</code>, <code>CIStatus</code>) give orchestration code compile-time-like safety when composing multi-step workflows. Raw <code>gh</code> output is untyped JSON strings.</li>
+</ol>
+<ol>
+<li>2. <strong>Fail-closed error handling</strong>: The wrapper enforces consistent error policy — CI check failures propagate (never silently return empty), unknown states map to &quot;failed&quot;, GraphQL errors block merges. A shell script calling <code>gh</code> would need this logic duplicated at every call site.</li>
+</ol>
+<ol>
+<li>3. <strong>GraphQL queries not available via <code>gh pr</code></strong>: The unresolved-thread merge gate requires <code>pullRequest.reviewThreads</code> via GraphQL. <code>gh pr view --json</code> does not expose thread resolution state. The wrapper encapsulates this query with injection-safe <code>-f</code> variable passing.</li>
+</ol>
+<ol>
+<li>4. <strong>Aggregation logic</strong>: <code>get_merge_readiness()</code> combines 4 independent checks (CI, reviews, unresolved threads, conflicts) into a single boolean with a blockers list. This composition doesn&#x27;t exist in <code>gh</code> CLI.</li>
+</ol>
+<ol>
+<li>5. <strong>Testability</strong>: Every function is independently testable via <code>unittest.mock.patch</code> on the <code>gh()</code> wrapper. Testing shell scripts that call <code>gh</code> requires brittle process-level mocking.</li>
+</ol>
+<h2 id="alternatives-considered">Alternatives Considered</h2>
+<h3 id="why-not-gh-cli-scripts-directly">Why not <code>gh</code> CLI scripts directly?</h3>
+<p>| Concern | <code>gh</code> CLI scripts | <code>gh_integration.py</code> |</p>
+<p>|---|---|---|</p>
+<p>| Error handling | Per-script, easy to forget | Centralized fail-closed policy |</p>
+<p>| Type safety | None (string parsing) | Dataclasses + enums |</p>
+<p>| GraphQL support | Manual <code>gh api graphql</code> calls | Encapsulated with variable injection |</p>
+<p>| Testing | Process-level mocking | Function-level mocking |</p>
+<p>| Reuse across orchestration | Copy-paste or source scripts | Import and call |</p>
+<p><strong>Verdict</strong>: <code>gh</code> CLI is the transport layer. <code>gh_integration.py</code> is the orchestration-safe interface to it.</p>
+<h3 id="why-not-hermeshermes-code">Why not hermes/hermes code?</h3>
+<p>Hermes&#x27;s codebase (TypeScript) provides agent runtime, gateway, and session management. It does NOT provide:</p>
+<ul>
+<li>- PR merge-readiness aggregation logic</li>
+<li>- Unresolved review thread detection via GraphQL</li>
+<li>- Fail-closed CI status composition</li>
+<li>- Python-native integration for our <code>src/orchestration/</code> layer</li>
+</ul>
+<p>This repo&#x27;s orchestration layer (<code>src/orchestration/</code>) is Python. Hermes is TypeScript. Calling Hermes internals from Python would require an IPC bridge with no benefit over calling <code>gh</code> directly.</p>
+<h3 id="why-not-hermes-mission-control-code">Why not hermes Mission Control code?</h3>
+<p>Mission Control was evaluated as a UI/control-plane application, not as the</p>
+<p>authoritative execution path for this repo. The current direction is documented</p>
+<p>in <code>roadmap/MCTRL_NO_OSS_MISSION_CONTROL.md</code>: <code>mctrl</code> owns orchestration state,</p>
+<p><code>ai_orch</code> owns execution, and GitHub/Slack integrations hang directly off that</p>
+<p>stack.</p>
+<p>Mission Control would have consumed <code>gh_integration.py</code> outputs, not replaced</p>
+<p>them.</p>
+<h3 id="why-not-aiorch-code">Why not <code>ai_orch</code> code?</h3>
+<p><code>ai_orch</code> (at <code>~/projects/worldarchitect.ai/orchestration/</code>) handles agent spawning, tmux lifecycle, and CLI invocation. It does NOT provide GitHub PR readiness checking. The design doc assigns GitHub state queries to the orchestration layer, not <code>ai_orch</code>.</p>
+<h3 id="why-not-pygithub-githubkit-ghapi-gql-or-other-python-github-sdks">Why not PyGithub, GitHubKit, ghapi, gql, or other Python GitHub SDKs?</h3>
+<p>Researched 2026-03-04 across PyPI, GitHub, and web sources.</p>
+<p>| Library | Stars | GraphQL? | <code>reviewThreads</code> typed? | Merge readiness? | Auth via <code>gh</code>? | Extra deps |</p>
+<p>|---|---|---|---|---|---|---|</p>
+<p>| <a href="https://pygithub.readthedocs.io/">PyGithub</a> | ~7k | Partial (v2.8+, raw queries) | No typed wrapper | No | No (PAT only) | 5+ |</p>
+<p>| <a href="https://github.com/yanyongyu/githubkit">GitHubKit</a> | 319 | Yes (full) | No typed wrapper | No | No (PAT/App) | Pydantic + httpx |</p>
+<p>| <a href="https://github.com/khornberg/octokit.py">octokit.py</a> | ~350 | &quot;In progress&quot; | No | No | No | — |</p>
+<p>| <a href="https://github.com/graphql-python/gql">gql</a> | ~1.5k | Yes (generic client) | Yes (raw queries) | No | No | aiohttp, websockets |</p>
+<p><strong>Key findings</strong>:</p>
+<ul>
+<li>- PyGithub (v2.8+) and GitHubKit can run the <code>reviewThreads</code> GraphQL query as a raw string, but neither provides a typed wrapper or merge-readiness aggregation.</li>
+<li>- None uses <code>gh</code> CLI for auth — each requires managing PATs or GitHub App credentials separately.</li>
+<li>- These SDKs replace the <strong>transport layer</strong> (<code>gh api graphql</code> subprocess call → <code>httpx.post</code>). They do NOT replace the <strong>business logic</strong> (~100 lines): thread filtering, bot exclusion, overflow guard, fail-closed aggregation.</li>
+<li>- <code>gh</code> CLI already handles auth (via <code>gh auth</code>), pagination, rate limiting, and token management for free.</li>
+<li>- This repo has zero non-test Python dependencies. Adding GitHubKit (Pydantic + httpx) or PyGithub (~30 transitive deps) to save ~25 lines of subprocess code is not justified.</li>
+</ul>
+<p><strong>Verdict</strong>: SDK swap saves ~25 lines of transport code but adds dependency management and auth complexity. The ~100 lines of domain-specific logic stays the same regardless.</p>
+<h3 id="why-not-kodiak-mergify-or-bulldozer-merge-automation-bots">Why not Kodiak, Mergify, or Bulldozer (merge automation bots)?</h3>
+<p>| Tool | Language | Review threads? | Importable library? | Model |</p>
+<p>|---|---|---|---|---|</p>
+<p>| <a href="https://github.com/chdsbd/kodiak">Kodiak</a> | Python 81% | Not documented | No (GitHub App service) | Self-hosted/SaaS |</p>
+<p>| <a href="https://mergify.com">Mergify</a> | Python | Yes (merge condition) | No (SaaS only) | SaaS |</p>
+<p>| <a href="https://github.com/palantir/bulldozer">Bulldozer</a> | Go | Required reviews only | No (GitHub App) | Self-hosted |</p>
+<p>These are <strong>operational bots</strong> that auto-merge PRs when conditions are met. They solve a different problem: we don&#x27;t want to auto-merge — we want to <strong>query</strong> merge readiness and present it to a human for judgment.</p>
+<ul>
+<li>- <strong>Kodiak</strong> is Python and actively maintained (latest release Feb 2026), but its merge-evaluation code is embedded in a GitHub App backend, not an importable library. Deploying a full service to replace a 565-line file is not justified.</li>
+<li>- <strong>Mergify</strong> handles review threads as merge conditions, but it&#x27;s SaaS-only.</li>
+<li>- <strong>Bulldozer</strong> (Palantir) checks required reviews but doesn&#x27;t expose unresolved thread state.</li>
+</ul>
+<p><strong>Verdict</strong>: These are merge executors, not merge-readiness query libraries. Our orchestration layer needs to query and aggregate state, not auto-act on it.</p>
+<h3 id="why-not-github-actions-unresolved-review-threads-action">Why not GitHub Actions (Unresolved Review Threads Action)?</h3>
+<p>The <a href="https://github.com/marketplace/actions/unresolved-review-threads">Unresolved Review Threads Action</a> (TypeScript) blocks merges via label management in CI. It:</p>
+<ul>
+<li>- Runs only in GitHub Actions, not callable from Python</li>
+<li>- Uses event triggers (<code>pull_request_review_comment</code>), not on-demand queries</li>
+<li>- Author acknowledges it&#x27;s &quot;far from perfect&quot; due to GitHub Actions event limitations</li>
+</ul>
+<p><strong>Verdict</strong>: CI-only enforcement. Our orchestration needs on-demand thread state queries from Python.</p>
+<h3 id="why-not-gh-pr-review-cli-extension">Why not gh-pr-review (CLI extension)?</h3>
+<p><a href="https://github.com/agynio/gh-pr-review">gh-pr-review</a> is a Go-based <code>gh</code> extension that adds <code>--unresolved</code> filtering for viewing threads in terminal. It&#x27;s designed for human review workflows, not programmatic merge gates. No Python API.</p>
+<p><strong>Verdict</strong>: CLI tool for humans, not a library for automation.</p>
+<h2 id="file-by-file-justification-pr-30-changes">File-by-File Justification (PR #30 Changes)</h2>
+<h3 id="srcorchestrationghintegrationpy-12-lines-changed"><code>src/orchestration/gh_integration.py</code> (+12 lines changed)</h3>
+<p><strong>Purpose</strong>: Python orchestration interface to GitHub via <code>gh</code> CLI.</p>
+<p><strong>What changed in this PR</strong>:</p>
+<ul>
+<li>- <code>reviewThreads(first: 100)</code> query with <code>totalCount</code> overflow guard (fail-closed when &gt;100 threads)</li>
+<li>- <code>get_pending_comments</code> raises on GraphQL failure instead of silently returning <code>[]</code></li>
+<li>- <code>get_merge_readiness</code> now checks unresolved review threads as a merge blocker</li>
+</ul>
+<p><strong>Why it exists</strong>: See &quot;Core Question&quot; above. No existing tool provides fail-closed merge-readiness aggregation combining CI + reviews + thread resolution + conflict state.</p>
+<h3 id="srcteststestghintegrationpy-73-lines-changed"><code>src/tests/test_gh_integration.py</code> (+73 lines changed)</h3>
+<p><strong>Purpose</strong>: pytest suite for <code>gh_integration.py</code>.</p>
+<p><strong>What changed</strong>: Tests for unresolved-thread blocking, GraphQL failure propagation, query shape conformance, pagination overflow guard, and workflow security assertions.</p>
+<p><strong>Why it exists</strong>: TDD methodology — every behavior change starts with a failing test. Tests verify fail-closed invariants that would be invisible in production until a merge gate silently fails open.</p>
+<h3 id="roadmapmctrlnoossmissioncontrolmd"><code>roadmap/MCTRL_NO_OSS_MISSION_CONTROL.md</code></h3>
+<p><strong>Purpose</strong>: Canonical decision doc for removing OSS Mission Control from the</p>
+<p>supported architecture.</p>
+<p><strong>Why it exists</strong>: Consolidates the architectural direction in one place:</p>
+<ul>
+<li>- <code>mctrl</code> is the lifecycle authority</li>
+<li>- <code>ai_orch</code> is the execution substrate</li>
+<li>- beads are canonical task state</li>
+<li>- Mission Control is out of the target architecture</li>
+</ul>
+<h3 id="roadmaptddexecutionroadmapmd-new-90-lines"><code>roadmap/TDD_EXECUTION_ROADMAP.md</code> (new, 90 lines)</h3>
+<p><strong>Purpose</strong>: Phased execution plan for implementing the design doc with TDD discipline.</p>
+<p><strong>Why it exists</strong>: Separates &quot;what to build&quot; (design doc) from &quot;how to ship it safely&quot; (TDD roadmap). Defines Red/Green/Refactor phases, test layers per feature, and an immediate backlog tied to PR #30.</p>
+<h3 id="roadmaporchestrationdesignmd-1-line"><code>roadmap/ORCHESTRATION_DESIGN.md</code> (+1 line)</h3>
+<p><strong>Purpose</strong>: Cross-reference to the new TDD roadmap.</p>
+<p><strong>Why changed</strong>: Adds a pointer in the Related Documents table so the TDD roadmap is discoverable from the existing orchestration design doc.</p>
+<h3 id="claudemd-5-lines-and-agentsmd-5-lines"><code>CLAUDE.md</code> (+5 lines) and <code>AGENTS.md</code> (+5 lines)</h3>
+<p><strong>Purpose</strong>: CodeRabbit review protocol instructions.</p>
+<p><strong>Why changed</strong>: After pushing fixes for CodeRabbit review comments, agents need to post <code>@coderabbitai all good</code> to trigger re-review. Without this instruction, agents would push fixes but never signal CodeRabbit to verify them, leaving review threads unresolved indefinitely.</p>
+<p><strong>Why both files</strong>: <code>CLAUDE.md</code> is loaded by Claude Code sessions. <code>AGENTS.md</code> is loaded by other agent frameworks (Codex, Cursor). Both need the same protocol.</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

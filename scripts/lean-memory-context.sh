@@ -14,9 +14,9 @@ detect_project() {
     local cwd="$1"
     local project_name=""
 
-    # Handle ~/.smartclaw path (this repo IS openclaw)
-    if [[ "$cwd" == *"/.smartclaw"* ]] || [[ "$cwd" == *"/openclaw" ]]; then
-        echo "-Users-jleechan--openclaw"
+    # Handle ~/.smartclaw path (this repo IS hermes)
+    if [[ "$cwd" == *"/.smartclaw"* ]] || [[ "$cwd" == *"/hermes" ]]; then
+        echo "-Users-jleechan--hermes"
         return
     fi
 
@@ -41,7 +41,7 @@ detect_project() {
         user-scope|user_scope) echo "-Users-jleechan-projects-other-user-scope" ;;
         harness|harness-automation) echo "-Users-jleechan-projects-worktree-harness" ;;
         genesis|worktree-genesis) echo "-Users-jleechan-projects-worktree-genesis" ;;
-        openclaw) echo "-Users-jleechan--openclaw" ;;
+        hermes) echo "-Users-jleechan--hermes" ;;
         *) echo "$project_name" ;;
     esac
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Gateway pre-flight check — run before any upgrade, doctor --fix, or restart
 #
-# OpenClaw's gateway status / service audit reads the LaunchAgent plist as UTF-8
+# Hermes's gateway status / service audit reads the LaunchAgent plist as UTF-8
 # and matches XML tags (RunAtLoad, KeepAlive, EnvironmentVariables/PATH). Apple
 # *binary* plists fail those checks and produce false warnings ("missing"
 # RunAtLoad/KeepAlive/PATH) even when launchd has the correct job. Fix: keep the
@@ -16,8 +16,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ACTIVE_PLIST="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
 REPO_GATEWAY_PLIST="$REPO_DIR/launchd/ai.smartclaw.gateway.plist"
-STAGING_CONFIG="$HOME/.smartclaw/openclaw.json"
-PROD_CONFIG="$HOME/.smartclaw_prod/openclaw.json"
+STAGING_CONFIG="$HOME/.smartclaw/hermes.json"
+PROD_CONFIG="$HOME/.smartclaw_prod/hermes.json"
+GATEWAY_NODE="${GATEWAY_NODE:-$(command -v node 2>/dev/null || printf "%s/.nvm/versions/node/current/bin/node" "$HOME")}"
+GATEWAY_NPM="${GATEWAY_NPM:-$(command -v npm 2>/dev/null || printf "%s/.nvm/versions/node/current/bin/npm" "$HOME")}"
+GATEWAY_NPX="${GATEWAY_NPX:-$(command -v npx 2>/dev/null || printf "%s/.nvm/versions/node/current/bin/npx" "$HOME")}"
 
 read_plist_key() {
   python3 - "$1" "$2" <<'PY'
@@ -98,7 +101,11 @@ resolve_live_config_for_preflight() {
   echo "$STAGING_CONFIG"
 }
 
-extract_openclaw_binary_version() {
+extract_hermes_binary_version() {
+  if ! command -v hermes >/dev/null 2>&1; then
+    echo "hermes not found in PATH; ensure the Hermes CLI is installed" >&2
+    return 1
+  fi
   python3 - <<'PY'
 import re
 import subprocess
@@ -106,7 +113,7 @@ import sys
 
 try:
     result = subprocess.run(
-        ["openclaw", "--version"],
+        ["hermes", "--version"],
         capture_output=True,
         text=True,
         timeout=5,
@@ -126,7 +133,7 @@ PY
 check_config_version_vs_binary() {
   local label="$1"
   local config_path="$2"
-  local allow_drift="${OPENCLAW_ALLOW_VERSION_DRIFT:-0}"
+  local allow_drift="${HERMES_ALLOW_VERSION_DRIFT:-0}"
 
   if [ ! -f "$config_path" ]; then
     echo "  SKIP: $label missing ($config_path)"
@@ -134,7 +141,7 @@ check_config_version_vs_binary() {
   fi
 
   local bin_ver cfg_ver
-  bin_ver="$(extract_openclaw_binary_version 2>/dev/null || true)"
+  bin_ver="$(extract_hermes_binary_version 2>/dev/null || true)"
   cfg_ver="$(python3 - "$config_path" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
@@ -144,7 +151,7 @@ PY
 )" || cfg_ver=""
 
   if [ -z "$bin_ver" ]; then
-    echo "  SKIP: cannot determine openclaw binary version"
+    echo "  SKIP: cannot determine hermes binary version"
     return 0
   fi
   if [ -z "$cfg_ver" ]; then
@@ -173,11 +180,11 @@ PY
     return 0
   fi
   if [ "$allow_drift" = "1" ]; then
-    echo "  WARN: $label version drift (config=$cfg_ver, binary=$bin_ver) — OPENCLAW_ALLOW_VERSION_DRIFT=1 override active"
+    echo "  WARN: $label version drift (config=$cfg_ver, binary=$bin_ver) — HERMES_ALLOW_VERSION_DRIFT=1 override active"
     return 0
   fi
   if [ "$cmp" = "1" ]; then
-    echo "  FAIL: $label is newer than the running binary (config=$cfg_ver, binary=$bin_ver). Upgrade openclaw or restamp the config before deploy."
+    echo "  FAIL: $label is newer than the running binary (config=$cfg_ver, binary=$bin_ver). Upgrade hermes or restamp the config before deploy."
     ERRORS=$((ERRORS + 1))
     return 1
   fi
@@ -189,14 +196,14 @@ echo "=== Gateway Pre-flight Check ==="
 echo ""
 
 # 1. Check for competing plists
-PLIST_COUNT=$(ls ~/Library/LaunchAgents/*openclaw*gateway* ~/Library/LaunchAgents/*com.smartclaw.gateway* 2>/dev/null | sort -u | wc -l | tr -d ' ')
+PLIST_COUNT=$(ls ~/Library/LaunchAgents/*hermes*gateway* ~/Library/LaunchAgents/*com.smartclaw.gateway* 2>/dev/null | sort -u | wc -l | tr -d ' ')
 echo "[1] Gateway plists: $PLIST_COUNT"
 if [ "$PLIST_COUNT" -gt 1 ]; then
   echo "  FAIL: Multiple gateway plists detected:"
-  ls -1 ~/Library/LaunchAgents/*openclaw*gateway* ~/Library/LaunchAgents/*com.smartclaw.gateway* 2>/dev/null | sort -u
+  ls -1 ~/Library/LaunchAgents/*hermes*gateway* ~/Library/LaunchAgents/*com.smartclaw.gateway* 2>/dev/null | sort -u
   if [ "$FIX_MODE" = "--fix" ]; then
     echo "  FIX: Keeping ai.smartclaw.gateway, removing others"
-    for plist in ~/Library/LaunchAgents/*openclaw*gateway*; do
+    for plist in ~/Library/LaunchAgents/*hermes*gateway*; do
       label=$(defaults read "$plist" Label 2>/dev/null || true)
       if [ "$label" != "ai.smartclaw.gateway" ] && [ -n "$label" ]; then
         launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
@@ -241,8 +248,8 @@ if [ -f "$ACTIVE_PLIST" ] && [ -f "$REPO_GATEWAY_PLIST" ]; then
     ProgramArguments.0 \
     StandardOutPath \
     StandardErrorPath \
-    EnvironmentVariables.OPENCLAW_STATE_DIR \
-    EnvironmentVariables.OPENCLAW_CONFIG_PATH
+    EnvironmentVariables.HERMES_STATE_DIR \
+    EnvironmentVariables.HERMES_CONFIG_PATH
   do
     expected="$(read_plist_key "$REPO_GATEWAY_PLIST" "$key" 2>/dev/null || true)"
     actual="$(read_plist_key "$ACTIVE_PLIST" "$key" 2>/dev/null || true)"
@@ -271,7 +278,7 @@ if [ -f "$ACTIVE_PLIST" ] && [ -f "$REPO_GATEWAY_PLIST" ]; then
   fi
 fi
 
-# 2b. Plist must be XML (not binary) so openclaw gateway status / doctor can parse it
+# 2b. Plist must be XML (not binary) so hermes gateway status / doctor can parse it
 if [ -f "$ACTIVE_PLIST" ]; then
   _gw_plist_binary=0
   _hdr=$(head -c 8 "$ACTIVE_PLIST" 2>/dev/null || true)
@@ -280,9 +287,9 @@ if [ -f "$ACTIVE_PLIST" ]; then
   elif command -v file >/dev/null 2>&1 && file "$ACTIVE_PLIST" 2>/dev/null | grep -qi "binary property list"; then
     _gw_plist_binary=1
   fi
-  echo "[2b] Gateway plist encoding (XML required for openclaw CLI audit):"
+  echo "[2b] Gateway plist encoding (XML required for hermes CLI audit):"
   if [ "$_gw_plist_binary" -eq 1 ]; then
-    echo "  FAIL: plist is binary; openclaw treats RunAtLoad/KeepAlive/PATH as absent"
+    echo "  FAIL: plist is binary; hermes treats RunAtLoad/KeepAlive/PATH as absent"
     if [ "$FIX_MODE" = "--fix" ]; then
       plutil -convert xml1 "$ACTIVE_PLIST" || { echo "  plutil failed"; ERRORS=$((ERRORS + 1)); }
       echo "  FIX: converted to XML (plutil -convert xml1)"
@@ -301,11 +308,11 @@ if [ -f "$ACTIVE_PLIST" ]; then
 fi
 
 # 3. Check for multiple gateway processes
-GW_PIDS=$(pgrep -f 'openclaw-gateway\|openclaw.*gateway.*18789' 2>/dev/null | wc -l | tr -d ' ')
+GW_PIDS=$(pgrep -f 'hermes-gateway\|hermes.*gateway.*8642' 2>/dev/null | wc -l | tr -d ' ')
 echo "[3] Gateway processes: $GW_PIDS"
 if [ "$GW_PIDS" -gt 1 ]; then
   echo "  FAIL: Multiple gateway processes detected"
-  ps aux | grep -E 'openclaw.*(gateway|18789)' | grep -v grep
+  ps aux | grep -E 'hermes.*(gateway|8642)' | grep -v grep
   ERRORS=$((ERRORS + 1))
 else
   echo "  OK"
@@ -346,8 +353,8 @@ sys.exit(errors)
 
 # 5b. Check consensus config version vs running binary (version mismatch → AJV stack overflow)
 # If meta.lastTouchedVersion in consensus config is NEWER than the running binary,
-# openclaw enters infinite console.error → loadConfig recursion → RangeError crash.
-CONSENSUS_CFG="$HOME/.smartclaw-consensus/openclaw.json"
+# hermes enters infinite console.error → loadConfig recursion → RangeError crash.
+CONSENSUS_CFG="$HOME/.smartclaw-consensus/hermes.json"
 echo -n "[5b] Consensus config version vs binary: "
 if [ -f "$CONSENSUS_CFG" ]; then
   python3 -c "
@@ -355,7 +362,7 @@ import json, subprocess, sys, re
 
 # Get running binary version
 try:
-    result = subprocess.run(['openclaw', '--version'], capture_output=True, text=True, timeout=5)
+    result = subprocess.run(['hermes', '--version'], capture_output=True, text=True, timeout=5)
     bin_ver_raw = result.stdout.strip() + result.stderr.strip()
     # Extract YYYY.M.D pattern
     m = re.search(r'(\d{4}\.\d+\.\d+)', bin_ver_raw)
@@ -388,7 +395,7 @@ else:
       # Auto-correct: set meta.lastTouchedVersion to match binary
       python3 -c "
 import json, subprocess, re
-result = subprocess.run(['openclaw', '--version'], capture_output=True, text=True, timeout=5)
+result = subprocess.run(['hermes', '--version'], capture_output=True, text=True, timeout=5)
 m = re.search(r'(\d{4}\.\d+\.\d+)', result.stdout + result.stderr)
 if not m:
     print('  FIX SKIPPED: cannot determine binary version')
@@ -411,21 +418,21 @@ fi
 
 # 5c. Check live config versions vs running binary (newer configs emit recurring warnings)
 echo "[5c] Live config versions vs binary:"
-check_config_version_vs_binary "staging config" "$HOME/.smartclaw/openclaw.json"
-check_config_version_vs_binary "prod config" "$HOME/.smartclaw_prod/openclaw.json"
+check_config_version_vs_binary "staging config" "$HOME/.smartclaw/hermes.json"
+check_config_version_vs_binary "prod config" "$HOME/.smartclaw_prod/hermes.json"
 
 # 6. Check native modules
 echo -n "[6] Native modules: "
-NODE=$(${HOME}/.nvm/versions/node/v22.22.0/bin/node --version 2>/dev/null || echo "missing")
-if [ -f "$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
-  if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+NODE=$("$GATEWAY_NODE" --version 2>/dev/null || echo "missing")
+if [ -f "$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
+  if "$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
     echo "OK (Node $NODE)"
   else
     echo "MISMATCH (needs rebuild)"
     if [ "$FIX_MODE" = "--fix" ]; then
-      cd "$HOME/.smartclaw/extensions/openclaw-mem0"
+      cd "$HOME/.smartclaw/extensions/hermes-mem0"
       rm -rf node_modules/better-sqlite3/build node_modules/better-sqlite3/prebuilds
-      ${HOME}/.nvm/versions/node/v22.22.0/bin/npx node-gyp rebuild --directory=node_modules/better-sqlite3 2>/dev/null
+      "$GATEWAY_NPX" node-gyp rebuild --directory=node_modules/better-sqlite3 2>/dev/null
       echo "  FIX: Rebuilt better-sqlite3"
     else
       ERRORS=$((ERRORS + 1))
@@ -438,41 +445,42 @@ fi
 # 7. @agentclientprotocol/sdk version baseline
 # Records current sdk version; compare against upgrade target via validate_sdk_compatibility()
 echo "[7] @agentclientprotocol/sdk baseline:"
-_oc_ver=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm list -g openclaw --depth=0 --json 2>/dev/null \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('dependencies',{}).get('openclaw',{}).get('version','unknown'))" 2>/dev/null \
+_oc_ver=$("$GATEWAY_NPM" list -g hermes --depth=0 --json 2>/dev/null \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); deps=d.get('dependencies',{}); print(deps.get('@jleechanorg/hermes',deps.get('hermes',{})).get('version','unknown'))" 2>/dev/null \
   || echo "unknown")
 if [ "$_oc_ver" = "unknown" ]; then
-  echo "  SKIP: openclaw not found in global npm (cannot check SDK version)"
+  echo "  SKIP: hermes not found in global npm (cannot check SDK version)"
 else
-  _sdk_ver=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${_oc_ver}" dependencies 2>/dev/null \
+  _sdk_ver=$({ "$GATEWAY_NPM" view "@jleechanorg/hermes@${_oc_ver}" dependencies 2>/dev/null \
+    || "$GATEWAY_NPM" view "hermes@${_oc_ver}" dependencies 2>/dev/null; } \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
   if [ -n "${_sdk_ver:-}" ]; then
     echo "$_sdk_ver" > "$HOME/.smartclaw/.current-sdk-version"
-    echo "  OK: openclaw=$_oc_ver, @agentclientprotocol/sdk=$_sdk_ver (stored .current-sdk-version)"
+    echo "  OK: hermes=$_oc_ver, @agentclientprotocol/sdk=$_sdk_ver (stored .current-sdk-version)"
   else
-    echo "  WARN: openclaw=$_oc_ver but could not resolve @agentclientprotocol/sdk version"
+    echo "  WARN: hermes=$_oc_ver but could not resolve @agentclientprotocol/sdk version"
   fi
 fi
 
-# validate_sdk_compatibility — call before any openclaw upgrade
-# Usage: validate_sdk_compatibility <new-openclaw-version> [--ack-minor-jump]
+# validate_sdk_compatibility — call before any hermes upgrade
+# Usage: validate_sdk_compatibility <new-hermes-version> [--ack-minor-jump]
 # Returns 0 if compatible, 1 if breaking jump detected
 validate_sdk_compatibility() {
   local new_version="${1:-}"
   local ack_flag="${2:-}"
   if [ -z "$new_version" ]; then
-    echo "Usage: validate_sdk_compatibility <new-openclaw-version> [--ack-minor-jump]"
+    echo "Usage: validate_sdk_compatibility <new-hermes-version> [--ack-minor-jump]"
     return 1
   fi
   local cur_sdk="unknown"
   [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
     && cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
   local new_sdk
-  new_sdk=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${new_version}" dependencies 2>/dev/null \
+  new_sdk=$("$GATEWAY_NPM" view "hermes@${new_version}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
   new_sdk="${new_sdk:-unknown}"
 
-  echo "=== SDK Compatibility Check: openclaw@${new_version} ==="
+  echo "=== SDK Compatibility Check: hermes@${new_version} ==="
   echo "  Current @agentclientprotocol/sdk : $cur_sdk"
   echo "  Target  @agentclientprotocol/sdk : $new_sdk"
 
@@ -489,11 +497,11 @@ validate_sdk_compatibility() {
 
   if [ "$major_diff" -gt 0 ]; then
     echo "  FAIL: Major SDK version jump ($cur_sdk → $new_sdk) — protocol mismatch WILL cause errors"
-    echo "  Incident: openclaw 2026.3.24→2026.3.28 (SDK 0.16→0.17) produced 367 ws-stream 500s/day"
+    echo "  Incident: hermes 2026.3.24→2026.3.28 (SDK 0.16→0.17) produced 367 ws-stream 500s/day"
     return 1
   elif [ "$cur_major" -eq 0 ] && [ "$minor_diff" -gt 0 ] && [ "$ack_flag" != "--ack-minor-jump" ]; then
     echo "  FAIL: 0.x minor jump ($cur_sdk → $new_sdk) — likely breaking (0.x = no stability guarantee)"
-    echo "  Incident: openclaw 2026.3.24→2026.3.28 (SDK 0.16→0.17) produced 367 ws-stream 500s/day"
+    echo "  Incident: hermes 2026.3.24→2026.3.28 (SDK 0.16→0.17) produced 367 ws-stream 500s/day"
     echo "  Pass --ack-minor-jump to override (risk accepted)"
     return 1
   else
@@ -509,10 +517,10 @@ echo "[8] checkCompatibility placement:"
 python3 -c "
 import json, sys
 try:
-    with open('$HOME/.smartclaw/openclaw.json') as f:
+    with open('$HOME/.smartclaw/hermes.json') as f:
         d = json.load(f)
 except Exception as e:
-    print('  SKIP: cannot parse openclaw.json (' + str(e) + ')')
+    print('  SKIP: cannot parse hermes.json (' + str(e) + ')')
     sys.exit(0)
 
 bad = []
@@ -544,7 +552,7 @@ else:
 
 # 9. NODE_MODULE_VERSION baseline tracking
 # Gateway plist uses nvm Node 22 (MODULE_VERSION 127); mismatch causes silent mem0 failures
-GATEWAY_NODE_BIN="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
+GATEWAY_NODE_BIN="$GATEWAY_NODE"
 MODVER_BASELINE="$HOME/.smartclaw/.gateway-node-version"
 echo "[9] NODE_MODULE_VERSION baseline:"
 if [ -x "$GATEWAY_NODE_BIN" ]; then
@@ -556,12 +564,12 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
       echo "        better-sqlite3 compiled for wrong Node version — mem0 will fail silently"
       if [ "$FIX_MODE" = "--fix" ]; then
         echo "  FIX: Rebuilding better-sqlite3 for MODULE_VERSION $_cur_modver..."
-        _rebuild_out=$(cd "$HOME/.smartclaw/extensions/openclaw-mem0" \
-          && ${HOME}/.nvm/versions/node/v22.22.0/bin/npm rebuild better-sqlite3 2>&1)
+        _rebuild_out=$(cd "$HOME/.smartclaw/extensions/hermes-mem0" \
+          && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
         _rebuild_rc=$?
         if [ "$_rebuild_rc" -eq 0 ]; then
           # Verify the rebuilt module actually loads before updating baseline
-          if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+          if "$GATEWAY_NODE" -e "require('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
             echo "$_cur_modver" > "$MODVER_BASELINE"
             echo "  FIX: Rebuild OK — baseline updated to $_cur_modver"
           else
@@ -575,7 +583,7 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
         fi
       else
         echo "  Run with --fix to auto-rebuild, or:"
-        echo "    npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/openclaw-mem0"
+        echo "    npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/hermes-mem0"
         ERRORS=$((ERRORS + 1))
       fi
     else

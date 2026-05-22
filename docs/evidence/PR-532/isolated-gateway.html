@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #532 — Isolated gateway smoke (skills / eloop touch)</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#pr-532-isolated-gateway-smoke-skills-eloop-touch">PR #532 — Isolated gateway smoke (skills / eloop touch)</a>
+<a class="toc-l2" href="#commands">Commands</a>
+<a class="toc-l2" href="#result">Result</a>
+<a class="toc-l2" href="#note">Note</a></nav><main><p><a href="isolated-gateway.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="pr-532-isolated-gateway-smoke-skills-eloop-touch">PR #532 — Isolated gateway smoke (skills / eloop touch)</h1>
+<p><strong>Date:</strong> 2026-04-06 (local)  </p>
+<p><strong>Procedure:</strong> <code>CLAUDE.md</code> → Isolated Gateway Testing — use a gateway <strong>not</strong> on production port <strong>18789</strong>.</p>
+<h2 id="commands">Commands</h2>
+<pre><code>export HERMES_STATE_DIR=&quot;$HOME/.smartclaw&quot;
+export HERMES_CONFIG_PATH=&quot;$HOME/.smartclaw/hermes.json&quot;
+cd ${HOME}/.worktrees/smartclaw/jc-1795
+hermes gateway run --bind loopback --port 18999 --force 2&gt;/tmp/gw-pr532.err &amp;
+GW_PID=$!
+sleep 12
+curl -fsS -m 5 http://127.0.0.1:18999/health
+kill &quot;$GW_PID&quot;</code></pre>
+<h2 id="result">Result</h2>
+<ul>
+<li>- Gateway bound to <strong>127.0.0.1:18999</strong> (not 18789).</li>
+<li>- <code>GET /health</code> returned: <code>{&quot;ok&quot;:true,&quot;status&quot;:&quot;live&quot;}</code>.</li>
+<li>- Process terminated cleanly after SIGTERM.</li>
+</ul>
+<h2 id="note">Note</h2>
+<p>This PR changes <strong>skills</strong> markdown and bootstrap wiring; the gateway binary loads the same config as staging. The isolated check confirms a non-prod port comes up healthy with the local harness state dir.</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

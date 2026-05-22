@@ -13,8 +13,8 @@ tags: [hermes, deploy, sync, staging-prod]
 Invoke this skill when:
 - Running `bash scripts/deploy.sh` for Hermes
 - Editing `scripts/deploy.sh` (any change to `hermes_sync_config()`)
-- Adding a new top-level tracked file to `~/.hermes/`
-- Investigating drift between `~/.hermes/` (staging) and `~/.hermes_prod/` (prod)
+- Adding a new top-level tracked file to `~/.smartclaw/`
+- Investigating drift between `~/.smartclaw/` (staging) and `~/.smartclaw_prod/` (prod)
 - Fixing a deploy sync gap
 
 ## What this skill enforces

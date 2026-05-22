@@ -77,7 +77,7 @@ peekaboo screenshot --window Manager
 
 **Finding: No active Antigravity tmux/cmux workspace exists at time of research (2026-03-24).**
 
-The cmux workspace list shows 13 workspaces (`o: primary`, `ao: primary`, `ao2: monitor`, `ao3: misc`, `o2: misc`, `ao: cli`, `w: tails`, `w: trimcommands`, `w: export`, `cmux`, `openclaw: main`, `openclaw: memory`, `g: wc: generators`). No Antigravity-named workspace was found.
+The cmux workspace list shows 13 workspaces (`o: primary`, `ao: primary`, `ao2: monitor`, `ao3: misc`, `o2: misc`, `ao: cli`, `w: tails`, `w: trimcommands`, `w: export`, `cmux`, `hermes: main`, `hermes: memory`, `g: wc: generators`). No Antigravity-named workspace was found.
 
 The file `~/.smartclaw/workspace/Antigravity_2026-03-24T05:13:57Z.png` (22KB, timestamped today) shows:
 - Antigravity Manager window screenshot captured this morning
@@ -96,7 +96,7 @@ The file `~/.smartclaw/workspace/Antigravity_2026-03-24T05:13:57Z.png` (22KB, ti
 
 | Needed Capability | Currently Supported? | Implementation Approach |
 |---|---|---|
-| Launch Antigravity from command line | ❓ Not documented | Investigate `openclaw agents` or Antigravity CLI; if none, document as blocker |
+| Launch Antigravity from command line | ❓ Not documented | Investigate `hermes agents` or Antigravity CLI; if none, document as blocker |
 | Attach to existing Antigravity session | ❓ Not documented | Investigate if Peekaboo can attach to running Antigravity process |
 | Detect Antigravity crash/restart | ❓ Not documented | Periodic `peekaboo screenshot` + LLM analysis of screenshot for error state |
 | Kill and restart Antigravity workspace | ❌ Not supported | Requires Antigravity CLI or AppleScript |

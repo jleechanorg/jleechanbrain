@@ -2,7 +2,7 @@
 
 ## Purpose
 
-When making a forward commitment ("I will always X", "from now on Y"), you MUST write the policy to a location that openclaw actually loads. This prevents orphaned policy files that feel durable but have no runtime effect.
+When making a forward commitment ("I will always X", "from now on Y"), you MUST write the policy to a location that hermes actually loads. This prevents orphaned policy files that feel durable but have no runtime effect.
 
 ## Rule: only these locations count
 
@@ -15,10 +15,10 @@ When making a forward commitment ("I will always X", "from now on Y"), you MUST 
 
 ## NOT valid locations
 
-- `workspace/policies/` — openclaw never reads this directory
+- `workspace/policies/` — hermes never reads this directory
 - `workspace/memory/` — memory, not policy; won't enforce behavior
 - Any new ad-hoc `.md` file outside the list above
-- Claude Code memory files — those are for Claude sessions, not openclaw
+- Claude Code memory files — those are for Claude sessions, not hermes
 
 ## Commitment format (required)
 

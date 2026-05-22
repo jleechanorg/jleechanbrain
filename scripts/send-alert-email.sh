@@ -13,7 +13,7 @@
 # Exit codes: 0 = sent, 1 = failed (non-fatal — no exit in deploy.sh)
 set -uo pipefail
 
-SUBJECT="${1:-OpenClaw Alert}"
+SUBJECT="${1:-Hermes Alert}"
 BODY="${2:-No details provided.}"
 EMAIL_FROM="${EMAIL_FROM:-${EMAIL_USER:-}}"
 EMAIL_TO="${EMAIL_TO:-jleechan@gmail.com}"
@@ -58,7 +58,7 @@ send_via_smtp() {
   local subject="$SUBJECT"
   local body="$BODY"
 
-  python3 - <<'PYEOF'
+  python3 - "$subject" "$body" <<'PYEOF'
 import smtplib
 import os
 import sys
@@ -67,7 +67,7 @@ user = os.environ.get('EMAIL_USER', '')
 pass_ = os.environ.get('EMAIL_PASS', '')
 from_addr = os.environ.get('EMAIL_FROM', user)
 to_addr = os.environ.get('EMAIL_TO', 'jleechan@gmail.com')
-subject = sys.argv[1] if len(sys.argv) > 1 else 'OpenClaw Alert'
+subject = sys.argv[1] if len(sys.argv) > 1 else 'Hermes Alert'
 body = sys.argv[2] if len(sys.argv) > 2 else ''
 
 if not user or not pass_:
@@ -95,7 +95,7 @@ PYEOF
 # Try mail command first (no credentials needed), then SMTP
 if [[ "$have_mail_cmd" == "true" ]]; then
   if send_via_mail_cmd; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert sent via mail command" >> /tmp/openclaw-email-alerts.log
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert sent via mail command" >> /tmp/hermes-email-alerts.log
     exit 0
   fi
 fi
@@ -106,5 +106,5 @@ if [[ "$have_smtp" == "true" ]]; then
   fi
 fi
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert skipped (no mail command and no SMTP credentials)" >> /tmp/openclaw-email-alerts.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert skipped (no mail command and no SMTP credentials)" >> /tmp/hermes-email-alerts.log
 exit 0

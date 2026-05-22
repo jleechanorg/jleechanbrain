@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidence: PR #565 — Hermes install.sh rewrite</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#evidence-pr-565-hermes-installsh-rewrite">Evidence: PR #565 — Hermes install.sh rewrite</a>
+<a class="toc-l2" href="#claim">Claim</a>
+<a class="toc-l2" href="#what-was-tested">What was tested</a>
+<a class="toc-l2" href="#evidence-artifacts">Evidence artifacts</a>
+<a class="toc-l2" href="#beforeafter-root-cause-of-126-hour-outage">Before/after: Root cause of 12.6-hour outage</a>
+<a class="toc-l2" href="#known-limitations-warn-not-fail">Known limitations (WARN, not FAIL)</a>
+<a class="toc-l2" href="#what-this-evidence-proves">What this evidence proves</a>
+<a class="toc-l2" href="#what-this-evidence-does-not-prove">What this evidence does NOT prove</a></nav><main><p><a href="evidence.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="evidence-pr-565-hermes-installsh-rewrite">Evidence: PR #565 — Hermes install.sh rewrite</h1>
+<h2 id="claim">Claim</h2>
+<p><code>scripts/install.sh</code> is a 10-point Hermes setup validator that reliably detects and auto-corrects common setup issues including the Slack token conflict root cause of the 12.6-hour outage.</p>
+<h2 id="what-was-tested">What was tested</h2>
+<ol>
+<li>1. <strong>Full validation run</strong> (<code>bash scripts/install.sh</code>) — 42 PASS, 0 FAIL, 3 WARN</li>
+<li>2. <strong>Fix mode</strong> (<code>bash scripts/install.sh --fix</code>) — auto-corrects directory creation, config sync, plist HERMES_HOME, plist loading</li>
+<li>3. <strong>Slack token conflict detection</strong> — correctly identifies active conflicts in error log tail (not historical)</li>
+<li>4. <strong>Separate staging Slack app</strong> — staging connects as <code>@hermes_staging</code> via <code>HERMES_STAGING_SLACK_APP_TOKEN</code></li>
+<li>5. <strong>Gateway health</strong> — PID-to-port verification for both prod (8642) and staging (8643)</li>
+<li>6. <strong>mem0 server</strong> — self-hosted server healthy on port 8000, cloud MEM0_API_KEY correctly reported as optional</li>
+</ol>
+<h2 id="evidence-artifacts">Evidence artifacts</h2>
+<ul>
+<li>- <code>run.json</code> — full install.sh output with all 10 check results</li>
+<li>- <code>metadata.json</code> — git provenance (HEAD SHA, branch, merge base, commit count)</li>
+</ul>
+<h2 id="beforeafter-root-cause-of-126-hour-outage">Before/after: Root cause of 12.6-hour outage</h2>
+<ul>
+<li>- <strong>Before</strong>: staging and prod shared <code>SLACK_APP_TOKEN</code> → crash storm → launchd exponential backoff → total outage</li>
+<li>- <strong>After</strong>: install.sh check 7 detects token conflicts; separate staging app (A0APZAC659P) with <code>HERMES_STAGING_SLACK_APP_TOKEN</code>; <code>launchd-env-wrapper.sh</code> routes staging tokens</li>
+</ul>
+<h2 id="known-limitations-warn-not-fail">Known limitations (WARN, not FAIL)</h2>
+<ol>
+<li>1. Hermes update available (90 commits behind) — cosmetic, not a setup failure</li>
+<li>2. MEM0_API_KEY not set — cloud mem0 disabled but self-hosted mem0 server is healthy</li>
+<li>3. Cloud mem0 disabled — Hermes plugin needs <code>host</code> param addition to use local server</li>
+</ol>
+<h2 id="what-this-evidence-proves">What this evidence proves</h2>
+<ul>
+<li>- The install.sh validator correctly identifies the current healthy state of a Hermes setup</li>
+<li>- All 10 checks produce deterministic PASS/FAIL/WARN results</li>
+<li>- The Slack token conflict root cause is now detected and resolved with separate staging tokens</li>
+<li>- Both gateways are running, healthy, and authenticated on Slack</li>
+</ul>
+<h2 id="what-this-evidence-does-not-prove">What this evidence does NOT prove</h2>
+<ul>
+<li>- Behavior on a completely fresh machine (no existing plists/config)</li>
+<li>- The <code>--fix</code> mode creates correct plists from scratch (would need fresh-machine test)</li>
+<li>- The mem0 sync works end-to-end through the Hermes gateway (plugin sends to cloud, not local)</li>
+</ul></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

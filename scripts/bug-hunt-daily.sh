@@ -8,7 +8,7 @@ set -m  # enable job control so background workers get their own process groups
 
 # Configuration - output bug reports to /tmp to avoid polluting the repo
 # with large agent outputs; script itself stays in scripts/
-BUG_REPORTS_DIR="/tmp/openclaw/bug_reports"
+BUG_REPORTS_DIR="/tmp/hermes/bug_reports"
 REPOS=("jleechanorg/smartclaw" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
 DAYS_LOOKBACK=2
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -36,37 +36,37 @@ write_empty_findings() {
     printf '[]\n' > "$output_file"
 }
 
-configure_openclaw_agent() {
+configure_hermes_agent() {
     local err_file="$1"
     local help_output
 
-    if ! command -v openclaw >/dev/null 2>&1; then
-        echo "ERROR: openclaw CLI not found" >> "$err_file"
+    if ! command -v hermes >/dev/null 2>&1; then
+        echo "ERROR: hermes CLI not found" >> "$err_file"
         return 1
     fi
 
-    if ! help_output=$(run_openclaw_agent_help 2>>"$err_file"); then
-        echo "ERROR: openclaw agent subcommand not found" >> "$err_file"
+    if ! help_output=$(run_hermes_agent_help 2>>"$err_file"); then
+        echo "ERROR: hermes agent subcommand not found" >> "$err_file"
         return 1
     fi
 
     if printf '%s\n' "$help_output" | grep -q -- '--message'; then
-        OPENCLAW_MESSAGE_FLAG="--message"
+        HERMES_MESSAGE_FLAG="--message"
     elif printf '%s\n' "$help_output" | grep -Eq '(^|[[:space:],])-m([,[:space:]]|$)'; then
-        OPENCLAW_MESSAGE_FLAG="-m"
+        HERMES_MESSAGE_FLAG="-m"
     else
-        OPENCLAW_MESSAGE_FLAG="--message"
+        HERMES_MESSAGE_FLAG="--message"
     fi
 }
 
-run_openclaw_agent_help() {
+run_hermes_agent_help() {
     local timeout_bin
     timeout_bin=$(command -v timeout || command -v gtimeout || true)
 
     if [ -n "$timeout_bin" ]; then
-        "$timeout_bin" "${OPENCLAW_HELP_TIMEOUT_SECONDS:-10}" openclaw agent --help
+        "$timeout_bin" "${HERMES_HELP_TIMEOUT_SECONDS:-10}" hermes agent --help
     else
-        openclaw agent --help
+        hermes agent --help
     fi
 }
 
@@ -101,14 +101,12 @@ get_merged_prs() {
 }
 
 # Initialize report file
-# AGENTS defined early to avoid unbound variable under set -u
-AGENTS=("claude" "codex" "minimax")
 cat > "$REPORT_FILE" << EOF
 # Bug Hunt Report - ${TIMESTAMP}
 
 **Generated:** $(date)
 **Period:** Last ${DAYS_LOOKBACK} days
-**Agents:** ${AGENTS[*]}
+**Agents:** claude, codex, cursor, minimax, gemini
 
 ---
 
@@ -145,18 +143,19 @@ for REPO in "${REPOS[@]}"; do
 done
 
 # Agent configurations for parallel execution
-# Agents run through OpenClaw one-shot prompts so this job waits for real output.
+# Agents run through Hermes one-shot prompts so this job waits for real output.
+AGENTS=("claude" "codex" "minimax")
 AGENT_PIDS=()
-OPENCLAW_MESSAGE_FLAG="--message"
-OPENCLAW_AGENT_AVAILABLE=1
-OPENCLAW_PREFLIGHT_ERR="${BUG_REPORTS_DIR}/bug-hunt-openclaw-preflight-${TIMESTAMP}.err"
+HERMES_MESSAGE_FLAG="--message"
+HERMES_AGENT_AVAILABLE=1
+HERMES_PREFLIGHT_ERR="${BUG_REPORTS_DIR}/bug-hunt-hermes-preflight-${TIMESTAMP}.err"
 
-if ! configure_openclaw_agent "$OPENCLAW_PREFLIGHT_ERR"; then
-    OPENCLAW_AGENT_AVAILABLE=0
+if ! configure_hermes_agent "$HERMES_PREFLIGHT_ERR"; then
+    HERMES_AGENT_AVAILABLE=0
 fi
 
-# Spawn agents in parallel via OpenClaw one-shot calls.
-log_info "Spawning bug hunt agents via OpenClaw..."
+# Spawn agents in parallel via Hermes one-shot calls.
+log_info "Spawning bug hunt agents via Hermes..."
 
 for AGENT in "${AGENTS[@]}"; do
     log_info "Starting $AGENT agent for bug hunt..."
@@ -197,15 +196,15 @@ Return findings as structured JSON wrapped in markdown code fence (do not create
     OUTPUT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.json"
     ERR_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.err"
 
-    # Check OpenClaw before launching a worker; unavailable hosts skip cleanly.
-    if [ "$OPENCLAW_AGENT_AVAILABLE" -ne 1 ]; then
-        log_warn "openclaw agent unavailable, writing empty findings for $AGENT"
-        [ -s "$OPENCLAW_PREFLIGHT_ERR" ] && cat "$OPENCLAW_PREFLIGHT_ERR" >> "$ERR_FILE"
+    # Check Hermes before launching a worker; unavailable hosts skip cleanly.
+    if [ "$HERMES_AGENT_AVAILABLE" -ne 1 ]; then
+        log_warn "hermes agent unavailable, writing empty findings for $AGENT"
+        [ -s "$HERMES_PREFLIGHT_ERR" ] && cat "$HERMES_PREFLIGHT_ERR" >> "$ERR_FILE"
         write_empty_findings "$OUTPUT_FILE"
         continue
     fi
 
-    # Map AGENT names to openclaw agent handles
+    # Map AGENT names to hermes agent handles
     case "$AGENT" in
         claude) OCLAW_AGENT="claude" ;;
         codex) OCLAW_AGENT="codex" ;;
@@ -214,10 +213,10 @@ Return findings as structured JSON wrapped in markdown code fence (do not create
         gemini) OCLAW_AGENT="gemini" ;;
         *) OCLAW_AGENT="main" ;;
     esac
-    # Run openclaw and extract JSON response from code fence
+    # Run hermes and extract JSON response from code fence
     # Parent job control gives the background worker its own process group.
     (
-        openclaw agent --agent "$OCLAW_AGENT" "$OPENCLAW_MESSAGE_FLAG" "$TASK_PROMPT" 2>>"$ERR_FILE" | \
+        hermes agent --agent "$OCLAW_AGENT" "$HERMES_MESSAGE_FLAG" "$TASK_PROMPT" 2>>"$ERR_FILE" | \
             perl -0777 -ne 'print $1 if /```json\n?(.*?)\n?```/s' > "$OUTPUT_FILE" || true
     ) 2>>"$ERR_FILE" &
     
@@ -352,14 +351,14 @@ Your job:
 Return the PR URL as your final output."
 
         FIX_LOG="${BUG_REPORTS_DIR}/bug-hunt-fix-$(date +%s)-${RANDOM}.log"
-        if [ "$OPENCLAW_AGENT_AVAILABLE" -ne 1 ]; then
-            log_warn "openclaw agent unavailable, skipping fix task for $repo PR#$pr"
-            [ -s "$OPENCLAW_PREFLIGHT_ERR" ] && cat "$OPENCLAW_PREFLIGHT_ERR" >> "$FIX_LOG"
+        if [ "$HERMES_AGENT_AVAILABLE" -ne 1 ]; then
+            log_warn "hermes agent unavailable, skipping fix task for $repo PR#$pr"
+            [ -s "$HERMES_PREFLIGHT_ERR" ] && cat "$HERMES_PREFLIGHT_ERR" >> "$FIX_LOG"
             continue
         fi
 
         (
-            openclaw agent --agent "${BUG_HUNT_FIX_AGENT:-main}" "$OPENCLAW_MESSAGE_FLAG" "$FIX_TASK" >> "$FIX_LOG" 2>&1
+            hermes agent --agent "${BUG_HUNT_FIX_AGENT:-main}" "$HERMES_MESSAGE_FLAG" "$FIX_TASK" >> "$FIX_LOG" 2>&1
         ) &
         FIX_PID=$!
         (
@@ -413,12 +412,12 @@ $(echo -e "$FINDINGS")
 - Agent failures: ${AGENT_FAILURES:-0}/${#AGENTS[@]}${FIX_PR_INFO:+$'\n'$FIX_PR_INFO}
 EOF
 
-# Only ping @openclaw when there is at least one counted finding (see gh #242).
-OPENCLAW_BUG_ESCALATION=""
+# Only ping @hermes when there is at least one counted finding (see gh #242).
+HERMES_BUG_ESCALATION=""
 if [ "${ACTUAL_BUGS:-0}" -gt 0 ] 2>/dev/null; then
-    OPENCLAW_BUG_ESCALATION="
+    HERMES_BUG_ESCALATION="
 
-@openclaw Please fix these bugs using agento"
+@hermes Please fix these bugs using agento"
 fi
 
 # Create Slack message
@@ -436,9 +435,9 @@ $(echo -e "$FINDINGS")
 - Bugs found: $ACTUAL_BUGS${FIX_PR_INFO:+, Fix PRs created: $FIX_PR_COUNT}
 - Agent failures: ${AGENT_FAILURES:-0}/${#AGENTS[@]}
 ${FAILURE_WARNING}
-*Reports:* $REPORT_FILE${OPENCLAW_BUG_ESCALATION}"
+*Reports:* $REPORT_FILE${HERMES_BUG_ESCALATION}"
 
-# Post to Slack using user token (so OpenClaw gateway will react to @openclaw mentions)
+# Post to Slack using user token (so Hermes gateway will react to @hermes mentions)
 SLACK_POSTED=0
 if [ -f "$HOME/.profile" ]; then
     source "$HOME/.profile" 2>/dev/null || true

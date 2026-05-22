@@ -93,11 +93,6 @@ Routes user phrases to skill entries. Each section is a skill with its canonical
 **File:** `skills/ao-babysit/SKILL.md`
 **Triggers:** babysit, watch ao worker, monitor agent, ao session died, keep watch on agent, steer agent
 
-## wiki-ingest
-
-**File:** `skills/wiki-ingest/SKILL.md`
-**Triggers:** wiki ingest, ingest this article, add to wiki, save to wiki, wiki this
-
 ## x-to-skill
 
 **File:** `skills/x-to-skill/SKILL.md`

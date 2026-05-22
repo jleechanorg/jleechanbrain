@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR &amp; Merge Protocols — Full Reference</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#pr-merge-protocols-full-reference">PR &amp; Merge Protocols — Full Reference</a>
+<a class="toc-l2" href="#7-point-green-criteria-all-must-hold-before-merge-matches-skeptic-cronyml">7-Point Green Criteria (ALL must hold before merge — matches skeptic-cron.yml)</a>
+<a class="toc-l2" href="#evidence-media-requirements-repo-scope">Evidence Media Requirements (Repo Scope)</a>
+<a class="toc-l2" href="#pr-green-loop-stabilize-then-verify-mandatory">PR Green Loop — Stabilize-Then-Verify (MANDATORY)</a>
+<a class="toc-l2" href="#coderabbit-review-protocol">CodeRabbit Review Protocol</a>
+<a class="toc-l2" href="#commit-guidelines">Commit Guidelines</a></nav><main><p><a href="pr-merge-protocols.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="pr-merge-protocols-full-reference">PR &amp; Merge Protocols — Full Reference</h1>
+<ul>
+<li>- <strong>NEVER make PRs to hermes/hermes</strong> — this is a personal backup repo</li>
+<li>- <strong>NEVER merge without explicit user approval</strong></li>
+<li>- <strong>ALL CI checks must pass before merge</strong> — <code>mergeable: &quot;MERGEABLE&quot;</code> only means no conflicts</li>
+<li>- Always check <code>statusCheckRollup</code> for failures before declaring PR ready</li>
+</ul>
+<h2 id="7-point-green-criteria-all-must-hold-before-merge-matches-skeptic-cronyml">7-Point Green Criteria (ALL must hold before merge — matches skeptic-cron.yml)</h2>
+<p>| # | Condition | How to check |</p>
+<p>|---|-----------|-------------|</p>
+<p>| 1 | CI green — all GH Actions checks pass | <code>gh api repos/.../commits/SHA/check-runs --jq &#x27;.check_runs[] \| &quot;\(.name): \(.conclusion)&quot;&#x27;</code> |</p>
+<p>| 2 | No conflicts — mergeable=true | <code>gh api repos/.../pulls/NUM --jq &#x27;{mergeable, mergeable_state}&#x27;</code> |</p>
+<p>| 3 | CR APPROVED — coderabbitai[bot] latest review is APPROVED | <code>gh api .../pulls/NUM/reviews --jq &#x27;[.[] \| select(.user.login==&quot;coderabbitai[bot]&quot;)] \| last \| .state&#x27;</code> |</p>
+<p>| 4 | Bugbot clean — cursor[bot] zero error-severity comments | <code>gh api .../pulls/NUM/comments --jq &#x27;[.[] \| select(.user.login==&quot;cursor[bot]&quot; and (.body \| test(&quot;error&quot;;&quot;i&quot;)))] \| length&#x27;</code> |</p>
+<p>| 5 | Comments resolved — zero unresolved non-nit inline review comments | <code>gh api .../pulls/NUM/comments --jq &#x27;[.[] \| select(.in_reply_to_id==null) \| select(.body \| test(&quot;^(nit:\|nitpick)&quot;;&quot;i&quot;) \| not)] \| length&#x27;</code> |</p>
+<p>| 6 | Evidence pass — evidence-review-bot APPROVED or evidence-gate CI passed | <code>gh api .../pulls/NUM/reviews --jq &#x27;[.[] \| select(.user.login==&quot;evidence-review-bot&quot; and .state==&quot;APPROVED&quot;)] \| length&#x27;</code> |</p>
+<p>| 7 | Skeptic PASS — github-actions[bot] posted VERDICT: PASS | <code>gh api .../issues/NUM/comments --jq &#x27;[.[] \| select(.user.login==&quot;github-actions[bot]&quot; and (.body \| test(&quot;VERDICT: PASS&quot;;&quot;i&quot;)))] \| length&#x27;</code> |</p>
+<p><strong>Evidence PASS (criterion 6) requires ALL of:</strong></p>
+<ul>
+<li>- Agent self-review (you read the diff and confirm no obvious issues)</li>
+<li>- CodeRabbit review (must post APPROVED — <code>.coderabbit.yaml</code> has <code>approve: true</code>; COMMENTED alone does not satisfy condition 3)</li>
+<li>- Independent code review via <code>/er</code> or codex — at least one of CR OR codex must PASS</li>
+</ul>
+<h2 id="evidence-media-requirements-repo-scope">Evidence Media Requirements (Repo Scope)</h2>
+<p>For evidence-bearing PRs:</p>
+<ul>
+<li>- Non-trivial changes require a <strong>tmux/terminal video</strong>.</li>
+<li>- <strong>User-facing changes require a browser/UI video</strong> (mandatory; no small-change exception).</li>
+<li>- <strong>Both videos must include captions</strong> (burned-in preferred; <code>.vtt</code>/<code>.srt</code> acceptable when linked).</li>
+<li>- Upload videos directly in PR description/comments using GitHub native attachments (<code>https://github.com/user-attachments/assets/...</code>).</li>
+</ul>
+<p><strong>Policy-definition and documentation-only PRs are exempt from these media requirements until the policy is in effect.</strong></p>
+<p>PR description must include:</p>
+<ul>
+<li>- Test output summary (pass/fail counts + key checks)</li>
+<li>- Video attachment links</li>
+<li>- Caption references for each video</li>
+<li>- A self-contained <strong>secret/unlisted</strong> gist URL with sanitized logs/artifacts; <strong>never</strong> include tokens, credentials, API keys, cookies, secrets, or other sensitive content in the gist, even if &quot;sanitized&quot;</li>
+</ul>
+<p>Machine-specific absolute paths must be redacted from published output (<code>/Users/&lt;name&gt;/...</code>, host-specific temp roots, etc.).</p>
+<p><strong>NEVER run <code>gh pr merge</code> yourself — skeptic-cron.yml (every 30 min) merges when all 7 criteria are met.</strong></p>
+<h2 id="pr-green-loop-stabilize-then-verify-mandatory">PR Green Loop — Stabilize-Then-Verify (MANDATORY)</h2>
+<p>When driving a PR to green, follow this policy strictly. <strong>Never push during active bot review.</strong></p>
+<ol>
+<li>1. <strong>Collect</strong> — Read ALL bot comments/findings (CR, Bugbot, Copilot) before making any changes</li>
+<li>2. <strong>Batch</strong> — Fix everything in one commit, not one fix per finding</li>
+<li>3. <strong>Push once</strong> — Single push with all fixes</li>
+<li>4. <strong>Freeze</strong> — Do NOT push again until ALL bots have finished:</li>
+</ol>
+<ul>
+<li>   - Bugbot: <code>status: COMPLETED</code> (not IN_PROGRESS)</li>
+<li>   - CR: new review posted (check <code>.submitted_at</code> is after your push)</li>
+<li>   - Copilot: check completed</li>
+</ul>
+<ol>
+<li>5. <strong>Reconcile</strong> — Only after all bots settle, evaluate all 7 conditions in one pass</li>
+<li>6. <strong>If more fixes needed</strong> — go back to step 1. Never fix-push-fix-push reactively.</li>
+</ol>
+<p><strong>Anti-patterns (BANNED):</strong></p>
+<ul>
+<li>- Pushing while Bugbot/CR is still running</li>
+<li>- Triggering <code>@coderabbitai all good?</code> before all checks are settled</li>
+<li>- Resolving review threads to trigger auto-approve (empty-body APPROVED is not real)</li>
+<li>- Polling CI status in a loop — wait for bots to finish, then check once</li>
+<li>- Sleep-polling after a push — after pushing, EXIT the task; let the monitoring loop handle CI waits. If a bash timeout occurs mid-sleep, do NOT retry — exit immediately.</li>
+</ul>
+<h2 id="coderabbit-review-protocol">CodeRabbit Review Protocol</h2>
+<p>After pushing to remote, post exactly: <code>@coderabbitai all good?</code></p>
+<h2 id="commit-guidelines">Commit Guidelines</h2>
+<ul>
+<li>- Use <code>git add &lt;specific files&gt;</code> — never <code>git add -A</code> blindly</li>
+<li>- Concise, action-oriented messages (e.g., <code>fix: remove redundant try/except in heartbeat poller</code>)</li>
+<li>- Group related changes; don&#x27;t bundle unrelated refactors</li>
+</ul></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

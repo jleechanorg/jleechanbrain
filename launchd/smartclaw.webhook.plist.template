@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Comment</key>
-    <string>OpenClaw Webhook Daemon - receives GitHub webhooks and triggers remediation</string>
+    <string>Hermes Webhook Daemon - receives GitHub webhooks and triggers remediation</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
@@ -25,7 +25,7 @@
         <!-- @WEBHOOK_SECRET@ replaced by install-launchagents.sh at install time -->
         <string>@WEBHOOK_SECRET@</string>
         <!-- Email escalation alerts — only add keys when configured; empty strings cause LaunchAgent issues -->
-        <!-- NOTIFY_EMAIL_TO, SMTP_USER, SMTP_PASSWORD omitted — set in openclaw.json, read by orchestration.webhook -->
+        <!-- NOTIFY_EMAIL_TO, SMTP_USER, SMTP_PASSWORD omitted — set in hermes.json, read by orchestration.webhook -->
     </dict>
     <key>KeepAlive</key>
     <true/>

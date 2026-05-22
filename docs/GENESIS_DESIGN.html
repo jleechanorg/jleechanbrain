@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genesis: Persistent Orchestration Layer for Hermes</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#genesis-persistent-orchestration-layer-for-hermes">Genesis: Persistent Orchestration Layer for Hermes</a>
+<a class="toc-l2" href="#overview">Overview</a>
+<a class="toc-l2" href="#what-hermes-already-provides-that-we-just-need-to-use">What Hermes Already Provides (that we just need to use)</a>
+<a class="toc-l3" href="#memory-system-docs-httpsdocshermesaiconceptsmemory">Memory System (docs: https://docs.smartclaw.ai/concepts/memory)</a>
+<a class="toc-l3" href="#configuration-options-we-should-enable">Configuration Options We Should Enable</a>
+<a class="toc-l3" href="#cron-system">Cron System</a>
+<a class="toc-l2" href="#whats-genuinely-new-genesis-adds">What&#x27;s Genuinely New (Genesis adds)</a>
+<a class="toc-l3" href="#1-mcp-mail-identity">1. MCP Mail Identity</a>
+<a class="toc-l3" href="#2-filled-in-context-files">2. Filled-In Context Files</a>
+<a class="toc-l3" href="#3-memorymd-curation-cron-job-optional">3. MEMORY.md Curation Cron Job (optional)</a>
+<a class="toc-l3" href="#4-active-task-registry-optional">4. Active Task Registry (optional)</a>
+<a class="toc-l2" href="#what-was-wrong-in-v1-of-this-design">What Was Wrong in V1 of This Design</a>
+<a class="toc-l2" href="#implementation-plan">Implementation Plan</a>
+<a class="toc-l3" href="#phase-1-fill-in-what-exists-immediate">Phase 1: Fill In What Exists (immediate)</a>
+<a class="toc-l3" href="#phase-2-tune-config">Phase 2: Tune Config</a>
+<a class="toc-l3" href="#phase-3-automation-optional">Phase 3: Automation (optional)</a>
+<a class="toc-l2" href="#comparison-with-external-orchestrators">Comparison with External Orchestrators</a>
+<a class="toc-l2" href="#open-questions">Open Questions</a></nav><main><p><a href="GENESIS_DESIGN.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="genesis-persistent-orchestration-layer-for-hermes">Genesis: Persistent Orchestration Layer for Hermes</h1>
+<h2 id="overview">Overview</h2>
+<p>Genesis is a <strong>configuration and content layer on top of Hermes</strong> — not a new system.</p>
+<p>After reading the Hermes docs and source, most of what Genesis originally proposed</p>
+<p>already exists natively. The real work is <strong>filling in existing files</strong> and <strong>tuning config</strong>.</p>
+<p>This doc covers: what Hermes already provides, what&#x27;s genuinely new, and the plan.</p>
+<h2 id="what-hermes-already-provides-that-we-just-need-to-use">What Hermes Already Provides (that we just need to use)</h2>
+<h3 id="memory-system-docs-httpsdocshermesaiconceptsmemory">Memory System (docs: https://docs.smartclaw.ai/concepts/memory)</h3>
+<p>Hermes uses <strong>plain Markdown files as source of truth</strong>. The sqlite DB at</p>
+<p><code>~/.smartclaw/memory/&lt;agentId&gt;.sqlite</code> is just an auto-generated index for search.</p>
+<p><strong>Workspace</strong>: <code>~/.smartclaw/workspace/</code></p>
+<p>| File | Purpose | Current Status |</p>
+<p>|------|---------|----------------|</p>
+<p>| <code>SOUL.md</code> | Agent personality (&quot;Genesis&quot; identity) | Filled — good generic personality |</p>
+<p>| <code>USER.md</code> | User preferences, projects, context | <strong>BLANK — needs filling</strong> |</p>
+<p>| <code>TOOLS.md</code> | Local environment (SSH hosts, devices) | <strong>BLANK — needs filling</strong> |</p>
+<p>| <code>MEMORY.md</code> | Long-term curated knowledge | <strong>DOESN&#x27;T EXIST — needs creation</strong> |</p>
+<p>| <code>HEARTBEAT.md</code> | Periodic self-review tasks | Exists |</p>
+<p>| <code>memory/YYYY-MM-DD.md</code> | Daily notes (auto-loaded at session start) | Stopped Feb 14 — needs revival |</p>
+<p><strong>At session startup</strong>, Hermes loads: today&#x27;s daily log, yesterday&#x27;s daily log, SOUL.md, USER.md.</p>
+<p><strong>memory_search</strong> and <strong>memory_get</strong> are built-in agent tools for semantic + keyword search.</p>
+<p><strong>Memory flush before compaction</strong> auto-reminds the agent to persist important context</p>
+<p>before the session&#x27;s context window fills up.</p>
+<h3 id="configuration-options-we-should-enable">Configuration Options We Should Enable</h3>
+<p>In <code>~/.smartclaw/hermes.json</code> under <code>agents.defaults</code>:</p>
+<pre><code>{
+  &quot;agents&quot;: {
+    &quot;defaults&quot;: {
+      &quot;memorySearch&quot;: {
+        &quot;enabled&quot;: true,
+        // Index worldarchitect.ai and other project dirs
+        &quot;extraPaths&quot;: [
+          &quot;${HOME}/projects/worldarchitect.ai/.claude/learnings.md&quot;,
+          &quot;${HOME}/projects/worldarchitect.ai/CLAUDE.md&quot;
+        ],
+        &quot;query&quot;: {
+          &quot;hybrid&quot;: {
+            &quot;enabled&quot;: true,
+            &quot;vectorWeight&quot;: 0.7,
+            &quot;textWeight&quot;: 0.3,
+            &quot;temporalDecay&quot;: {
+              &quot;enabled&quot;: true,     // Prefer recent memories
+              &quot;halfLifeDays&quot;: 30   // 30-day half-life
+            },
+            &quot;mmr&quot;: {
+              &quot;enabled&quot;: true,     // Diversity in results
+              &quot;lambda&quot;: 0.7
+            }
+          }
+        },
+        &quot;experimental&quot;: {
+          &quot;sessionMemory&quot;: true    // Index session transcripts too
+        }
+      },
+      &quot;compaction&quot;: {
+        &quot;memoryFlush&quot;: {
+          &quot;enabled&quot;: true          // Already enabled by default
+        }
+      }
+    }
+  }
+}</code></pre>
+<h3 id="cron-system">Cron System</h3>
+<p>Already running 3x daily Slack check-ins + 4-hourly backups via <code>~/.smartclaw/cron/jobs.json</code>.</p>
+<p>Genesis cron jobs use the same native format.</p>
+<p>Repo source of truth for tracked schedules:</p>
+<ul>
+<li>- <code>hermes-config/cron/jobs.json</code></li>
+</ul>
+<p>Current Genesis schedule in this repo:</p>
+<ul>
+<li>- <code>genesis-memory-curation-weekly</code> (weekly Sunday 10pm PT)</li>
+</ul>
+<p>Runtime note:</p>
+<ul>
+<li>- Cron jobs are executed by Hermes runtime components; keep the Hermes gateway healthy/running (<code>hermes gateway status</code>).</li>
+</ul>
+<h2 id="whats-genuinely-new-genesis-adds">What&#x27;s Genuinely New (Genesis adds)</h2>
+<p>After subtracting everything Hermes already does, Genesis adds only:</p>
+<h3 id="1-mcp-mail-identity">1. MCP Mail Identity</h3>
+<p><strong>Done.</strong> Registered as &quot;Genesis&quot; (agent #1778) on MCP Mail.</p>
+<p>This enables cross-agent coordination — subagents can send reports to Genesis.</p>
+<h3 id="2-filled-in-context-files">2. Filled-In Context Files</h3>
+<p>The biggest value-add is actually just <strong>writing content into the existing blank files</strong>:</p>
+<p><strong><code>~/.smartclaw/workspace/USER.md</code></strong>:</p>
+<pre><code># USER.md - About Your Human
+
+- **Name:** Jeffrey Lee-Chan
+- **What to call them:** Jeff
+- **Timezone:** America/Los_Angeles (PST/PDT)
+
+## Projects
+- **worldarchitect.ai** — AI RPG built with Python/Firebase/Gemini 3. Goal: first 100 users.
+  Repo: ${HOME}/projects/worldarchitect.ai
+  GitHub: https://github.com/jleechanorg/worldarchitect.ai
+  6,341 commits. This is the main project.
+
+- **hermes** (this repo) — Personal Hermes config backup + Genesis orchestration layer.
+  Repo: ${HOME}/projects_other/hermes
+  GitHub: https://github.com/jleechanorg/hermes
+
+- **worldai_claw** — AI RPG powered by Hermes.
+  GitHub: https://github.com/jleechanorg/worldai_claw
+
+## Preferences
+- Concise, direct responses. No filler.
+- Smallest safe change that solves the request.
+- Prefer editing existing files over creating new ones.
+- Uses Claude Code, Codex, and Gemini for coding.</code></pre>
+<p><strong><code>~/.smartclaw/workspace/MEMORY.md</code></strong>:</p>
+<pre><code># MEMORY.md - Long-Term Knowledge
+
+## Architecture Decisions
+- worldarchitect.ai: LLM decides, server executes (core principle)
+- FastEmbed classifier for intent detection (&lt;50ms)
+- Gemini 3 code execution mode REQUIRED
+- 10min/600s timeout across all layers
+
+## Patterns That Work
+- Use worktrees for parallel agent work
+- CI must pass before merge, no exceptions
+- memory_search for semantic recall, memory_get for direct reads
+- Daily memory files for session context; MEMORY.md for durable facts
+
+## Key Paths
+- Hermes workspace: ~/.smartclaw/workspace/
+- Hermes config: ~/.smartclaw/hermes.json
+- worldarchitect.ai: ${HOME}/projects/worldarchitect.ai
+- hermes backup repo: ${HOME}/projects_other/hermes
+
+## Current Goals
+- Get first 100 users for worldarchitect.ai (AI RPG)
+- Set up Genesis orchestration layer (this)</code></pre>
+<h3 id="3-memorymd-curation-cron-job-optional">3. MEMORY.md Curation Cron Job (optional)</h3>
+<p>A cron job that periodically reads daily logs (<code>memory/YYYY-MM-DD.md</code>) and curates</p>
+<p>important patterns/decisions into <code>MEMORY.md</code>. This is the one piece that goes beyond</p>
+<p>what Hermes does automatically.</p>
+<p><strong>How</strong>: Hermes cron job with an <code>agentTurn</code> payload like:</p>
+<pre><code>Review daily memory files from the last 7 days (memory/*.md).
+Extract any important decisions, patterns, or project status updates.
+Update MEMORY.md with curated findings. Don&#x27;t duplicate existing entries.
+Keep MEMORY.md concise and focused on durable knowledge.</code></pre>
+<p><strong>Schedule</strong>: Weekly (Sunday 10pm PT) or after N daily files accumulate.</p>
+<h3 id="4-active-task-registry-optional">4. Active Task Registry (optional)</h3>
+<p><code>~/.smartclaw/workspace/tasks.md</code> — A markdown file (not JSON, so the agent can read/update</p>
+<p>it naturally) tracking what&#x27;s in flight across projects. No native Hermes equivalent exists.</p>
+<pre><code># Active Tasks
+
+## worldarchitect.ai
+- [ ] Get first 100 users
+  - [ ] Launch landing page
+  - [ ] Beta invite flow
+  - [ ] Polish core game loop
+- [ ] PR #2162: Gemini 3 upgrade
+
+## hermes
+- [x] Register Genesis on MCP Mail
+- [x] Set up IDENTITY.md
+- [ ] Fill in USER.md, MEMORY.md, TOOLS.md
+- [ ] Configure memorySearch.extraPaths
+- [ ] Add MEMORY.md curation cron job</code></pre>
+<h2 id="what-was-wrong-in-v1-of-this-design">What Was Wrong in V1 of This Design</h2>
+<p>For honesty/learning:</p>
+<ol>
+<li>1. <strong>&quot;Generate MEMORY.md from sqlite&quot;</strong> — Backwards. MEMORY.md is the source; sqlite indexes it.</li>
+<li>2. <strong><code>genesis/handoff.md</code></strong> — Redundant with <code>memory/YYYY-MM-DD.md</code> daily logs.</li>
+<li>3. **<code>genesis/projects/*.md</code>** — Mostly redundant with <code>memorySearch.extraPaths</code>.</li>
+<li>4. <strong><code>scripts/memory-regen.sh</code></strong> — Not needed. Write MEMORY.md directly.</li>
+<li>5. <strong><code>scripts/session-summarize.sh</code></strong> — Memory flush before compaction already does this.</li>
+<li>6. <strong>&quot;Feed coding decisions into sqlite&quot;</strong> — Wrong direction. Write markdown, sqlite auto-indexes.</li>
+</ol>
+<h2 id="implementation-plan">Implementation Plan</h2>
+<h3 id="phase-1-fill-in-what-exists-immediate">Phase 1: Fill In What Exists (immediate)</h3>
+<ul>
+<li>- [ ] Create <code>~/.smartclaw/workspace/MEMORY.md</code> with curated knowledge</li>
+<li>- [ ] Fill in <code>~/.smartclaw/workspace/USER.md</code> with user context</li>
+<li>- [ ] Fill in <code>~/.smartclaw/workspace/TOOLS.md</code> with local env details</li>
+<li>- [ ] Update <code>SOUL.md</code> to reference &quot;Genesis&quot; identity</li>
+<li>- [ ] Write today&#x27;s <code>memory/2026-02-25.md</code> daily log</li>
+</ul>
+<h3 id="phase-2-tune-config">Phase 2: Tune Config</h3>
+<ul>
+<li>- [ ] Add <code>memorySearch.extraPaths</code> to <code>hermes.json</code> for worldarchitect.ai</li>
+<li>- [ ] Enable <code>temporalDecay</code> and <code>mmr</code> in memory search</li>
+<li>- [ ] Enable <code>experimental.sessionMemory</code> for session transcript indexing</li>
+</ul>
+<h3 id="phase-3-automation-optional">Phase 3: Automation (optional)</h3>
+<ul>
+<li>- [ ] Add MEMORY.md curation cron job (weekly)</li>
+<li>- [ ] Create <code>tasks.md</code> in workspace for cross-project tracking</li>
+<li>- [ ] Define MCP Mail protocols for subagent reporting</li>
+</ul>
+<h2 id="comparison-with-external-orchestrators">Comparison with External Orchestrators</h2>
+<p>| Feature | Genesis (configure Hermes) | Mission Control | Command Center |</p>
+<p>|---------|------------------------------|-----------------|----------------|</p>
+<p>| <strong>Approach</strong> | Fill in existing files + config | Next.js dashboard | Vanilla JS dashboard |</p>
+<p>| <strong>New dependencies</strong> | None | Node.js, Next.js | None (200KB) |</p>
+<p>| <strong>New running processes</strong> | None | Node server (~150MB) | Static file server |</p>
+<p>| <strong>Context persistence</strong> | Native Hermes memory | Database-backed | SSE + localStorage |</p>
+<p>| <strong>Setup time</strong> | Minutes (write markdown) | Hours (deploy app) | Minutes (serve files) |</p>
+<p>| <strong>Best for</strong> | Solo dev, CLI-native | Team with visual needs | Monitoring + cost |</p>
+<p>Genesis is the <strong>zero-overhead option</strong> — it doesn&#x27;t add anything to run. It just uses</p>
+<p>what Hermes already built, properly.</p>
+<h2 id="open-questions">Open Questions</h2>
+<ol>
+<li>1. <strong>SOUL.md customization</strong>: Should we replace the generic SOUL.md with a Genesis-specific one, or keep it as-is and put project-specific identity in MEMORY.md?</li>
+<li>2. <strong>extraPaths scope</strong>: How many project files to index? Just CLAUDE.md + learnings.md, or broader?</li>
+<li>3. <strong>Curation frequency</strong>: Is weekly MEMORY.md curation enough, or should it be daily?</li>
+<li>4. <strong>Session memory</strong>: The experimental session transcript indexing — worth enabling?</li>
+</ol></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

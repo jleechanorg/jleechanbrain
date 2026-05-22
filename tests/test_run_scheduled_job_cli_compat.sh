@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regression: run-scheduled-job must use current openclaw agent flags and
+# Regression: run-scheduled-job must use current hermes agent flags and
 # explicit prod state/config wiring.
 set -euo pipefail
 
@@ -28,16 +28,16 @@ else
   fail "runner missing supported --timeout flag"
 fi
 
-if grep -q 'OPENCLAW_STATE_DIR="\$openclaw_state_dir"' "$SCRIPT"; then
-  pass "runner exports OPENCLAW_STATE_DIR to openclaw invocation"
+if grep -q 'HERMES_STATE_DIR="\$hermes_state_dir"' "$SCRIPT"; then
+  pass "runner exports HERMES_STATE_DIR to hermes invocation"
 else
-  fail "runner missing OPENCLAW_STATE_DIR export"
+  fail "runner missing HERMES_STATE_DIR export"
 fi
 
-if grep -q 'OPENCLAW_CONFIG_PATH="\$openclaw_config_path"' "$SCRIPT"; then
-  pass "runner exports OPENCLAW_CONFIG_PATH to openclaw invocation"
+if grep -q 'HERMES_CONFIG_PATH="\$hermes_config_path"' "$SCRIPT"; then
+  pass "runner exports HERMES_CONFIG_PATH to hermes invocation"
 else
-  fail "runner missing OPENCLAW_CONFIG_PATH export"
+  fail "runner missing HERMES_CONFIG_PATH export"
 fi
 
 if [[ "$FAILED" -gt 0 ]]; then

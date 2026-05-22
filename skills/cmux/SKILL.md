@@ -26,8 +26,7 @@ if not result.valid:
 **Known failure modes this prevents:**
 - `cmux list-surfaces --workspace 23 --json` → `--json` is not a valid flag for this command
 - `cmux list-surface` → wrong subcommand (should be `list-surfaces`)
-- `cmux system.tree` → no such command (use `cmux tree --all`)
-- `cmux tree` without `--all` → returns only active window content; use `cmux tree --all` for full multi-window tree
+- `cmux tree` → no such command (use `cmux list-surfaces`)
 
 ## ⚠️ Status Bar Interpretation — NOT Frozen
 
@@ -94,7 +93,8 @@ cmux $SOCKET_PATH ping
 
 # 3. Use nc for actual data queries (CLI output may be stripped)
 echo '{"jsonrpc":"2.0","method":"workspace.list","params":{},"id":1}' | nc -w 1 -U $SOCKET_PATH
-# NOTE: There is NO "system.tree" JSON-RPC method. Use CLI for tree: cmux tree --all
+echo '{"jsonrpc":"2.0","method":"system.tree","id":2}' | nc -w 1 -U $SOCKET_PATH
+echo '{"jsonrpc":"2.0","method":"surface.read","params":{"surface_id":"<id>"},"id":3}' | nc -w 2 -U $SOCKET_PATH
 ```
 
 **Why `-w 1` timeout is critical on macOS:** macOS `nc` uses `-w timeout_secs` (not `-W` which is Linux). Omitting `-w` causes nc to hang indefinitely on unresponsive sockets.
@@ -169,14 +169,25 @@ cmux capture-pane --surface surface:71 --scrollback --lines 80
 cmux read-screen --workspace workspace:33 --surface surface:71 --scrollback --lines 100 | tail -50
 ```
 
-**Correct `tree` command syntax (DISCOVERED 2026-04-29):**
-The RPC method is `system.tree` but the CLI subcommand is `tree` (not `system.tree`). The `--workspace` flag targets a specific workspace:
+**Correct `tree` command syntax (DISCOVERED 2026-04-29, CLI-global-flag failure mode CLARIFIED 2026-05-04):**
+The RPC method is `system.tree` but the CLI subcommand is `tree` (not `system.tree`). The `--workspace` flag is a subcommand-level option and must come AFTER the `tree` subcommand, NOT before it.
+
 ```bash
 export CMUX_SOCKET_PATH=/private/tmp/cmux-debug-appclick.sock
 
-# CORRECT — tree per workspace (CLI subcommand, NOT "system.tree")
+# CORRECT — tree per workspace (CLI subcommand, --workspace comes AFTER 'tree')
 cmux tree --workspace workspace:1
 cmux tree --workspace workspace:5
+
+# ALSO CORRECT — set workspace via environment variable
+export CMUX_WORKSPACE_ID=workspace:22
+cmux tree
+
+# WRONG — --workspace as global flag BEFORE subcommand is misinterpreted:
+cmux --workspace workspace:22 tree
+# Error: "Unknown command: --workspace" — the CLI parses --workspace as a path arg,
+# then treats "tree" as a global option (not a subcommand), producing a help dump.
+# This is a distinct failure mode from the "tree" subcommand not existing.
 
 # WRONG — these return help or empty output:
 cmux run-command "system.tree" --workspace workspace:1  # returns help text
@@ -221,37 +232,44 @@ cmux surface-health --workspace workspace:5
 
 **Why this matters:** When workspaces are spread across multiple windows, surfaces in window:2 often don't respond to bare `capture-pane --surface N` but do respond to `read-screen --workspace W --surface S` or `capture-pane --workspace W --surface S` with both refs specified.
 
-### Correct Inspection Order for cmux Status Reports (NO workspace.select)
-
-**CRITICAL: `workspace.select` is forbidden** for cmux status/inspection tasks. Only `system.tree` (via `cmux tree --all`) may be used to enumerate workspace state. Use `read-screen` or `capture-pane` with full `--workspace` and `--surface` refs for content inspection.
-
+### Correct Inspection Order for cmux State Reports
 ```python
 # 1. Ping first to verify socket is alive
 ping = rpc("system.ping", req_id="ping")
 assert ping.get("result", {}).get("pong"), "cmux socket unreachable"
 
-# 2. Get full tree — shows ALL windows, workspaces, panes, surfaces in one call
-result = rpc("system.tree", req_id="tree")
-# Output: {ok: true, result: {windows: [{id, workspaces: [{id, name, ref, windows: ...}]}]}}
-# Active window has [current] marker. Active workspace has [selected] marker.
+# 2. List ALL workspaces (get titles, IDs, refs, pinned status)
+result = rpc("workspace.list", req_id="ws")
+workspaces = result["result"]["workspaces"]
 
-# 3. For each workspace of interest, check which surfaces are accessible
-#    BEFORE trying read-screen, run surface-health to skip in_window=false surfaces:
-for ws_ref in ["workspace:3", "workspace:4", "workspace:7", "workspace:9"]:
-    health = rpc("surface.health", {"workspace": ws_ref}, req_id=f"sh_{ws_ref}")
-    for surf in health.get("result", {}).get("surfaces", []):
-        if not surf.get("in_window", True):
-            # SKIP — surface is orphaned, read-screen will fail with "Terminal surface not found"
-            continue
-        # This surface is readable — try read-screen with full refs
-        text = rpc("surface.read_text", {
-            "surface": surf["ref"],       # e.g. "surface:5"
-            "surface_id": surf["id"],     # full UUID
-            "lines": 50
-        }, req_id=f"rt_{surf['ref']}", timeout=25)
+# 3. Get CURRENT (active) workspace
+result = rpc("workspace.current", req_id="cur")
+active_ws_id = result["result"]["workspace_id"]
 
-# 4. Active workspace: use read-screen with --workspace + --surface refs on the selected surface
-#    (workspace:1 surface:2 is typically the active terminal shown in identify output)
+# 4. Verify workspace.select works — try switching and confirming
+#    (if this fails, you are stuck inspecting only the active workspace)
+select_r = rpc("workspace.select", {"workspace": workspaces[1]["ref"]}, req_id="sw", timeout=5)
+time.sleep(1)
+current = rpc("workspace.current", req_id="cur2")
+if current["result"]["workspace_id"] != workspaces[1]["id"]:
+    # workspace.select silently failed — document this limitation
+    # Only the originally-active workspace is inspectable
+    pass
+
+# 5. List surfaces for the confirmed-active workspace
+#    (surface.list ignores the workspace param — it always returns the active workspace's surfaces)
+result = rpc("surface.list", {"workspace": workspaces[0]["ref"]}, req_id="sl")
+surfaces = result["result"]["surfaces"]
+
+# 6. Read text from each surface (non-focused ones first to avoid timeouts)
+for surf in surfaces:
+    text = rpc("surface.read_text", {
+        "surface": surf["ref"],
+        "surface_id": surf["id"],  # always pass surface_id too
+        "lines": 50
+    }, req_id=f"rt_{surf['ref']}", timeout=25)
+    # Note: focused surface often returns empty content but populated text field
+    # Use r["result"].get("text", "") not r["result"].get("content", [])
 ```
 
 ### workspace.select Requires workspace_id (UUID), NOT workspace Ref
@@ -268,6 +286,37 @@ rpc("workspace.select", {"workspace_id": "A6789942-5882-4037-952D-31AF63D02664"}
 ```
 
 **Socket path:** Use `/tmp/cmux-debug-appclick.sock` (not `/private/tmp/...` which may also exist but is not the active socket). Confirm via `system.identify` → `result.socket_path`.
+
+### `in_window=false` = Zombie Terminal (Cannot Read)
+**Symptom:** `read-screen --workspace $ws` or `read-screen --surface $surf` returns `internal_error: ERROR: Terminal surface not found` for a surface that clearly exists in the tree.
+
+**Diagnosis:** Run `surface-health --workspace $ws`. Surfaces with `in_window=false` are detached from the window and cannot be read — they are zombie terminals.
+
+```bash
+cmux surface-health --workspace workspace:6
+# Returns: surface:11  type=terminal in_window=false  ← zombie
+
+# Workspace-level read fails:
+cmux read-screen --workspace workspace:6
+# Error: internal_error: ERROR: Terminal surface not found
+
+# Surface-level read also fails:
+cmux read-screen --surface surface:11
+# Error: internal_error: ERROR: Terminal surface not found
+```
+
+**This is normal state for idle workspaces.** Many workspaces have 1-2 surfaces with `in_window=false` — they are tmux panes that were suspended or detached. Do not try to force-read them; skip to the next readable surface or workspace.
+
+**Pattern observed (2026-05-04):** ~8 of 17 workspaces had at least one zombie surface simultaneously. Common on workspaces that have been idle for hours or were suspended mid-session.
+
+### Pinning — Detecting Pinned Workspaces
+There is NO `workspace-action list-pinned` or similar CLI command. Pinned workspaces are identified ONLY by the asterisk marker in `list-workspaces` output:
+
+```bash
+cmux list-workspaces
+# * workspace:7  w2: cost  [selected]   ← asterisk = pinned
+#   workspace:2  w4: events             ← no asterisk = not pinned
+```
 
 ### Socket Exists But Connection Refused (ECONNREFUSED)
 **Symptom:** The socket file exists (`ls -la /tmp/cmux-debug-appclick.sock` shows `srw-rw-rw-`) but Python `sock.connect()` or `nc -U` raises `ConnectionRefusedError` or hangs.

@@ -3,15 +3,13 @@
 # Output is ANSI-stripped and home-path-normalized for GitHub readability.
 set -euo pipefail
 
-ROOT="${HERMES_ROOT:-$HOME/.hermes}"
+ROOT="${HERMES_ROOT:-$HOME/.smartclaw}"
 CTX="$ROOT/docs/context"
 SNAP="$CTX/SYSTEM_SNAPSHOT.md"
 GAPS="$CTX/DOC_GAPS.md"
-OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
-TIRITH="$OPENCLAW_ROOT/bin/tirith"
 
-# Strip ANSI color codes and normalize ~/.smartclaw paths to ~/.
-sanitize() { sed -E $'s/\x1b\\[[0-9;]*m//g' | sed -E "s|$HOME/.smartclaw/?|~/.smartclaw/|g"; }
+# Strip ANSI color codes and normalize home paths
+sanitize() { sed -E $'s/\x1b\\[[0-9;]*m//g' | sed -E "s|$HOME/|~/|g"; }
 
 mkdir -p "$CTX"
 
@@ -20,20 +18,14 @@ mkdir -p "$CTX"
   echo
   echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
   echo
-  echo "## OpenClaw version"
-  node -e "try{const p=require('$ROOT/package.json');console.log('openclaw',p.version)}catch(e){console.log('(unknown)')}" 2>&1 | sanitize || echo "(unknown)"
-  echo
-  echo "## Tirith version"
-  "$TIRITH" --version 2>&1 | sanitize || echo "(tirith not found)"
-  echo
-  echo "## Gateway status"
-  curl -s --max-time 5 http://localhost:18789/health 2>&1 | sanitize || echo "(gateway not reachable)"
+  echo "## Hermes version"
+  (cd "$ROOT" && git describe --tags --always 2>/dev/null || echo "(unknown)") | sanitize
   echo
   echo "## Cron jobs"
   echo "(see CRON_JOBS_BACKUP.md for current job list)"
   echo
   echo "## Diagnostics flags"
-  echo "(see openclaw logs for runtime diagnostics)"
+  echo "(see hermes logs for runtime diagnostics)"
 } > "$SNAP"
 
 missing=0

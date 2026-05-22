@@ -17,7 +17,7 @@ ORCH-lpcn fix: Added --project filter for targeted Claude project scanning
 Usage:
     python3 scripts/mem0_extract_facts.py --since 65
     python3 scripts/mem0_extract_facts.py --since 999999 --workers 4  # full corpus rescan
-    python3 scripts/mem0_extract_facts.py --since 65 --project=-Users-jleechan--openclaw
+    python3 scripts/mem0_extract_facts.py --since 65 --project=-Users-jleechan--hermes
     python3 scripts/mem0_extract_facts.py --session ~/.smartclaw/agents/main/sessions/abc123.jsonl
 """
 from __future__ import annotations
@@ -86,7 +86,7 @@ def _is_session_file(path: Path, agent_id: AgentId) -> bool:
         return any(p in _CODEX_SESSION_DIRS for p in parts)
 
     if agent_id == AgentId.CLAW_MAIN:
-        # OpenClaw: ~/.smartclaw/agents/<agent>/sessions/<file>.jsonl
+        # Hermes: ~/.smartclaw/agents/<agent>/sessions/<file>.jsonl
         return "sessions" in str(path)
 
     return False
@@ -166,7 +166,7 @@ def parse_session_file(session_path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 continue
 
-            # OpenClaw format: type field
+            # Hermes format: type field
             if entry.get("type") in ("human", "assistant"):
                 content = entry.get("content", "")
                 if isinstance(content, list):
@@ -218,7 +218,7 @@ def add_facts_to_memory(
 
     Returns number of facts added.
     """
-    from scripts.mem0_shared_client import add_memory, _load_openclaw_mem0_config
+    from scripts.mem0_shared_client import add_memory, _load_hermes_mem0_config
 
     if not turns:
         return 0
@@ -235,7 +235,7 @@ def add_facts_to_memory(
     }
 
     try:
-        cfg = _load_openclaw_mem0_config()
+        cfg = _load_hermes_mem0_config()
         user_id = cfg.get("_user_id") or "example-user"
         result = add_memory(
             content,
@@ -274,7 +274,7 @@ def scan_sessions_since(minutes: int, project_filter: str | None = None) -> list
     ORCH-scan fix: Uses per-source _is_session_file() to correctly identify:
     - Claude: UUID-named JSONL files directly in project dirs (no sessions/ subdir)
     - Codex: files in sessions/, archived_sessions/, sessions_archive/ (not worktrees/)
-    - OpenClaw: files under agents/*/sessions/
+    - Hermes: files under agents/*/sessions/
 
     ORCH-lpcn fix: If project_filter is set, only scan matching Claude project.
     """
@@ -287,7 +287,7 @@ def scan_sessions_since(minutes: int, project_filter: str | None = None) -> list
 
         # ORCH-lpcn: If filtering Claude sessions by project, iterate only that project
         if agent_id == AgentId.CLAUDE and project_filter:
-            # project_filter is the hash name (e.g., "-Users-jleechan--openclaw")
+            # project_filter is the hash name (e.g., "-Users-jleechan--hermes")
             project_dir = base_dir / project_filter
             if project_dir.exists():
                 search_dirs = [project_dir]
@@ -438,7 +438,7 @@ def main() -> None:
         "--project",
         type=str,
         default=None,
-        help="ORCH-lpcn: Filter Claude sessions to specific project hash. If hash starts with '-', use --project=VALUE syntax (e.g., --project=-Users-jleechan--openclaw)",
+        help="ORCH-lpcn: Filter Claude sessions to specific project hash. If hash starts with '-', use --project=VALUE syntax (e.g., --project=-Users-jleechan--hermes)",
     )
 
     args = parser.parse_args()

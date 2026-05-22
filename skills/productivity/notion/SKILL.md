@@ -1,9 +1,10 @@
 ---
 name: notion
-description: Notion API for creating and managing pages, databases, and blocks via curl. Search, create, update, and query Notion workspaces directly from the terminal.
+description: "Notion API via curl: pages, databases, blocks, search."
 version: 1.0.0
 author: community
 license: MIT
+platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [Notion, Productivity, Notes, Database, API]
@@ -20,7 +21,7 @@ Use the Notion API via curl to create, read, update pages, databases (data sourc
 
 1. Create an integration at https://notion.so/my-integrations
 2. Copy the API key (starts with `ntn_` or `secret_`)
-3. Store it in `~/.hermes/.env`:
+3. Store it in `~/.smartclaw/.env`:
    ```
    NOTION_API_KEY=ntn_your_key_here
    ```

@@ -41,7 +41,7 @@ if [[ ! -x "$AO_BIN" ]]; then
   exit 1
 fi
 
-# Detect node path: prefer pinned nvm Node 22 (same as OpenClaw gateway; avoid Homebrew node ABI drift).
+# Detect node path: prefer pinned nvm Node 22 (same as Hermes gateway; avoid Homebrew node ABI drift).
 _detect_node_bin_dir() {
   local nvm_22="$HOME/.nvm/versions/node/v22.22.0/bin"
   if [[ -x "$nvm_22/node" ]]; then echo "$nvm_22"; return 0; fi

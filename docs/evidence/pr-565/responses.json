@@ -1,0 +1,27 @@
+{
+  "pr": 565,
+  "head_before": "7b277b51f01b0f17418b603e4420c6d92949a2e4",
+  "responder": "codex",
+  "responses": [
+    {
+      "status": "FIXED",
+      "html_url": "https://github.com/jleechanorg/jleechanclaw/pull/565",
+      "summary": "Replaced deprecated launchctl start calls that used gui/$U/$label domain-target arguments with launchctl kickstart domain-target calls, preserving bootout+bootstrap reload semantics."
+    },
+    {
+      "status": "FIXED",
+      "html_url": "https://github.com/jleechanorg/jleechanclaw/pull/565",
+      "summary": "Added the same bootout+bootstrap+kickstart reload sequence to check_mem0_plist after --fix rewrites HERMES_HOME so the live mem0 LaunchAgent picks up the corrected environment."
+    },
+    {
+      "status": "CONSIDERED_ACKNOWLEDGED",
+      "html_url": "https://github.com/jleechanorg/jleechanclaw/pull/565",
+      "summary": "Existing previously resolved items remain addressed in code: bash 4 guard, dynamic HERMES_BIN resolution, all ai.hermes*.plist duplicate scan with prod+mem0 exception, config setdefault port rewrites, Slack token comparison, lsof head -1, no fixed() FAIL decrement, and provider DUPES prefix handling."
+    },
+    {
+      "status": "CONSIDERED_DEFERRED",
+      "html_url": "https://github.com/jleechanorg/jleechanclaw/pull/565",
+      "summary": "Single hermes process count verification after restart remains a follow-up enhancement rather than a blocker because launchd label/PID and port/PID health checks already fail on mismatched active services."
+    }
+  ]
+}

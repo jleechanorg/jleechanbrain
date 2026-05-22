@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# staging-canary.sh — 8-point canary test for OpenClaw gateway
-# Run against staging (port 18810) before applying changes to production (18789).
+# staging-canary.sh — 8-point canary test for Hermes gateway
+# Run against staging (port 18810) before applying changes to production (8642).
 # Exit 0 only if ALL 8 checks pass. Exit 1 on any failure.
 set -uo pipefail
 
@@ -15,7 +15,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 RESULTS=()
 # Canonical production port — checks 7 and 8 use this to select the correct state dir.
-PROD_PORT="${OPENCLAW_PROD_PORT:-18789}"
+PROD_PORT="${HERMES_PROD_PORT:-8642}"
 
 is_stub_main_config() {
     python3 - "$1" <<'PY'
@@ -57,7 +57,7 @@ check() {
     fi
 }
 
-echo "=== OpenClaw Staging Canary (port $PORT) ==="
+echo "=== Hermes Staging Canary (port $PORT) ==="
 echo ""
 
 # ── Check 1: Gateway listening on port ──
@@ -77,18 +77,18 @@ fi
 
 # ── Check 2: Config schema validation (no unrecognized keys) ──
 echo "[2/9] Config schema validation..."
-# Staging gateway (18810) uses ~/.smartclaw/openclaw.staging.json.
-# Architecture: ~/.smartclaw/ = staging (18810), ~/.smartclaw_prod/ = production (18789)
+# Staging gateway (18810) uses ~/.smartclaw/hermes.staging.json.
+# Architecture: ~/.smartclaw/ = staging (18810), ~/.smartclaw_prod/ = production (8642)
 # Explicit override (CI / custom layouts)
-if [[ -n "${OPENCLAW_STAGING_CONFIG:-}" ]]; then
-    CONFIG_FILE="$OPENCLAW_STAGING_CONFIG"
-elif [[ "$PORT" == "18789" ]]; then
-    CONFIG_FILE="$HOME/.smartclaw_prod/openclaw.json"
+if [[ -n "${HERMES_STAGING_CONFIG:-}" ]]; then
+    CONFIG_FILE="$HERMES_STAGING_CONFIG"
+elif [[ "$PORT" == "8642" ]]; then
+    CONFIG_FILE="$HOME/.smartclaw_prod/hermes.json"
 elif [[ "$PORT" == "18810" ]]; then
-    CONFIG_FILE="$HOME/.smartclaw/openclaw.staging.json"
+    CONFIG_FILE="$HOME/.smartclaw/hermes.staging.json"
 else
-    echo "  WARN: Unknown port $PORT — defaulting to staging config (~/.smartclaw/openclaw.staging.json)"
-    CONFIG_FILE="$HOME/.smartclaw/openclaw.staging.json"
+    echo "  WARN: Unknown port $PORT — defaulting to staging config (~/.smartclaw/hermes.staging.json)"
+    CONFIG_FILE="$HOME/.smartclaw/hermes.staging.json"
 fi
 if [[ ! -f "$CONFIG_FILE" ]]; then
     check "Config schema validation" 1 "Config file not found: $CONFIG_FILE"
@@ -144,8 +144,8 @@ fi
 
 # ── Check 3: Native modules load (mem0 better-sqlite3) ──
 echo "[3/9] Native module ABI check..."
-NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print gui/$(id -u)/ai.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo "${HOME}/.nvm/versions/node/v22.22.0/bin/node")}"
-BETTER_SQLITE_PATH="$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3"
+NODE_BIN="${HERMES_NODE_BIN:-$(launchctl print gui/$(id -u)/ai.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo '${HOME}/.nvm/versions/node/v22.22.0/bin/node')}"
+BETTER_SQLITE_PATH="$HOME/.smartclaw/extensions/hermes-mem0/node_modules/better-sqlite3"
 if [[ ! -d "$BETTER_SQLITE_PATH" ]]; then
     check "Native module ABI" 1 "better-sqlite3 not found at $BETTER_SQLITE_PATH"
 else
@@ -168,11 +168,11 @@ import json, os
 d = json.load(open('$CONFIG_FILE'))
 # Try channels.slack.appToken first, then env
 t = d.get('channels',{}).get('slack',{}).get('appToken','')
-# Resolve \${VAR} placeholders (openclaw.json stores tokens as env references)
+# Resolve \${VAR} placeholders (hermes.json stores tokens as env references)
 if isinstance(t, str) and t.startswith('\${') and t.endswith('}'):
     t = os.environ.get(t[2:-1], '')
 if not t:
-    t = d.get('env',{}).get('OPENCLAW_SLACK_APP_TOKEN','')
+    t = d.get('env',{}).get('HERMES_SLACK_APP_TOKEN','')
 if isinstance(t, str) and t.startswith('\${') and t.endswith('}'):
     t = os.environ.get(t[2:-1], '')
 print(t)
@@ -180,7 +180,7 @@ print(t)
 fi
 if [[ -z "$SLACK_APP_TOKEN" ]]; then
     # Fallback to env var
-    SLACK_APP_TOKEN="${OPENCLAW_SLACK_APP_TOKEN:-}"
+    SLACK_APP_TOKEN="${HERMES_SLACK_APP_TOKEN:-}"
 fi
 if [[ -z "$SLACK_APP_TOKEN" ]]; then
     check "Slack app token" 1 "No app token found in config or env"
@@ -200,12 +200,12 @@ fi
 
 # ── Check 5: SDK protocol version compatibility ──
 echo "[5/9] SDK protocol version check..."
-OPENCLAW_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
+HERMES_VERSION=$(hermes --version 2>/dev/null || echo "unknown")
 SDK_VERSION=$(npm ls @agentclientprotocol/sdk --prefix "$HOME/.smartclaw" 2>/dev/null | grep agentclientprotocol | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
 if [[ -z "$SDK_VERSION" ]]; then
-    # Try reading from installed openclaw package (homebrew and local installs)
+    # Try reading from installed hermes package (homebrew and local installs)
     # Note: use $(echo ~) to expand ~ inside single-quoted node -e string
-    SDK_VERSION=$(node -e "try { const p = require(require.resolve('@agentclientprotocol/sdk/package.json', {paths:['/opt/homebrew/lib/node_modules/openclaw','$(echo ~)/.smartclaw']})); console.log(p.version); } catch(e) { console.log(''); }" 2>/dev/null || echo "")
+    SDK_VERSION=$(node -e "try { const p = require(require.resolve('@agentclientprotocol/sdk/package.json', {paths:['/opt/homebrew/lib/node_modules/hermes','$(echo ~)/.smartclaw']})); console.log(p.version); } catch(e) { console.log(''); }" 2>/dev/null || echo "")
 fi
 if [[ -z "$SDK_VERSION" ]]; then
     check "SDK protocol version" 1 "Could not detect SDK version — fail-closed (install @agentclientprotocol/sdk or check PATH)"
@@ -317,10 +317,10 @@ else
 fi
 
 # ── Check 9: Single gateway instance ──
-# Multiple openclaw-gateway processes listening on this port = lock storm.
-# Must filter by port (lsof) not just pgrep — staging (18810) and prod (18789)
-# both run openclaw-gateway; counting all causes false failures on the non-target port.
-echo "[9/9] Single openclaw-gateway instance check..."
+# Multiple hermes-gateway processes listening on this port = lock storm.
+# Must filter by port (lsof) not just pgrep — staging (18810) and prod (8642)
+# both run hermes-gateway; counting all causes false failures on the non-target port.
+echo "[9/9] Single hermes-gateway instance check..."
 _gw_count=$(lsof -i ":${PORT}" -sTCP:LISTEN 2>/dev/null | grep -v "^COMMAND" | awk '{print $2}' | sort -u | wc -l)
 if [[ "$_gw_count" -eq 1 ]]; then
     check "Single gateway instance" 0 "1 process listening on port $PORT (no orphans)"

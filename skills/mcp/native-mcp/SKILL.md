@@ -1,9 +1,10 @@
 ---
 name: native-mcp
-description: Built-in MCP (Model Context Protocol) client that connects to external MCP servers, discovers their tools, and registers them as native Hermes Agent tools. Supports stdio and HTTP transports with automatic reconnection, security filtering, and zero-config tool injection.
+description: "MCP client: connect servers, register tools (stdio/HTTP)."
 version: 1.0.0
 author: Hermes Agent
 license: MIT
+platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [MCP, Tools, Integrations]
@@ -41,7 +42,7 @@ uv pip install mcp
 
 ## Quick Start
 
-Add MCP servers to `~/.hermes/config.yaml` under the `mcp_servers` key:
+Add MCP servers to `~/.smartclaw/config.yaml` under the `mcp_servers` key:
 
 ```yaml
 mcp_servers:
@@ -107,7 +108,7 @@ Note: A server config must have either `command` (stdio) or `url` (HTTP), not bo
 
 When Hermes Agent starts, `discover_mcp_tools()` is called during tool initialization:
 
-1. Reads `mcp_servers` from `~/.hermes/config.yaml`
+1. Reads `mcp_servers` from `~/.smartclaw/config.yaml`
 2. For each server, spawns a connection in a dedicated background event loop
 3. Initializes the MCP session and calls `list_tools()` to discover available tools
 4. Registers each tool in the Hermes tool registry
@@ -213,7 +214,7 @@ pip install mcp
 
 ### "No MCP servers configured"
 
-No `mcp_servers` key in `~/.hermes/config.yaml`, or it's empty. Add at least one server.
+No `mcp_servers` key in `~/.smartclaw/config.yaml`, or it's empty. Add at least one server.
 
 ### "Failed to connect to MCP server 'X'"
 

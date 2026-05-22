@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rebuild-native-modules.sh
-# Detects and fixes NODE_MODULE_VERSION mismatch for native addons in openclaw extensions.
+# Detects and fixes NODE_MODULE_VERSION mismatch for native addons in hermes extensions.
 # Called by health-check.sh on gateway start, or manually after `brew upgrade node`.
 #
 # Exit codes: 0 = all OK or rebuilt successfully, 1 = rebuild failed
@@ -21,11 +21,11 @@ log() { printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "$LOG_FI
 #       silently breaking memory lookup until manually fixed.
 detect_gateway_node() {
   # 1. Explicit override
-  [[ -n "${OPENCLAW_GATEWAY_NODE:-}" ]] && echo "$OPENCLAW_GATEWAY_NODE" && return
+  [[ -n "${HERMES_GATEWAY_NODE:-}" ]] && echo "$HERMES_GATEWAY_NODE" && return
 
   # 2. Check the running gateway process (most reliable)
   local gw_pid gw_node
-  gw_pid="$(pgrep -f 'openclaw-gateway' 2>/dev/null | head -1)" || true
+  gw_pid="$(pgrep -f 'hermes-gateway' 2>/dev/null | head -1)" || true
   if [[ -n "$gw_pid" ]]; then
     gw_node="$(lsof -p "$gw_pid" 2>/dev/null | awk '/\/node/{print $NF; exit}')" || true
     [[ -n "$gw_node" && -x "$gw_node" ]] && echo "$gw_node" && return

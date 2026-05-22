@@ -107,15 +107,15 @@ NOT skilled until:
 
 ## Critical Scope Limitation (2026-04-22)
 
-**gbrain check-resolvable and skillify-check.ts only scan ~/projects/gbrain/skills/, NOT ~/.hermes/skills/.**
+**gbrain check-resolvable and skillify-check.ts only scan ~/projects/gbrain/skills/, NOT ~/.smartclaw/skills/.**
 
 When auditing a Hermes skill, gbrain's automated tools report the skill as missing even when properly wired in Hermes's own `RESOLVER.md`.
 
 To audit a Hermes skill manually, run the 10-item checklist yourself:
-1. `ls ~/.hermes/skills/<name>/` — confirm SKILL.md exists
-2. `grep <name> ~/.hermes/skills/RESOLVER.md` — confirm resolver entry exists
+1. `ls ~/.smartclaw/skills/<name>/` — confirm SKILL.md exists
+2. `grep <name> ~/.smartclaw/skills/RESOLVER.md` — confirm resolver entry exists
 3. `~/.bun/bin/bun test` in ~/projects/gbrain — run the actual test suite
-4. `~/.bun/bin/bun run scripts/skillify-check.ts ~/.hermes/skills/<name>/SKILL.md` — expect 6-7/10 (unit tests and brain-filing not found because skillify-check scans gbrain's test/ dir, not Hermes's)
+4. `~/.bun/bin/bun run scripts/skillify-check.ts ~/.smartclaw/skills/<name>/SKILL.md` — expect 6-7/10 (unit tests and brain-filing not found because skillify-check scans gbrain's test/ dir, not Hermes's)
 
 **Actual test count for gbrain's skillify skill:** 11 pass, 0 fail (NOT 27):
 - `test/skills-conformance/skillify-resolver-trigger-eval.test.ts` — 8/8

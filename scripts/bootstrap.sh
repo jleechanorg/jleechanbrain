@@ -83,7 +83,7 @@ if [[ "${1:-}" == "--eloop-skill-only" ]]; then
     exit 0
 fi
 
-echo "=== OpenClaw Bootstrap ==="
+echo "=== Hermes Bootstrap ==="
 echo "Repo root: $REPO_ROOT"
 
 # Recreate workspace-monitor skills symlink (gitignored)
@@ -130,20 +130,20 @@ else
 fi
 
 # Install LaunchAgents + scheduled jobs (central install — idempotent)
-# install-openclaw-launchd.sh calls both install-launchagents.sh and
-# install-openclaw-scheduled-jobs.sh, covering all openclaw launchd services.
-echo "Installing OpenClaw launchd services (core + scheduled jobs)..."
+# install-hermes-launchd.sh calls both install-launchagents.sh and
+# install-hermes-scheduled-jobs.sh, covering all hermes launchd services.
+echo "Installing Hermes launchd services (core + scheduled jobs)..."
 # Capture installer output, filter to key status lines, warn if no output (install likely silently failed).
-install_out="$(bash "$REPO_ROOT/scripts/install-openclaw-launchd.sh" 2>&1)"
+install_out="$(bash "$REPO_ROOT/scripts/install-hermes-launchd.sh" 2>&1)"
 install_rc=$?
 printf '%s\n' "$install_out" | grep -E "✓|✗|skipping|WARNING" || true
 if [[ $install_rc -ne 0 ]]; then
-  echo "WARNING: install-openclaw-launchd.sh exited with errors. Review output above." >&2
+  echo "WARNING: install-hermes-launchd.sh exited with errors. Review output above." >&2
 fi
 
-# --- Install openclaw CLI via npm (prefer Homebrew Node over NVM) ---
+# --- Install hermes CLI via npm (prefer Homebrew Node over NVM) ---
 echo ""
-echo "Installing openclaw CLI..."
+echo "Installing hermes CLI..."
 if command -v node >/dev/null 2>&1; then
     NODE_PATH="$(command -v node)"
     if [[ "$NODE_PATH" =~ \.nvm/versions/node/ ]]; then
@@ -152,19 +152,19 @@ if command -v node >/dev/null 2>&1; then
         echo "  Current NVM-based Node will work but may break after Node version upgrades"
     fi
     
-    # Check if openclaw is already installed
-    if command -v openclaw >/dev/null 2>&1; then
-        CURRENT_VERSION="$(openclaw --version 2>/dev/null | head -1 || echo 'unknown')"
-        echo "  ✓ openclaw already installed: $CURRENT_VERSION"
-        echo "  To upgrade: npm install -g openclaw@latest"
+    # Check if hermes is already installed
+    if command -v hermes >/dev/null 2>&1; then
+        CURRENT_VERSION="$(hermes --version 2>/dev/null | head -1 || echo 'unknown')"
+        echo "  ✓ hermes already installed: $CURRENT_VERSION"
+        echo "  To upgrade: npm install -g @jleechanorg/hermes@latest"
     else
-        echo "  Installing openclaw globally via npm..."
-        npm install -g openclaw@latest
-        if command -v openclaw >/dev/null 2>&1; then
-            INSTALLED_VERSION="$(openclaw --version 2>/dev/null | head -1 || echo 'unknown')"
-            echo "  ✓ openclaw installed: $INSTALLED_VERSION"
+        echo "  Installing hermes globally via npm..."
+        npm install -g @jleechanorg/hermes@latest
+        if command -v hermes >/dev/null 2>&1; then
+            INSTALLED_VERSION="$(hermes --version 2>/dev/null | head -1 || echo 'unknown')"
+            echo "  ✓ hermes installed: $INSTALLED_VERSION"
         else
-            echo "  ✗ openclaw installation failed or not in PATH"
+            echo "  ✗ hermes installation failed or not in PATH"
         fi
     fi
 else
@@ -216,7 +216,7 @@ echo ""
 echo "=== gog auth check ==="
 # shellcheck source=/dev/null
 source "$REPO_ROOT/lib/gog-env.sh"
-load_gog_env_from_openclaw "${HOME}/.smartclaw/openclaw.json"
+load_gog_env_from_hermes "${HOME}/.smartclaw/hermes.json"
 if command -v gog &>/dev/null; then
     _gog_chk="$(gog auth list --check 2>&1)"
     if echo "$_gog_chk" | grep -q "@" && ! echo "$_gog_chk" | grep -qiE 'invalid_grant|expired or revoked'; then
@@ -235,8 +235,10 @@ else
 fi
 
 echo ""
-echo "Next: inject real tokens into openclaw.json"
-echo "  # create or edit openclaw.json with real tokens"
+echo "Next: inject real tokens into hermes.json"
+echo "  # create or edit hermes.json with real tokens"
 echo ""
 echo "Also set in ~/.bashrc:"
-echo "  export OPENCLAW_AO_HOOK_TOKEN='<token>'   # AO → openclaw notifier webhook token"
+echo "  export HERMES_AO_HOOK_TOKEN='<token>'     # AO → hermes notifier webhook token"
+echo "  export HERMES_AO_NOTIFY_TOKEN='<token>'   # webhook daemon token for AO notifications"
+echo "  export HERMES_HOOKS_TOKEN='<token>'       # fallback webhook notifier token"

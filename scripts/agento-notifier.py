@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 agento-notifier: Minimal HTTP server that receives AO webhook events
-and posts them to Slack #ai-slack-test as the openclaw bot.
+and posts them to Slack #ai-slack-test as the hermes bot.
 
 Run: python3 scripts/agento-notifier.py
 Port: 18800
@@ -17,9 +17,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
-SLACK_CHANNEL = os.environ.get("OPENCLAW_SLACK_CHANNEL", "${SLACK_CHANNEL_ID}")  # #ai-slack-test
+SLACK_CHANNEL = os.environ.get("HERMES_SLACK_CHANNEL", "${SLACK_CHANNEL_ID}")  # #ai-slack-test
 PORT = 18800
-WEBHOOK_SECRET = os.environ.get("OPENCLAW_AO_NOTIFY_TOKEN", "")
+WEBHOOK_SECRET = os.environ.get("HERMES_AO_NOTIFY_TOKEN", "")
 AO_BIN = os.environ.get("AO_BIN") or os.path.expanduser("~/bin/ao")
 COOLDOWN_SECONDS = 60
 COOLDOWN_DIR = "/tmp"

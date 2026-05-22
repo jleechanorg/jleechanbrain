@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Shared mem0 client — openclaw, Codex, and Claude all use the same qdrant store.
+"""Shared mem0 client — hermes, Codex, and Claude all use the same qdrant store.
 
-Reads the openclaw-mem0 plugin config from ~/.smartclaw/openclaw.json so
+Reads the hermes-mem0 plugin config from ~/.smartclaw/hermes.json so
 there is exactly one source of truth for the connection parameters.
 
 Usage from any agent or script:
@@ -58,15 +58,15 @@ def _make_qdrant_client(host: str, port: int) -> Any:
     return QdrantClient(host=host, port=port, check_compatibility=False)
 
 
-def _load_openclaw_mem0_config() -> dict:
+def _load_hermes_mem0_config() -> dict:
     global _MEM0_CONFIG_CACHE
     if _MEM0_CONFIG_CACHE is not None:
         return _MEM0_CONFIG_CACHE
 
-    env_path = os.environ.get("OPENCLAW_CONFIG_PATH")
-    cfg_path = Path(os.path.expanduser(env_path)) if env_path else Path.home() / ".smartclaw" / "openclaw.json"
+    env_path = os.environ.get("HERMES_CONFIG_PATH")
+    cfg_path = Path(os.path.expanduser(env_path)) if env_path else Path.home() / ".smartclaw" / "hermes.json"
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-    oss = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]["oss"]
+    oss = cfg["plugins"]["entries"]["hermes-mem0"]["config"]["oss"]
 
     # Normalize camelCase keys to snake_case and expand env vars
     _CAMEL_TO_SNAKE = {
@@ -93,7 +93,7 @@ def _load_openclaw_mem0_config() -> dict:
         return obj
 
     oss = expand(oss)
-    top = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]
+    top = cfg["plugins"]["entries"]["hermes-mem0"]["config"]
 
     _MEM0_CONFIG_CACHE = {
         "embedder": oss["embedder"],
@@ -108,7 +108,7 @@ def _load_openclaw_mem0_config() -> dict:
             },
         },
         "history_db_path": oss["historyDbPath"],
-        # openclaw plugin settings
+        # hermes plugin settings
         "_top_k": top.get("topK", 8),
         "_threshold": top.get("searchThreshold", 0.3),
         "_user_id": top.get("userId", None),  # None = no default, must be provided
@@ -119,7 +119,7 @@ def _load_openclaw_mem0_config() -> dict:
 def get_memory() -> Any:
     """Return a configured mem0 Memory instance pointing at the shared qdrant store."""
     from mem0 import Memory  # type: ignore
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     mem0_cfg = {k: v for k, v in cfg.items() if not k.startswith("_")}
     return Memory.from_config(mem0_cfg)
 
@@ -148,7 +148,7 @@ def search_memory(
     Returns:
         List of {memory, score, id} dicts (filtered by threshold if set)
     """
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     m = get_memory()
     if user_id is None:
         user_id = cfg["_user_id"]
@@ -248,7 +248,7 @@ def _get_embedding(query: str, embedder_cfg: EmbedderConfig) -> list[float]:
         model = config.get("model", "text-embedding-3-small")
         client = OpenAI(api_key=api_key)
         # Must match vector store / collection (e.g. text-embedding-3-small defaults to 1536;
-        # openclaw.json uses embeddingDims 768 for Qdrant openclaw_mem0).
+        # hermes.json uses embeddingDims 768 for Qdrant hermes_mem0).
         dims = config.get("embedding_dims") or config.get("embeddingDims")
         create_kwargs: dict[str, Any] = {
             "model": model,
@@ -267,7 +267,7 @@ def _search_via_raw_client(query: str, user_id: str, limit: int, filter: dict | 
     """Fallback search via raw qdrant_client when mem0 doesn't support filter."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     vs = cfg["vector_store"]["config"]
 
     # Convert raw dict embedder config to type-safe EmbedderConfig
@@ -337,7 +337,7 @@ def add_memory(
             Catch this to accept deduplication, or retry with infer=False.
         ValueError: When user_id is not provided and no default is configured.
     """
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     m = get_memory()
     if user_id is None:
         user_id = cfg["_user_id"]
@@ -364,7 +364,7 @@ def add_memory(
                 f"Input (first 120 chars): {text[:120]!r}"
             )
 
-    # COMPAT FIX: Node.js openclaw-mem0 extension filters Qdrant by camelCase "userId",
+    # COMPAT FIX: Node.js hermes-mem0 extension filters Qdrant by camelCase "userId",
     # but Python mem0 library stores snake_case "user_id". Add userId to make points
     # visible to autoRecall. Uses cached client for performance.
     try:
@@ -374,7 +374,7 @@ def add_memory(
             if point_ids:
                 # Use cached client to avoid connection overhead on every call
                 if not hasattr(add_memory, "_qdrant_client"):
-                    cfg = _load_openclaw_mem0_config()
+                    cfg = _load_hermes_mem0_config()
                     vs = cfg["vector_store"]["config"]
                     add_memory._qdrant_client = _make_qdrant_client(vs["host"], vs["port"])
                     add_memory._collection_name = vs["collection_name"]
@@ -393,7 +393,7 @@ def add_memory(
 def get_stats() -> dict:
     """Return basic stats about the shared memory store."""
     try:
-        cfg = _load_openclaw_mem0_config()
+        cfg = _load_hermes_mem0_config()
         vs = cfg["vector_store"]["config"]
         client = _make_qdrant_client(vs["host"], vs["port"])
         info = client.get_collection(vs["collection_name"])

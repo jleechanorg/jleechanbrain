@@ -98,7 +98,7 @@
       <a href="#why-hermes">Why Hermes?</a>
       <a href="#quick-start">Quick Start</a>
       <a href="#gateway-comparison">Gateway Comparison</a>
-      <a href="#preserving-openclaw">Preserving the OpenClaw Path</a>
+      <a href="#preserving-hermes">Preserving the Hermes Path</a>
       <a href="#hermes-configuration">Hermes Configuration</a>
       <a href="#switching-model">Switching Model</a>
       <a href="#troubleshooting">Troubleshooting</a>
@@ -107,7 +107,7 @@
   </aside>
   <main class="main">
     <h1 id="top">Switching to Hermes Agent</h1>
-    <p class="subtitle">Hermes Agent (Nous Research) as the primary AI agent, with OpenClaw gateway preserved for AO automation.</p>
+    <p class="subtitle">Hermes Agent (Nous Research) as the primary AI agent, with Hermes gateway preserved for AO automation.</p>
 
     <h2 id="overview">Architecture Overview</h2>
     <table>
@@ -117,8 +117,8 @@
       <tbody>
         <tr>
           <td><strong>Slack bot</strong></td>
-          <td>Hermes gateway → <strong>OpenClaw prod Slack app</strong></td>
-          <td>OpenClaw gateway → <strong>staging Slack app</strong> (AO only)</td>
+          <td>Hermes gateway → <strong>Hermes prod Slack app</strong></td>
+          <td>Hermes gateway → <strong>staging Slack app</strong> (AO only)</td>
         </tr>
         <tr>
           <td><strong>Model</strong></td>
@@ -127,8 +127,8 @@
         </tr>
         <tr>
           <td><strong>Config</strong></td>
-          <td><code>~/.hermes/config.yaml</code></td>
-          <td><code>~/.smartclaw/openclaw.json</code></td>
+          <td><code>~/.smartclaw/config.yaml</code></td>
+          <td><code>~/.smartclaw/hermes.json</code></td>
         </tr>
         <tr>
           <td><strong>Gateway</strong></td>
@@ -137,7 +137,7 @@
         </tr>
         <tr>
           <td><strong>Slack tokens</strong></td>
-          <td>Prod bot: <code>&lt;SLACK_BOT_TOKEN&gt;</code> (OpenClaw prod app)</td>
+          <td>Prod bot: <code>&lt;SLACK_BOT_TOKEN&gt;</code> (Hermes prod app)</td>
           <td>Staging bot: <code>&lt;SLACK_BOT_TOKEN&gt;</code></td>
         </tr>
       </tbody>
@@ -145,8 +145,8 @@
 
     <p><strong>Token swap done (2026-04-11):</strong></p>
     <ul>
-      <li><code>~/.hermes/.env</code> → <code>SLACK_BOT_TOKEN</code> + <code>SLACK_APP_TOKEN</code> set to <strong>prod</strong> Slack tokens</li>
-      <li><code>~/.smartclaw/openclaw.json</code> → <code>channels.slack</code> set to <strong>staging</strong> Slack tokens</li>
+      <li><code>~/.smartclaw/.env</code> → <code>SLACK_BOT_TOKEN</code> + <code>SLACK_APP_TOKEN</code> set to <strong>prod</strong> Slack tokens</li>
+      <li><code>~/.smartclaw/hermes.json</code> → <code>channels.slack</code> set to <strong>staging</strong> Slack tokens</li>
       <li>Both gateways run simultaneously on <strong>different Slack apps</strong> — no event conflicts</li>
     </ul>
 
@@ -166,7 +166,7 @@
 hermes gateway status</code></pre>
 
     <h3>Start Hermes Gateway</h3>
-    <pre><code># From ~/.hermes/ directory:
+    <pre><code># From ~/.smartclaw/ directory:
 hermes gateway run        # foreground (for testing)
 # OR install as service:
 hermes gateway install     # user-level service
@@ -178,12 +178,12 @@ sudo hermes gateway install --system  # system-level</code></pre>
 ps aux | rg 'hermes gateway' | rg -v rg | awk '{print $2}' | xargs kill</code></pre>
 
     <h3>Verify Hermes is Responding</h3>
-    <p>DM the <strong>OpenClaw prod bot</strong> on Slack (Hermes now controls it).</p>
+    <p>DM the <strong>Hermes prod bot</strong> on Slack (Hermes now controls it).</p>
 
     <h2 id="gateway-comparison">Gateway Comparison</h2>
     <table>
       <thead>
-        <tr><th></th><th>Hermes</th><th>OpenClaw</th></tr>
+        <tr><th></th><th>Hermes (Primary)</th><th>Hermes (Staging/AO)</th></tr>
       </thead>
       <tbody>
         <tr>
@@ -193,7 +193,7 @@ ps aux | rg 'hermes gateway' | rg -v rg | awk '{print $2}' | xargs kill</code></
         </tr>
         <tr>
           <td><strong>Slack app</strong></td>
-          <td>OpenClaw prod app (<code>SLACK_BOT_TOKEN</code> in <code>~/.hermes/.env</code>)</td>
+          <td>Hermes prod app (<code>SLACK_BOT_TOKEN</code> in <code>~/.smartclaw/.env</code>)</td>
           <td>Staging Slack app</td>
         </tr>
         <tr>
@@ -203,55 +203,55 @@ ps aux | rg 'hermes gateway' | rg -v rg | awk '{print $2}' | xargs kill</code></
         </tr>
         <tr>
           <td><strong>Memory</strong></td>
-          <td><code>~/.hermes/memories/</code></td>
+          <td><code>~/.smartclaw/memories/</code></td>
           <td>Qdrant (localhost:6333)</td>
         </tr>
         <tr>
           <td><strong>Sessions</strong></td>
-          <td><code>~/.hermes/sessions/</code></td>
+          <td><code>~/.smartclaw/sessions/</code></td>
           <td><code>~/.smartclaw_prod/agents/main/sessions/</code></td>
         </tr>
         <tr>
           <td><strong>Skills</strong></td>
-          <td><code>~/.hermes/skills/</code></td>
+          <td><code>~/.smartclaw/skills/</code></td>
           <td><code>~/.smartclaw/skills/</code></td>
         </tr>
         <tr>
           <td><strong>Cron</strong></td>
-          <td><code>~/.hermes/cron/</code></td>
+          <td><code>~/.smartclaw/cron/</code></td>
           <td><code>~/.smartclaw/cron/</code></td>
         </tr>
       </tbody>
     </table>
 
-    <h2 id="preserving-openclaw">Preserving the OpenClaw Path</h2>
-    <p>The OpenClaw gateway (<code>ai.smartclaw.gateway</code>) continues running for:</p>
+    <h2 id="preserving-hermes">Preserving the Hermes Path</h2>
+    <p>The Hermes gateway (<code>ai.smartclaw.gateway</code>) continues running for:</p>
     <ol>
       <li><strong>AO automation</strong>: skeptic-cron merge gates, PR reactions (posts to <strong>staging Slack app</strong>)</li>
-      <li><strong>OpenClaw cron jobs</strong>: <code>~/.smartclaw/cron/jobs.json</code></li>
+      <li><strong>Hermes cron jobs</strong>: <code>~/.smartclaw/cron/jobs.json</code></li>
       <li><strong>Agent orchestrator</strong>: spawns, lifecycle workers</li>
-      <li><strong>mem0 memory</strong>: OpenClaw's Qdrant-backed memory store</li>
+      <li><strong>mem0 memory</strong>: Hermes's Qdrant-backed memory store</li>
     </ol>
 
-    <h3>Verify OpenClaw is Running (AO path)</h3>
+    <h3>Verify Hermes is Running (AO path)</h3>
     <pre><code>curl -fsS -m 8 http://127.0.0.1:18789/health
 # Expected: HTTP 200 (JSON body may vary by runtime/version)
 
-openclaw gateway health --timeout 30000
+hermes gateway health --timeout 30000
 # Slack: ok — staging Slack app connected</code></pre>
-    <p>If OpenClaw needs restarting:</p>
+    <p>If Hermes needs restarting:</p>
     <pre><code>launchctl kickstart -kp gui/$(id -u)/ai.smartclaw.gateway</code></pre>
 
     <h2 id="hermes-configuration">Hermes Configuration</h2>
 
     <h3><code>.env</code> Slack tokens (prod bot)</h3>
-    <pre><code># In ~/.hermes/.env:
+    <pre><code># In ~/.smartclaw/.env:
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 GATEWAY_ALLOW_ALL_USERS=true   # Required — allows DM access</code></pre>
 
-    <h3>OpenClaw uses staging Slack tokens</h3>
-    <pre><code># In ~/.smartclaw/openclaw.json — channels.slack:
+    <h3>Hermes uses staging Slack tokens</h3>
+    <pre><code># In ~/.smartclaw/hermes.json — channels.slack:
 {
   "botToken": "&lt;SLACK_BOT_TOKEN&gt;",
   "appToken": "&lt;SLACK_APP_TOKEN&gt;"
@@ -260,60 +260,60 @@ GATEWAY_ALLOW_ALL_USERS=true   # Required — allows DM access</code></pre>
     <h2 id="switching-model">Switching Model</h2>
     <p>Hermes uses <code>minimax-portal/MiniMax-M2.7</code> by default. To change:</p>
     <pre><code>hermes model</code></pre>
-    <p>To switch back to OpenClaw as primary agent: stop Hermes gateway, DM the OpenClaw bot.</p>
+    <p>To switch back to Hermes as primary agent: stop Hermes gateway, DM the Hermes bot.</p>
 
     <h2 id="troubleshooting">Troubleshooting</h2>
 
     <h3>Hermes gateway won't start</h3>
     <pre><code>hermes gateway status
 hermes doctor
-cat /tmp/hermes-gateway.log   # or ~/.hermes/logs/gateway.log</code></pre>
+cat /tmp/hermes-gateway.log   # or ~/.smartclaw/logs/gateway.log</code></pre>
 
     <h3>Slack not responding</h3>
     <ul>
       <li>Verify Hermes is running: <code>ps aux | rg 'hermes gateway' | rg -v rg</code></li>
-      <li>Check Slack tokens are set: <code>rg 'SLACK_BOT_TOKEN' ~/.hermes/.env</code></li>
-      <li><code>GATEWAY_ALLOW_ALL_USERS=true</code> must be in <code>~/.hermes/.env</code></li>
+      <li>Check Slack tokens are set: <code>rg 'SLACK_BOT_TOKEN' ~/.smartclaw/.env</code></li>
+      <li><code>GATEWAY_ALLOW_ALL_USERS=true</code> must be in <code>~/.smartclaw/.env</code></li>
     </ul>
 
-    <h3>OpenClaw AO automation broken</h3>
+    <h3>Hermes AO automation broken</h3>
     <pre><code>curl -fsS -m 8 http://127.0.0.1:18789/health
-openclaw gateway health --timeout 30000</code></pre>
+hermes gateway health --timeout 30000</code></pre>
 
     <h2 id="file-locations">File Locations Summary</h2>
     <table>
       <thead>
-        <tr><th></th><th>Hermes</th><th>OpenClaw</th></tr>
+        <tr><th></th><th>Hermes (Primary)</th><th>Hermes (Staging/AO)</th></tr>
       </thead>
       <tbody>
         <tr>
           <td><strong>Config</strong></td>
-          <td><code>~/.hermes/config.yaml</code></td>
-          <td><code>~/.smartclaw/openclaw.json</code></td>
+          <td><code>~/.smartclaw/config.yaml</code></td>
+          <td><code>~/.smartclaw/hermes.json</code></td>
         </tr>
         <tr>
           <td><strong>Env tokens</strong></td>
-          <td><code>~/.hermes/.env</code></td>
-          <td><code>~/.smartclaw/openclaw.json</code> (channels.slack)</td>
+          <td><code>~/.smartclaw/.env</code></td>
+          <td><code>~/.smartclaw/hermes.json</code> (channels.slack)</td>
         </tr>
         <tr>
           <td><strong>State</strong></td>
-          <td><code>~/.hermes/</code></td>
+          <td><code>~/.smartclaw/</code></td>
           <td><code>~/.smartclaw/</code></td>
         </tr>
         <tr>
           <td><strong>SOUL</strong></td>
-          <td><code>~/.hermes/SOUL.md</code></td>
+          <td><code>~/.smartclaw/SOUL.md</code></td>
           <td><code>~/.smartclaw/SOUL.md</code></td>
         </tr>
         <tr>
           <td><strong>Skills</strong></td>
-          <td><code>~/.hermes/skills/</code></td>
+          <td><code>~/.smartclaw/skills/</code></td>
           <td><code>~/.smartclaw/skills/</code></td>
         </tr>
         <tr>
           <td><strong>Memories</strong></td>
-          <td><code>~/.hermes/memories/</code></td>
+          <td><code>~/.smartclaw/memories/</code></td>
           <td>Qdrant (localhost:6333)</td>
         </tr>
       </tbody>

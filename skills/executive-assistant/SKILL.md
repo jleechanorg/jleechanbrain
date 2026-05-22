@@ -47,7 +47,7 @@ source ~/.profile && export GOG_KEYRING_PASSWORD="hermes-gog-2026" && gog gmail 
 
 ### 3. Slack — action items needing {{OWNER_NAME}}
 
-Check the channels in `openclaw.json` (or the default monitored list). Look for:
+Check the channels in `hermes.json` (or the default monitored list). Look for:
 - Open threads where {{OWNER_NAME}} asked a question and the bot hasn't answered yet
 - Mentions of {{OWNER_NAME}} with no reply
 - Anything marked urgent or pinned since the last sweep
@@ -59,6 +59,25 @@ Do **not** list every message — only items needing action.
 Check `#deploys` or equivalent channel for:
 - Failed deploys or errors from the past 12h
 - Successful deploys worth noting
+
+### 4b. PR status from cmux workspace names (if cmux is available)
+
+If cmux is accessible, workspace names may encode PR context (e.g. `w: openc 6703` or workspace descriptions mentioning a PR number). When synthesizing a "PRs / Deploys" or "Action Needed" section from cmux workspace state:
+
+**MANDATORY: Verify PR state before surfacing**
+
+For any PR number extracted from workspace names or descriptions, ALWAYS verify current state before including it in the briefing:
+
+```bash
+gh pr view <PR_NUMBER> --repo jleechanorg/worldarchitect.ai --json state,title,merged,mergeable --jq '{state:.state, merged:.merged, title:.title}'
+```
+
+- **SKIP merged PRs entirely** — do not report them as needing action, even if workspace state is stale
+- **SKIP closed PRs** that are not merged
+- Only surface PRs where `state == "open"` AND `merged == false`
+- If the workspace name is stale (e.g. `w: openc 6703` but PR 6703 is merged), note the workspace is stale but do not surface the PR as action-needed
+- Also check: `gh pr view <PR> --json mergeStateStatus` — if `mergeStateStatus == "DIRTY"`, report it as "needs rebase"
+
 
 ### 5. Life / personal reminders
 
@@ -76,7 +95,7 @@ Use the `mcp__slack__users_search` tool (from any session with Slack MCP availab
 
 ### 7. Compose and post briefing
 
-Post to {{OWNER_NAME}}'s DM channel using Python `urllib.request` with the bot token from `~/.hermes_prod/.env`. This is the only reliable approach in cron contexts — **not** `curl`, **not** `send_message` (MCP routing does not expose `sendMessage` in cron runtime), **not** the webhook.
+Post to {{OWNER_NAME}}'s DM channel using Python `urllib.request` with the bot token from `~/.smartclaw_prod/.env`. This is the only reliable approach in cron contexts — **not** `curl`, **not** `send_message` (MCP routing does not expose `sendMessage` in cron runtime), **not** the webhook.
 
 **Confirmed working approach (2026-04-24):**
 ```python
@@ -84,7 +103,7 @@ import json, urllib.request
 from pathlib import Path
 
 # Read bot token from .env (NOT from env vars — they may be masked in cron)
-env_path = Path.home() / ".hermes_prod" / ".env"
+env_path = Path.home() / ".smartclaw_prod" / ".env"
 with open(env_path) as f:
     env_content = f.read()
 bot_token = [line for line in env_content.split("\n") if line.startswith("SLACK_BOT_TOKEN=")][0].split("=", 1)[1].strip()
@@ -110,7 +129,7 @@ with urllib.request.urlopen(req) as resp:
 # result["ok"] == True means success; ts is the posted message timestamp
 ```
 
-**Why this works when curl fails:** The bot token read directly from `~/.hermes_prod/.env` is valid and unmasked. Shell `curl` may still return `no_service` for the webhook URL even when the bot token is healthy — the two are independent.
+**Why this works when curl fails:** The bot token read directly from `~/.smartclaw_prod/.env` is valid and unmasked. Shell `curl` may still return `no_service` for the webhook URL even when the bot token is healthy — the two are independent.
 
 **Known stable values for jleechan:**
 - User ID: `U09GH5BR3QU`
@@ -119,7 +138,7 @@ with urllib.request.urlopen(req) as resp:
 ### 8. Slack posting fallback
 
 If the Python + bot token approach also fails (should be rare):
-1. Try reading `SLACK_BOT_TOKEN` from `~/.hermes_prod/.env` using `grep` in shell instead of Python
+1. Try reading `SLACK_BOT_TOKEN` from `~/.smartclaw_prod/.env` using `grep` in shell instead of Python
 2. If token is masked at the file level (extremely rare), write to `memory/briefing-YYYY-MM-DD.md` and notify in the thread that Slack delivery failed
 
 **Webhook diagnostics (lower priority):**
@@ -144,7 +163,7 @@ source ~/.profile && export GOG_KEYRING_PASSWORD="hermes-gog-2026" && gog auth a
 
 ## Safety rules
 
-- Never post the briefing twice for the same sweep run (check if a briefing was already posted in the last 30 minutes before sending)
+- *Anti-duplication check:* Before posting, read the last ~20 messages from the DM channel via `conversations_history(channel_id="${SLACK_CHANNEL_ID}", limit=20)`. If any message in the last 2 hours was an "Executive Briefing" posted by hermes, skip posting entirely — the prior run already covered it. The cron schedule (e.g. every 30–60 min) is not a reliable proxy for this check; always read DM history explicitly.
 - If calendar access fails, still post what's available and note the failure
 - If Gmail access fails, skip that section silently unless it was explicitly requested
 - Stay silent on errors that don't affect the briefing content

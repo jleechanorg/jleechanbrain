@@ -25,7 +25,7 @@ Or: ./scripts/install-ao-manager.sh</string>
         <string>@HOME@/.agent-orchestrator.yaml</string>
         <key>AO_BIN</key>
         <string>@HOME@/bin/ao</string>
-        <!-- Tokens read from openclaw.json / shell environment at runtime -->
+        <!-- Tokens read from hermes.json / shell environment at runtime -->
     </dict>
 
     <key>KeepAlive</key>

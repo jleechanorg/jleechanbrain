@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Comment</key>
-	<string>Consolidated OpenClaw scheduler - reads cron/jobs.json and manages timers internally.
+	<string>Consolidated Hermes scheduler - reads cron/jobs.json and manages timers internally.
 Replaces 6 separate schedule plists:
 - ai.smartclaw.schedule.backup-4h20.plist
 - ai.smartclaw.schedule.daily-checkin-9am.plist
@@ -15,7 +15,7 @@ Replaces 6 separate schedule plists:
 	<dict>
 		<key>HOME</key>
 		<string>@HOME@</string>
-		<key>OPENCLAW_JOBS_PATH</key>
+		<key>HERMES_JOBS_PATH</key>
 		<string>@HOME@/.smartclaw/cron/jobs.json</string>
 		<key>PATH</key>
 		<string>@HOME@/.nvm/versions/node/v22.22.0/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
@@ -31,7 +31,7 @@ Replaces 6 separate schedule plists:
 	<key>ProgramArguments</key>
 	<array>
 		<string>@HOME@/.nvm/versions/node/v22.22.0/bin/node</string>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
+		<string>@HOME@/.nvm/versions/node/v22.22.0/lib/node_modules/hermes/dist/index.js</string>
 		<string>gateway</string>
 		<string>run-scheduler</string>
 		<string>--jobs</string>

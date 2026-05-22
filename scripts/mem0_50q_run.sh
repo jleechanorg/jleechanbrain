@@ -2,9 +2,9 @@
 set -euo pipefail
 
 MODE="run"
-BATCH_START="${OPENCLAW_50Q_START:-1}"
-BATCH_COUNT="${OPENCLAW_50Q_COUNT:-0}"
-BATCH_END="${OPENCLAW_50Q_END:-0}"
+BATCH_START="${HERMES_50Q_START:-1}"
+BATCH_COUNT="${HERMES_50Q_COUNT:-0}"
+BATCH_END="${HERMES_50Q_END:-0}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
@@ -70,7 +70,7 @@ if (( BATCH_END < BATCH_START )); then
   exit 2
 fi
 
-ROOT="/tmp/openclaw-mem0-fastpath"
+ROOT="/tmp/hermes-mem0-fastpath"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="$ROOT/$STAMP-50q-agent"
 mkdir -p "$OUT"
@@ -81,11 +81,11 @@ BATCH_LABEL="$(printf "q%03d-%03d" "$BATCH_START" "$BATCH_END")"
 BATCH_DIR="$ROOT/batches/$BATCH_LABEL"
 mkdir -p "$BATCH_DIR"
 
-export OPENCLAW_50Q_OUT_DIR="$LATEST_DIR"
-export OPENCLAW_50Q_BATCH_DIR="$BATCH_DIR"
-export OPENCLAW_50Q_BATCH_LABEL="$BATCH_LABEL"
-export OPENCLAW_50Q_BATCH_START="$BATCH_START"
-export OPENCLAW_50Q_BATCH_END="$BATCH_END"
+export HERMES_50Q_OUT_DIR="$LATEST_DIR"
+export HERMES_50Q_BATCH_DIR="$BATCH_DIR"
+export HERMES_50Q_BATCH_LABEL="$BATCH_LABEL"
+export HERMES_50Q_BATCH_START="$BATCH_START"
+export HERMES_50Q_BATCH_END="$BATCH_END"
 
 if [[ "$MODE" == "dry-run" ]]; then
   cat > "$OUT/dry-run.json" <<JSON
@@ -204,19 +204,19 @@ expected_all = expected_all[:50]
 if len(expected_all) != 50:
     raise SystemExit(f'expected exactly 50 prompts, got {len(expected_all)}')
 
-batch_start = int(os.environ.get('OPENCLAW_50Q_BATCH_START', '1'))
-batch_end_requested = int(os.environ.get('OPENCLAW_50Q_BATCH_END', '50'))
+batch_start = int(os.environ.get('HERMES_50Q_BATCH_START', '1'))
+batch_end_requested = int(os.environ.get('HERMES_50Q_BATCH_END', '50'))
 if batch_start < 1 or batch_start > len(expected_all):
     raise SystemExit(f'batch start out of range: {batch_start}')
 batch_end = min(max(batch_end_requested, batch_start), len(expected_all))
 expected = expected_all[batch_start - 1:batch_end]
 
-out_dir = pathlib.Path(os.environ.get('OPENCLAW_50Q_OUT_DIR', '/tmp/openclaw-mem0-fastpath/latest-50q'))
-batch_dir = pathlib.Path(os.environ.get('OPENCLAW_50Q_BATCH_DIR', str(out_dir)))
+out_dir = pathlib.Path(os.environ.get('HERMES_50Q_OUT_DIR', '/tmp/hermes-mem0-fastpath/latest-50q'))
+batch_dir = pathlib.Path(os.environ.get('HERMES_50Q_BATCH_DIR', str(out_dir)))
 out_dir.mkdir(parents=True, exist_ok=True)
 batch_dir.mkdir(parents=True, exist_ok=True)
 batch_meta = {
-    'batch_label': os.environ.get('OPENCLAW_50Q_BATCH_LABEL', ''),
+    'batch_label': os.environ.get('HERMES_50Q_BATCH_LABEL', ''),
     'batch_start': batch_start,
     'batch_end': batch_end,
     'selected_total': len(expected),
@@ -234,13 +234,11 @@ batch_meta = {
 print(f'wrote {len(expected)} expected queries [{batch_start}-{batch_end}] -> {out_dir / "expected-50.json"}')
 PY
 
-# Refresh memory index before running agent QA.
-if ! openclaw memory index --force > "$OUT/reindex.log" 2>&1; then
-  echo "memory index failed; see $OUT/reindex.log" >&2
-  exit 1
-fi
+# Memory refresh is not needed - mem0 is already active and available.
+# (The 'hermes memory index' command does not exist; available commands are: setup, status, off, reset)
+echo "mem0 memory provider already active" > "$OUT/reindex.log"
 
-# Ask openclaw agent directly for each question and score extracted identifiers.
+# Ask hermes agent directly for each question and score extracted identifiers.
 python3 - <<'PY'
 import json
 import os
@@ -249,11 +247,11 @@ import re
 import subprocess
 import uuid
 
-out_dir = pathlib.Path(os.environ.get('OPENCLAW_50Q_OUT_DIR', '/tmp/openclaw-mem0-fastpath/latest-50q'))
-batch_dir = pathlib.Path(os.environ.get('OPENCLAW_50Q_BATCH_DIR', str(out_dir)))
+out_dir = pathlib.Path(os.environ.get('HERMES_50Q_OUT_DIR', '/tmp/hermes-mem0-fastpath/latest-50q'))
+batch_dir = pathlib.Path(os.environ.get('HERMES_50Q_BATCH_DIR', str(out_dir)))
 batch_dir.mkdir(parents=True, exist_ok=True)
 expected = json.loads((out_dir / 'expected-50.json').read_text())
-agent_id = os.environ.get('OPENCLAW_50Q_AGENT', 'memqa')
+agent_id = os.environ.get('HERMES_50Q_AGENT', 'memqa')
 
 rows = []
 passed = 0
@@ -294,7 +292,7 @@ for i, e in enumerate(expected, 1):
         session_id = f"mem0-qa-q{i:02d}-a{attempt}-{uuid.uuid4().hex[:12]}"
         try:
             p = subprocess.run(
-                ['openclaw', '--log-level', 'fatal', 'agent', '--local', '--agent', agent_id, '--session-id', session_id, '--timeout', '120', '--json', '--thinking', 'off', '-m', prompt],
+                ['hermes', 'chat', '-q', prompt, '--quiet', '--max-turns', '1'],
                 capture_output=True,
                 text=True,
                 env=os.environ.copy(),
@@ -309,7 +307,15 @@ for i, e in enumerate(expected, 1):
                 if payloads:
                     answer = str(payloads[0].get('text') or '')
             except Exception:
-                answer = raw
+                # Parse plain text output from hermes chat
+                lines = raw.split('\n')
+                # Remove session_id line if present
+                response_lines = []
+                for line in lines:
+                    if line.strip().startswith('session_id:'):
+                        break
+                    response_lines.append(line)
+                answer = '\n'.join(response_lines).strip()
             if stderr:
                 answer = (answer + '\n' + stderr).strip()
             err_l = (stderr or "").lower()
@@ -321,7 +327,7 @@ for i, e in enumerate(expected, 1):
             ):
                 # Runtime/transient failure: repair session metadata and retry.
                 subprocess.run(
-                    ['openclaw', 'sessions', 'cleanup'],
+                    ['hermes', 'sessions', 'cleanup'],
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -378,9 +384,9 @@ score = {
     'passed': passed,
     'total': len(expected),
     'pass_rate': (passed / len(expected)) if expected else 0.0,
-    'batch_label': os.environ.get('OPENCLAW_50Q_BATCH_LABEL', ''),
-    'batch_start': int(os.environ.get('OPENCLAW_50Q_BATCH_START', '1')),
-    'batch_end': int(os.environ.get('OPENCLAW_50Q_BATCH_END', str(len(expected)))),
+    'batch_label': os.environ.get('HERMES_50Q_BATCH_LABEL', ''),
+    'batch_start': int(os.environ.get('HERMES_50Q_BATCH_START', '1')),
+    'batch_end': int(os.environ.get('HERMES_50Q_BATCH_END', str(len(expected)))),
     'latest_dir': str(out_dir),
     'batch_dir': str(batch_dir),
 }

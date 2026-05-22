@@ -51,7 +51,7 @@ Use this skill when the user:
 
 ## Wiki Location
 
-Configured via `skills.config.wiki.path` in `~/.hermes/config.yaml` (prompted
+Configured via `skills.config.wiki.path` in `~/.smartclaw/config.yaml` (prompted
 during `hermes config migrate` or `hermes setup`):
 
 ```yaml

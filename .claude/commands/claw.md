@@ -23,7 +23,7 @@ LOGDIR="/tmp/hermes"
 mkdir -p "$LOGDIR"
 chmod 700 "$LOGDIR" 2>/dev/null || true
 STATUS_LOG="$(mktemp "$LOGDIR/.claw-status-XXXXXXXX")"
-LAUNCHD_PLIST="$HOME/Library/LaunchAgents/ai.hermes.prod.plist"
+LAUNCHD_PLIST="$HOME/Library/LaunchAgents/ai.smartclaw.prod.plist"
 
 # If a launchd gateway is installed, prefer its env over CLI defaults.
 # This keeps /claw aligned with the actual running service.
@@ -53,16 +53,16 @@ PY
 fi
 
 # Ensure HERMES_HOME is set (prod by default)
-export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes_prod}"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.smartclaw_prod}"
 
-# Verify config.yaml exists and is valid YAML
-HERMES_CFG="$HERMES_HOME/config.yaml"
+# Verify hermes.json exists and is valid JSON
+HERMES_CFG="$HERMES_HOME/hermes.json"
 if [ ! -f "$HERMES_CFG" ]; then
   echo "Hermes config not found: $HERMES_CFG"
   exit 1
 fi
-if ! python3 -c "import yaml; yaml.safe_load(open('$HERMES_CFG'))" 2>/dev/null; then
-  echo "Hermes config is not valid YAML: $HERMES_CFG"
+if ! python3 -c "import json, sys; json.load(open(sys.argv[1]))" "$HERMES_CFG" 2>/dev/null; then
+  echo "Hermes config is not valid JSON: $HERMES_CFG"
   exit 1
 fi
 
@@ -159,7 +159,7 @@ echo "Kill: kill $CLAW_PID"
 ## Requirements
 
 - Hermes gateway running via `hermes gateway status`
-- `config.yaml` valid at `$HERMES_HOME/config.yaml`
+- `hermes.json` valid at `$HERMES_HOME/hermes.json`
 - Slash command resolution: looks up `.claude/commands/` and `.claude/skills/` directories
 
 ## Notes

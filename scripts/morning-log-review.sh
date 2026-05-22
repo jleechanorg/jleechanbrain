@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${HERMES_ROOT:-$HOME/.smartclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/morning-log-review"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"
@@ -76,28 +76,16 @@ TOTAL_ERRORS=$((ERROR_LINES + WARN_LINES))
 post_slack() {
   local msg="$1"
 
-  if command -v openclaw >/dev/null 2>&1 && [[ -n "${OPENCLAW_ALERT_SLACK_TARGET:-}" ]]; then
-    openclaw message send \
+  if command -v hermes >/dev/null 2>&1 && [[ -n "${HERMES_ALERT_SLACK_TARGET:-}" ]]; then
+    hermes message send \
       --channel slack \
-      --target "$OPENCLAW_ALERT_SLACK_TARGET" \
+      --target "$HERMES_ALERT_SLACK_TARGET" \
       --message "$msg" 2>/dev/null && return 0
   fi
 
-  # Fallback: direct curl as jleechan (triggers OpenClaw gateway)
-  if [[ -f "$HOME/.profile" ]]; then source "$HOME/.profile" 2>/dev/null || true; fi
-  if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
-    log "SLACK_USER_TOKEN not set — skipping Slack notification"
-    return 0
-  fi
+  log "Hermes Slack target not configured or hermes message send failed; skipping direct Slack API fallback."
+  return 0
 
-  local channel_id
-  channel_id="${SLACK_REVIEW_CHANNEL_ID:-C0AJQ5M0A0Y}"  # default #openclaw
-
-  curl -s -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer $SLACK_USER_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$(python3 -c "import json,sys; print(json.dumps({'channel': '$channel_id', 'text': sys.stdin.read().strip()}))" <<< "$msg")" \
-    >> "$OUT_DIR/slack-$(date +%Y%m%d).log" 2>&1 || true
 }
 
 if [[ "$TOTAL_ERRORS" -eq 0 ]]; then

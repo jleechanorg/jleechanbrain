@@ -21,7 +21,7 @@
     <key>PYTHONPATH</key>
     <string>${REPO_ROOT}/src</string>
     <key>BRIDGE_ENABLED</key>
-    <string>${OPENCLAW_BRIDGE_ENABLED:-true}</string>
+    <string>${HERMES_BRIDGE_ENABLED:-true}</string>
     <key>BRIDGE_HEALTH_CHECK_ENABLED</key>
     <string>${BRIDGE_HEALTH_CHECK_ENABLED:-true}</string>
     <key>HUMAN_CHANNEL_ID</key>

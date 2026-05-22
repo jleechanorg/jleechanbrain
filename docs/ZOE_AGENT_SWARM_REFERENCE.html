@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZOE: Hermes + Agent Swarm Reference</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#zoe-hermes-agent-swarm-reference">ZOE: Hermes + Agent Swarm Reference</a>
+<a class="toc-l2" href="#core-thesis">Core Thesis</a>
+<a class="toc-l2" href="#proof-points">Proof Points</a>
+<a class="toc-l2" href="#the-8-step-workflow">The 8-Step Workflow</a>
+<a class="toc-l3" href="#step-1-scope-with-orchestrator">Step 1: Scope with Orchestrator</a>
+<a class="toc-l3" href="#step-2-spawn-agent">Step 2: Spawn Agent</a>
+<a class="toc-l3" href="#step-3-monitor-cron-every-10-min">Step 3: Monitor (Cron Every 10 Min)</a>
+<a class="toc-l3" href="#step-4-agent-creates-pr">Step 4: Agent Creates PR</a>
+<a class="toc-l3" href="#step-5-automated-code-review-3-models">Step 5: Automated Code Review (3 Models)</a>
+<a class="toc-l3" href="#step-6-automated-testing">Step 6: Automated Testing</a>
+<a class="toc-l3" href="#step-7-human-review">Step 7: Human Review</a>
+<a class="toc-l3" href="#step-8-merge">Step 8: Merge</a>
+<a class="toc-l2" href="#the-ralph-loop-v2">The Ralph Loop V2</a>
+<a class="toc-l2" href="#agent-selection-guide">Agent Selection Guide</a>
+<a class="toc-l2" href="#context-window-architecture">Context Window Architecture</a>
+<a class="toc-l2" href="#hardware-note">Hardware Note</a>
+<a class="toc-l2" href="#mapping-to-jeffreys-setup">Mapping to Jeffrey&#x27;s Setup</a></nav><main><p><a href="ZOE_AGENT_SWARM_REFERENCE.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="zoe-hermes-agent-swarm-reference">ZOE: Hermes + Agent Swarm Reference</h1>
+<p><strong>Source:</strong> Email from Elvis (@eRvissun) — &quot;Hermes + Codex/ClaudeCode Agent Swarm: The One-Person Dev Team [Full Setup]&quot;</p>
+<p><strong>Saved:</strong> 2026-03-09</p>
+<p><strong>Relevance:</strong> This is essentially the &quot;replace me&quot; architecture Jeffrey wants to build — Hermes as orchestrator (Zoe), spawning Codex/Claude agents, monitoring via cron, notifying on completion.</p>
+<p>---</p>
+<h2 id="core-thesis">Core Thesis</h2>
+<p>&gt; &quot;I went from managing claude code, to managing an hermes agent that manages a fleet of other claude code and codex agents.&quot;</p>
+<p><strong>Context windows are zero-sum.</strong> Two-tier system:</p>
+<ul>
+<li>- <strong>Orchestrator (Zoe/Hermes):</strong> business context, decisions, memory, prompt-writing</li>
+<li>- <strong>Coding agents (Codex/CC):</strong> codebase, conventions, task execution</li>
+</ul>
+<p>Specialization through context, not different models.</p>
+<p>---</p>
+<h2 id="proof-points">Proof Points</h2>
+<ul>
+<li>- 94 commits in one day (3 client calls, editor never opened)</li>
+<li>- ~50 commits/day average</li>
+<li>- 7 PRs in 30 minutes</li>
+<li>- Cost: ~$100/mo Claude + $90/mo Codex (can start at $20)</li>
+<li>- Success rate: one-shots almost all small-medium tasks</li>
+</ul>
+<p>---</p>
+<h2 id="the-8-step-workflow">The 8-Step Workflow</h2>
+<h3 id="step-1-scope-with-orchestrator">Step 1: Scope with Orchestrator</h3>
+<ul>
+<li>- Customer request → discuss with Zoe</li>
+<li>- Zoe has full context: meeting notes (Obsidian vault), CRM, past decisions</li>
+<li>- Zoe: tops up credits, pulls prod DB config (read-only), writes precise prompt, spawns agent</li>
+</ul>
+<h3 id="step-2-spawn-agent">Step 2: Spawn Agent</h3>
+<p>Each agent gets:</p>
+<ul>
+<li>- Own git worktree (<code>git worktree add</code>)</li>
+<li>- Own tmux session</li>
+<li>- Detailed prompt with full context</li>
+</ul>
+<pre><code># Codex
+codex --model gpt-5.3-codex \
+  -c &quot;model_reasoning_effort=high&quot; \
+  --dangerously-bypass-approvals-and-sandbox \
+  &quot;Your prompt here&quot;
+
+# Claude Code
+claude --model claude-opus-4.5 \
+  --dangerously-skip-permissions \
+  -p &quot;Your prompt here&quot;</code></pre>
+<p><strong>Key insight: Use tmux over codex exec / claude -p</strong> — enables mid-task redirection without killing the agent:</p>
+<pre><code>tmux send-keys -t codex-templates &quot;Stop. Focus on the API layer first.&quot; Enter</code></pre>
+<h3 id="step-3-monitor-cron-every-10-min">Step 3: Monitor (Cron Every 10 Min)</h3>
+<p>Deterministic, token-efficient script reads JSON registry:</p>
+<pre><code>.clawdbot/check-agents.sh</code></pre>
+<ul>
+<li>- Checks tmux session liveness</li>
+<li>- Checks open PRs on tracked branches</li>
+<li>- Checks CI status via <code>gh</code> cli</li>
+<li>- Auto-respawns failed agents (max 3 attempts)</li>
+<li>- Only alerts if human attention needed</li>
+</ul>
+<p>Task registry: <code>.clawdbot/active-tasks.json</code></p>
+<pre><code>{
+  &quot;id&quot;: &quot;feat-custom-templates&quot;,
+  &quot;tmuxSession&quot;: &quot;codex-templates&quot;,
+  &quot;agent&quot;: &quot;codex&quot;,
+  &quot;status&quot;: &quot;running&quot;,
+  &quot;notifyOnComplete&quot;: true
+}</code></pre>
+<h3 id="step-4-agent-creates-pr">Step 4: Agent Creates PR</h3>
+<p><code>gh pr create --fill</code> — <strong>not done yet</strong>. PR alone doesn&#x27;t trigger notification.</p>
+<p><strong>Definition of Done:</strong></p>
+<ul>
+<li>- PR created</li>
+<li>- Branch synced to main (no conflicts)</li>
+<li>- CI passing (lint, types, unit, E2E)</li>
+<li>- Codex review passed</li>
+<li>- Claude Code review passed</li>
+<li>- Gemini review passed</li>
+<li>- Screenshots included (if UI changes — CI fails without them)</li>
+</ul>
+<h3 id="step-5-automated-code-review-3-models">Step 5: Automated Code Review (3 Models)</h3>
+<p>| Reviewer | Strength | Notes |</p>
+<p>|----------|----------|-------|</p>
+<p>| <strong>Codex</strong> | Edge cases, logic errors, race conditions | Most thorough, low false positives |</p>
+<p>| <strong>Gemini Code Assist</strong> | Security, scalability | Free, catches things others miss |</p>
+<p>| <strong>Claude Code</strong> | Validation | Tends toward overengineering suggestions; skip unless critical |</p>
+<h3 id="step-6-automated-testing">Step 6: Automated Testing</h3>
+<ul>
+<li>- Lint + TypeScript checks</li>
+<li>- Unit tests</li>
+<li>- E2E tests</li>
+<li>- Playwright against preview env (identical to prod)</li>
+<li>- <strong>UI changes require screenshot in PR description</strong> (CI enforced)</li>
+</ul>
+<h3 id="step-7-human-review">Step 7: Human Review</h3>
+<p>Telegram notification: &quot;PR #341 ready for review.&quot;</p>
+<p>Review time: 5-10 minutes. Many merges without reading code — screenshot tells the story.</p>
+<h3 id="step-8-merge">Step 8: Merge</h3>
+<p>Daily cron cleans up orphaned worktrees and task registry JSON.</p>
+<p>---</p>
+<h2 id="the-ralph-loop-v2">The Ralph Loop V2</h2>
+<p>Classic Ralph Loop: context → output → evaluate → save learnings (static prompt each cycle).</p>
+<p><strong>Zoe&#x27;s improvement:</strong> When agent fails, doesn&#x27;t respawn with same prompt. Uses full business context to unblock:</p>
+<ul>
+<li>- Out of context? &quot;Focus only on these three files.&quot;</li>
+<li>- Wrong direction? &quot;Stop. Customer wanted X. Here&#x27;s what they said.&quot;</li>
+<li>- Needs clarification? &quot;Here&#x27;s their email and what the company does.&quot;</li>
+</ul>
+<p><strong>Pattern logging:</strong> When agents succeed, the prompt pattern gets logged. Over time, Zoe writes better prompts because she remembers what shipped. Reward signals: CI passing + all 3 reviews passing + human merge.</p>
+<p><strong>Proactive work (no waiting):</strong></p>
+<ul>
+<li>- Morning: Scans Sentry → spawns agents for errors</li>
+<li>- After meetings: Scans meeting notes → flags feature requests → spawns agents</li>
+<li>- Evening: Scans git log → updates changelog/docs</li>
+</ul>
+<p>---</p>
+<h2 id="agent-selection-guide">Agent Selection Guide</h2>
+<p>| Agent | Best For |</p>
+<p>|-------|----------|</p>
+<p>| <strong>Codex</strong> | Backend logic, complex bugs, multi-file refactors, reasoning across codebase. Workhorse (90% of tasks) |</p>
+<p>| <strong>Claude Code</strong> | Frontend, git operations, faster turnaround |</p>
+<p>| <strong>Gemini</strong> | UI design sensibility — generate HTML/CSS spec, hand to Claude to implement |</p>
+<p>Zoe routes: billing bug → Codex. Button fix → Claude Code. New dashboard → Gemini designs, Claude builds.</p>
+<p>---</p>
+<h2 id="context-window-architecture">Context Window Architecture</h2>
+<pre><code>ZOE (Orchestrator)              CODEX (Coding Agent)
+─────────────────               ────────────────────
+BUSINESS CONTEXT                AGENTS.md
+  • Customer CRM                  • Repo conventions
+  • Meeting notes                 • Code style guide
+  • Competitor intel
+  • Who&#x27;s paying               ENGINEERING DOCS
+                                  • Design docs
+SKILLS                            • Feature specs
+  • Marketing                     • API schemas
+  • Research
+  • Writing                    CODEBASE
+  • Web search                    • src/components/
+                                  • src/lib/
+MEMORY SYSTEM                     • Type definitions
+  • MEMORY.md                     • Test patterns
+  • Daily notes
+  • Past decisions             (just task prompt)
+
+(minimal code)
+
+GOOD AT:                        GOOD AT:
+• Understanding why             • Understanding codebase
+• Customer priorities           • Following conventions
+• Research + analysis           • Writing correct code
+• Writing prompts               • Running tests
+
+BAD AT:                         BAD AT:
+• Writing actual code           • Knowing why it matters
+• File structures               • Prioritizing features
+• Code conventions              • Long-term memory</code></pre>
+<p>---</p>
+<h2 id="hardware-note">Hardware Note</h2>
+<p>RAM is the bottleneck. Each agent = own worktree + node_modules + builds/tests.</p>
+<ul>
+<li>- 16GB Mac Mini: tops out at 4-5 parallel agents</li>
+<li>- Elvis bought Mac Studio M4 Max 128GB ($3,500) to scale</li>
+</ul>
+<p>---</p>
+<h2 id="mapping-to-jeffreys-setup">Mapping to Jeffrey&#x27;s Setup</h2>
+<p>| Elvis&#x27;s System | Jeffrey&#x27;s Equivalent |</p>
+<p>|----------------|---------------------|</p>
+<p>| Zoe (orchestrator) | Hermes (smartclaw agent) |</p>
+<p>| Obsidian vault | MEMORY.md + weekly memory files + SOUL.md |</p>
+<p>| <code>.clawdbot/active-tasks.json</code> | <code>src/orchestration/session_registry.py</code> |</p>
+<p>| <code>check-agents.sh</code> | <code>src/orchestration/supervisor.py</code> |</p>
+<p>| Telegram notifications | Slack DM via <code>hermes_notifier.py</code> |</p>
+<p>| Codex agents | <code>ai_orch</code> workers in tmux+worktrees |</p>
+<p>| 3-model PR review | <code>/copilot</code> + CodeRabbit |</p>
+<p><strong>Key gap:</strong> Elvis&#x27;s Zoe writes *context-rich prompts* for each agent based on business history. Jeffrey&#x27;s Hermes dispatches tasks but doesn&#x27;t yet inject deep context from MEMORY.md into the agent prompt. This is the L2 gap in <code>REPLACE_ME_DESIGN.md</code>.</p>
+<p><strong>The &quot;replace me&quot; goal IS Zoe.</strong> The memory system work (seed_memory, extract_patterns, ghost) is building Zoe&#x27;s business context layer.</p></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

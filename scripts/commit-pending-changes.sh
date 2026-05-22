@@ -23,7 +23,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PAT
 trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
-LOCK_DIR="${CPC_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-commit-pending.lock}"
+LOCK_DIR="${CPC_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-commit-pending.lock}"
 LOG_DIR="${CPC_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${CPC_STATE_FILE:-$HOME/.smartclaw/logs/commit-pending-state.json}"
 COMMIT_LOG="${CPC_COMMIT_LOG:-$HOME/.smartclaw/logs/commit-pending.log}"
@@ -33,8 +33,8 @@ RUN_INTERVAL_SECS="${CPC_RUN_INTERVAL_SECS:-1800}"
 
 REPO="${CPC_REPO:-${HOME}/.smartclaw}"
 # Respect existing git config first; override via CPC_GIT_EMAIL / CPC_GIT_NAME if needed
-GIT_EMAIL="${CPC_GIT_EMAIL:-$(git config user.email 2>/dev/null || echo jeffrey@openclaw.ai)}"
-GIT_NAME="${CPC_GIT_NAME:-$(git config user.name 2>/dev/null || echo 'OpenClaw Auto-Commit')}"
+GIT_EMAIL="${CPC_GIT_EMAIL:-$(git config user.email 2>/dev/null || echo jeffrey@hermes.ai)}"
+GIT_NAME="${CPC_GIT_NAME:-$(git config user.name 2>/dev/null || echo 'Hermes Auto-Commit')}"
 PR_BRANCH="${CPC_PR_BRANCH:-auto/commit-pending}"
 PR_TITLE_PREFIX="${CPC_PR_TITLE_PREFIX:-[Auto]}"   # PR title = "$PR_TITLE_PREFIX Changes"}
 
@@ -513,21 +513,17 @@ fi
 git config user.email "$GIT_EMAIL" 2>/dev/null || true
 git config user.name "$GIT_NAME" 2>/dev/null || true
 
-# Ensure on main or $PR_BRANCH (skip only if on an unrelated branch to avoid data loss).
-# This guard prevents accidental commits on feature branches unrelated to the
-# current PR context. The branch name "main" is the default integration branch;
-# override via DEFAULT_BRANCH env var if your repo uses a different name.
+# Ensure on main or $PR_BRANCH (skip only if on an unrelated branch to avoid data loss)
 current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
-_default_branch="${DEFAULT_BRANCH:-main}"
-if [[ -n "$current_branch" && "$current_branch" != "$_default_branch" && "$current_branch" != "$PR_BRANCH" ]]; then
+if [[ -n "$current_branch" && "$current_branch" != "main" && "$current_branch" != "$PR_BRANCH" ]]; then
   log "SKIP: on branch '$current_branch' — refusing to switch to avoid data loss"
-  exit 1
+  exit 0
 fi
 
 # Execute commit + PR
 # Return codes: 0=success with tracked work, 1=failure, 2=no-work (skip/idempotent)
-result=0
-do_commit_and_pr || result=$?
+do_commit_and_pr
+result=$?
 
 if [[ "$result" == "1" ]]; then
   log "ERROR: do_commit_and_pr failed — running AO fallback"

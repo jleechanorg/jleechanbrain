@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en" id="top">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes Operational Runbook</title>
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#fff;--link:#2563eb;--border:#e2e8f0;--code:#f1f5f9}
+@media (prefers-color-scheme: dark){:root{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}}
+html.dark{--bg:#0b1020;--fg:#e5e7eb;--muted:#94a3b8;--card:#111827;--link:#93c5fd;--border:#334155;--code:#0f172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}.layout{display:grid;grid-template-columns:280px 1fr;gap:24px;max-width:1400px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--border);padding-right:18px}nav a{display:block;padding:4px 8px;border-radius:6px;text-decoration:none;color:var(--muted)}nav a.active{background:var(--code);color:var(--fg)}.toc-l2{padding-left:18px}.toc-l3,.toc-l4,.toc-l5,.toc-l6{padding-left:32px}
+main{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:0}pre{background:var(--code);padding:14px;border-radius:10px;overflow:auto}code{background:var(--code);padding:.15em .35em;border-radius:4px}pre code{padding:0;background:transparent}
+table{border-collapse:collapse;width:100%;display:block;overflow:auto}td,th{border:1px solid var(--border);padding:6px 10px}.legend{margin:1rem 0;color:var(--muted)}@media(max-width:900px){.layout{display:block}nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding-bottom:12px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+</head>
+<body><div class="layout"><nav id="sidebar"><h2>Contents</h2><a class="toc-l1" href="#hermes-operational-runbook">Hermes Operational Runbook</a>
+<a class="toc-l2" href="#gateway-restart-single-instance-mandatory">Gateway restart — single-instance mandatory</a>
+<a class="toc-l2" href="#ws-churn-root-cause-restart-is-not-the-fix">WS Churn Root Cause — Restart Is NOT the Fix</a>
+<a class="toc-l2" href="#llm-provider-http-2064-high-load">LLM provider HTTP 2064 (high load)</a>
+<a class="toc-l2" href="#hermesjson-mutation-safety">hermes.json mutation safety</a>
+<a class="toc-l3" href="#protected-keys-never-change-these-values">Protected keys — NEVER change these values</a>
+<a class="toc-l2" href="#gateway-upgrade-safety">Gateway Upgrade Safety</a>
+<a class="toc-l3" href="#staging-bootstrap-broken-state-bootstrap-failed-5-inputoutput-error">Staging Bootstrap Broken State (&quot;Bootstrap failed: 5: Input/output error&quot;)</a>
+<a class="toc-l2" href="#worktree-isolation-edit-your-copy-not-hermes-directly">Worktree Isolation — Edit Your Copy, Not ~/.smartclaw/ Directly</a>
+<a class="toc-l2" href="#isolated-gateway-testing">Isolated Gateway Testing</a>
+<a class="toc-l2" href="#config-first-principle">Config-First Principle</a>
+<a class="toc-l2" href="#slack-reading-threads-and-incident-questions">Slack — Reading threads and incident questions</a>
+<a class="toc-l2" href="#slack-posting">Slack — Posting</a>
+<a class="toc-l2" href="#durable-behavior-goal-not-incident-only">Durable Behavior Goal (Not Incident-Only)</a></nav><main><p><a href="operational-runbook.md">View Markdown source</a></p><div class="legend">Color legend: <span>✅ Pass</span> · <span>⚠️ Warning</span> · <span>❌ Fail</span></div><h1 id="hermes-operational-runbook">Hermes Operational Runbook</h1>
+<p>Reference doc extracted from CLAUDE.md to reduce context window consumption.</p>
+<p>Sections moved here are operational procedures agents rarely need but must follow when relevant.</p>
+<h2 id="gateway-restart-single-instance-mandatory">Gateway restart — single-instance mandatory</h2>
+<p>After ANY gateway restart (deploy, manual, launchd bounce), verify exactly <strong>one</strong> <code>hermes-gateway</code> process is running before declaring success:</p>
+<pre><code>pgrep -x hermes-gateway | wc -l   # must be 1</code></pre>
+<p>If count &gt; 1: multiple instances are competing for session locks → lock storm → WS pong starvation → total HTTP unresponsiveness. Fix:</p>
+<pre><code>pkill -x hermes-gateway           # kill all
+# clear stale locks (see session lock section below)
+launchctl start gui/$(id -u)/com.smartclaw.gateway
+sleep 20 &amp;&amp; pgrep -x hermes-gateway | wc -l   # verify == 1</code></pre>
+<p><code>deploy.sh</code> now enforces this automatically (Stage 4 orphan kill + single-instance assertion). <code>staging-canary.sh</code> check 9 also validates it.</p>
+<p><strong>Root cause of 2026-04-05 outage</strong>: deploy.sh Stage 4 used <code>launchctl stop</code> + <code>launchctl start</code> without killing orphaned processes first. Three instances spawned, competed for <code>sessions.json.lock</code>, and the gateway became completely unresponsive despite HTTP <code>/health</code> returning 200.</p>
+<h2 id="ws-churn-root-cause-restart-is-not-the-fix">WS Churn Root Cause — Restart Is NOT the Fix</h2>
+<p>When <code>SlackWebSocket:N &gt; 5</code> appears in gateway logs, or the canary fails (rc=4) despite HTTP 200, <strong>the root cause is event-loop saturation from LLM calls blocking the Node.js thread</strong>:</p>
+<ul>
+<li>- <code>timeoutSeconds &gt; 600</code> combined with <code>maxConcurrent &gt; 3</code> = WS pong starvation (pong budget = 5000ms)</li>
+<li>- <strong>Subagents</strong>: <code>agents.defaults.subagents.maxConcurrent</code> must stay within the same spirit (use <strong>≤ 3</strong>). Values like <strong>8</strong> can saturate the gateway event loop even when main <code>maxConcurrent</code> is 3.</li>
+<li>- <strong>The correct fix</strong>: reduce both in <code>hermes.json</code>, then restart. Restart alone only clears the counter — sessions re-block immediately.</li>
+<li>- <strong>Safe bounds</strong>: <code>timeoutSeconds ≤ 600</code>, <code>maxConcurrent ≤ 3</code>, <code>subagents.maxConcurrent ≤ 3</code></li>
+<li>- <strong>Derivation</strong> (so future agents can reason, not just copy numbers):</li>
+<li>  - Risk ∝ <code>timeoutSeconds × maxConcurrent</code>. Incident was 900×20=18000. Pong starvation threshold empirically ~3000-5000.</li>
+<li>  - With <code>maxConcurrent=3</code>: <code>3000/3 = 1000</code>, use 600 for conservative margin.</li>
+<li>  - If <code>maxConcurrent</code> changes: <code>safe_timeout = floor(3000 / maxConcurrent * 0.65)</code> (e.g. concurrent=8→243≈240, concurrent=3→650→600 with additional margin)</li>
+<li>  - <strong>Do NOT change the bound without recalculating from this formula.</strong></li>
+</ul>
+<pre><code># Surgical fix (never rewrite the whole file)
+import json; path=&quot;$HOME/.smartclaw/hermes.json&quot;
+with open(path) as f: d=json.load(f)
+d[&#x27;agents&#x27;][&#x27;defaults&#x27;][&#x27;timeoutSeconds&#x27;] = 600
+d[&#x27;agents&#x27;][&#x27;defaults&#x27;][&#x27;maxConcurrent&#x27;] = 3
+with open(path,&#x27;w&#x27;) as f: json.dump(d,f,indent=2)</code></pre>
+<p>Then: <code>hermes gateway restart</code></p>
+<h2 id="llm-provider-http-2064-high-load">LLM provider HTTP 2064 (high load)</h2>
+<p>When the primary model or gateway returns <strong>HTTP 2064</strong> / *server cluster is under high load*, <strong>do not</strong> fan out many simultaneous attach/diagnose or multi-session calls. Retry after a short wait with backoff; if it persists, lower <code>agents.defaults.maxConcurrent</code> and subagent concurrency (same event-loop discipline as WS churn above). Bulk &quot;attach to all workers&quot; requests will amplify this failure mode.</p>
+<p><strong>Dropped messages</strong>: Redrive using <code>SLACK_USER_TOKEN</code> (jleechan identity), NOT the hermes bot token (gateway ignores its own messages). Check ${SLACK_CHANNEL_ID} and ${SLACK_CHANNEL_ID} for unanswered jleechan messages in the past 2 hours.</p>
+<h2 id="hermesjson-mutation-safety">hermes.json mutation safety</h2>
+<p><strong>NEVER rewrite the entire <code>hermes.json</code> file.</strong> Always use targeted key updates:</p>
+<pre><code>with open(path) as f: d = json.load(f)
+d[&#x27;some&#x27;][&#x27;nested&#x27;][&#x27;key&#x27;] = new_value   # surgical update only
+with open(path, &#x27;w&#x27;) as f: json.dump(d, f, indent=2)</code></pre>
+<p>Full rewrites silently drop config sections not present in the current Python scope (e.g. <code>agents.defaults.heartbeat</code> disappeared when model was updated this way on 2026-03-23). After any <code>hermes.json</code> write, verify critical keys survived: <code>agents.defaults.heartbeat</code>, <code>gateway.auth</code>, <code>models.providers</code>.</p>
+<h3 id="protected-keys-never-change-these-values">Protected keys — NEVER change these values</h3>
+<p>These keys have constraints enforced by <code>doctor.sh</code> and are validated every monitor run. Changing them breaks the health check and triggers STATUS=PROBLEM alerts. <strong>Treat them as immutable unless Jeffrey explicitly requests a change:</strong></p>
+<p>| Key | Required value | Why |</p>
+<p>|-----|---------------|-----|</p>
+<p>| <code>agents.defaults.heartbeat.every</code> | <code>&quot;5m&quot;</code> | Doctor enforces 5m; agents have changed this to 30m twice (2026-04-04) |</p>
+<p>| <code>agents.defaults.heartbeat.target</code> | <code>&quot;last&quot;</code> | Doctor enforces this |</p>
+<p>| <code>agents.defaults.timeoutSeconds</code> | <code>≤ 600</code> | WS pong budget; higher = event-loop starvation |</p>
+<p>| <code>agents.defaults.maxConcurrent</code> | <code>≤ 3</code> | Same WS budget (safe_timeout = floor(3000/n × 0.65)) |</p>
+<p>| <code>agents.defaults.subagents.maxConcurrent</code> | <code>≤ 3</code> | Same event-loop discipline |</p>
+<p>| <code>plugins.slots.memory</code> | <code>&quot;hermes-mem0&quot;</code> | Without this, gateway defaults to builtin <code>memory-core</code> and mem0 plugin is silently disabled even when <code>plugins.entries.smartclaw-mem0.enabled: true</code> |</p>
+<h2 id="gateway-upgrade-safety">Gateway Upgrade Safety</h2>
+<p><strong>MANDATORY: Run pre-flight before ANY gateway version change, <code>hermes doctor --fix</code>, or plist modification.</strong></p>
+<pre><code>bash ~/.smartclaw/scripts/gateway-preflight.sh        # check only
+bash ~/.smartclaw/scripts/gateway-preflight.sh --fix   # check and auto-repair</code></pre>
+<p><strong>Skill</strong>: <code>~/.claude/skills/gateway-upgrade.md</code> — full upgrade/rollback runbook.</p>
+<p>Key rules:</p>
+<ul>
+<li>- <strong>Never run <code>hermes doctor --fix</code> without checking for existing plists first</strong> — it can create duplicates</li>
+<li>- <strong>ThrottleInterval in gateway plist must be &gt;= 10</strong> (preferably 30) — values &lt; 10 cause restart storms that burn Slack tokens</li>
+<li>- <strong>After ANY upgrade</strong>: verify config JSON valid, critical keys survived, native modules load, Slack connected</li>
+<li>- <strong>Backup <code>hermes.json</code> before upgrade</strong>: <code>cp ~/.smartclaw/hermes.json ~/.smartclaw/hermes.json.pre-upgrade-$(date +%s)</code></li>
+<li>- <strong>MANDATORY before ANY restart</strong>: verify <code>meta.lastTouchedVersion</code> in <code>~/.smartclaw-consensus/hermes.json</code> matches running binary version — mismatch causes infinite AJV recursion → <code>RangeError: Maximum call stack size exceeded</code> crash (incident 2026-03-30). Run <code>bash ~/.smartclaw/scripts/gateway-preflight.sh --fix</code> to auto-correct.</li>
+</ul>
+<h3 id="staging-bootstrap-broken-state-bootstrap-failed-5-inputoutput-error">Staging Bootstrap Broken State (&quot;Bootstrap failed: 5: Input/output error&quot;)</h3>
+<p><strong>Symptoms:</strong></p>
+<ul>
+<li>- <code>launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.smartclaw.staging.plist</code> fails with &quot;Bootstrap failed: 5: Input/output error&quot;</li>
+<li>- <code>launchctl print-disabled gui/$UID | grep staging</code> shows <code>&quot;ai.smartclaw.staging&quot; =&gt; enabled</code></li>
+<li>- <code>launchctl print gui/$UID/ai.smartclaw.staging</code> fails (service not registered)</li>
+<li>- Manually-started staging processes receive SIGTERM within seconds of starting</li>
+</ul>
+<p><strong>Root cause:</strong> launchd service database is in a corrupted state — the plist is marked enabled but never successfully bootstrapped.</p>
+<p><strong>Fix:</strong></p>
+<pre><code># Step 1: Fully remove from launchd database
+launchctl unload -w ~/Library/LaunchAgents/ai.smartclaw.staging.plist 2&gt;/dev/null || true
+
+# Step 2: Verify disabled
+launchctl print-disabled gui/$UID | grep staging
+# Should show: &quot;ai.smartclaw.staging&quot; =&gt; disabled
+
+# Step 3: Re-bootstrap
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.smartclaw.staging.plist
+
+# Step 4: Start
+launchctl start gui/$UID/ai.smartclaw.staging
+sleep 5
+curl -fsS -m 5 http://127.0.0.1:18810/health</code></pre>
+<p>If bootstrap still fails after step 1-4, run <code>bash ~/.smartclaw/scripts/install-launchagents.sh</code> to regenerate the plist.</p>
+<h2 id="worktree-isolation-edit-your-copy-not-hermes-directly">Worktree Isolation — Edit Your Copy, Not ~/.smartclaw/ Directly</h2>
+<p><code>~/.smartclaw/</code> is the <strong>staging</strong> environment (the repo checkout). <code>~/.smartclaw_prod/</code> is <strong>production</strong> (separate dir with symlinks). Direct edits to <code>~/.smartclaw/</code> affect staging immediately but NOT production — production only updates when <code>scripts/deploy.sh</code> syncs validated config.</p>
+<p><strong>Rule (ALL agent sessions): Do NOT directly edit files in <code>~/.smartclaw/</code> — use a PR.</strong></p>
+<p>All changes to <code>~/.smartclaw/</code> files MUST go through: edit in worktree → commit → PR → merge → <code>git pull</code> in <code>~/.smartclaw/</code>. Then <code>scripts/deploy.sh</code> to promote to prod. Direct edits bypass code review AND the staging canary gate (<code>scripts/staging-canary.sh</code>).</p>
+<p><strong>Permitted exceptions (only these three):</strong></p>
+<ol>
+<li>1. <code>hermes.json</code> — surgical key updates only (see &quot;hermes.json mutation safety&quot; above)</li>
+<li>2. <code>cron/jobs.json</code> — live job management, documented exception</li>
+<li>3. Emergency hot-fixes explicitly authorized by the user in the current session — must be followed by a cleanup PR</li>
+</ol>
+<p><strong>Correct flow for any file:</strong></p>
+<ol>
+<li>1. Edit the file in your worktree (<code>&lt;worktree&gt;/some-file</code>)</li>
+<li>2. Commit and push PR</li>
+<li>3. After PR merges to main: <code>git pull</code> in <code>~/.smartclaw/</code> picks up the change automatically</li>
+</ol>
+<p><strong><code>agent-orchestrator.yaml</code> — rendered for runtime, not used directly as the live deploy file:</strong></p>
+<p><code>scripts/bootstrap.sh</code> renders <code>~/.agent-orchestrator.yaml</code> from <code>~/.smartclaw/agent-orchestrator.yaml</code> so shell placeholders become concrete values before AO/launchd parse the YAML. <code>~/agent-orchestrator.yaml</code> is a compatibility symlink to the rendered runtime file.</p>
+<p>Canonical tracked path: <code>~/.smartclaw/agent-orchestrator.yaml</code>. In worktrees, edit <code>&lt;worktree&gt;/agent-orchestrator.yaml</code>.</p>
+<h2 id="isolated-gateway-testing">Isolated Gateway Testing</h2>
+<p>PRs that touch gateway-loaded files MUST be tested against an isolated hermes gateway instance running from the PR worktree — not the live <code>~/.smartclaw/</code> gateway on port 18789.</p>
+<p><strong>Required when PR touches any of:</strong></p>
+<ul>
+<li>- <code>SOUL.md</code>, <code>TOOLS.md</code>, <code>HEARTBEAT.md</code> (policy files read at gateway startup)</li>
+<li>- <code>.claude/commands/</code> or <code>skills/</code> (slash commands and skills loaded by agents)</li>
+<li>- <code>agents/</code> (model configs, auth profiles)</li>
+<li>- <code>launchd/</code> (plist templates)</li>
+<li>- <code>health-check.sh</code>, <code>monitor-agent.sh</code>, <code>startup-check.sh</code> (operational scripts)</li>
+<li>- <code>cron/</code> (scheduled job definitions)</li>
+<li>- <code>agent-orchestrator.yaml</code> (AO dispatch config)</li>
+</ul>
+<p><strong>Not required for:</strong> <code>src/</code>, <code>tests/</code>, <code>docs/</code>, <code>roadmap/</code>, <code>.beads/</code>, non-operational <code>scripts/</code></p>
+<p><strong>How:</strong> Use <code>hermes --profile &lt;name&gt;</code> on a different port, symlink policy files from the PR worktree.</p>
+<p>See <code>.claude/commands/evidence_review.md</code> section &quot;Isolated Gateway Testing&quot; for the full procedure.</p>
+<h2 id="config-first-principle">Config-First Principle</h2>
+<p><strong>Before writing Python code, check if the goal can be achieved by editing config files at the repo root.</strong></p>
+<p>hermes has rich built-in capabilities. Use them:</p>
+<p>| Want to change | Edit this |</p>
+<p>|---|---|</p>
+<p>| smartclaw behavior / decision-making | <code>SOUL.md</code> (at repo root = <code>~/.smartclaw/SOUL.md</code>) |</p>
+<p>| Tool allow/deny list | <code>TOOLS.md</code> or <code>hermes.json</code> |</p>
+<p>| Memory, history, compaction settings | <code>hermes.json</code> (memorySearch, dmHistoryLimit, compaction) |</p>
+<p>| Cron / scheduled tasks (Slack, backup, memory) | <code>cron/</code> (at repo root) |</p>
+<p>| <strong>PR automation</strong> jobs (pr-monitor, fixpr, etc.) | <code>~/.smartclaw/cron/jobs.json</code> directly — <strong>exception</strong>, not tracked in repo |</p>
+<p>| AO project config / reactions / notifiers | <code>&lt;worktree&gt;/agent-orchestrator.yaml</code> → PR → merge (tracked source: <code>~/.smartclaw/agent-orchestrator.yaml</code>, rendered runtime copy: <code>~/.agent-orchestrator.yaml</code>, compatibility symlink: <code>~/agent-orchestrator.yaml</code>) |</p>
+<p>| New Python orchestration logic | <code>src/orchestration/</code> — <strong>only if config cannot express it</strong> |</p>
+<p>New Python code in <code>src/</code> is for capabilities that genuinely don&#x27;t exist in hermes&#x27;s config surface. Everything else is config. See <code>roadmap/NATURAL_LANGUAGE_DISPATCH.md</code> for the rationale.</p>
+<h2 id="slack-reading-threads-and-incident-questions">Slack — Reading threads and incident questions</h2>
+<p><strong>COMMIT (non-negotiable):</strong> If the user pastes a <code>https://*.slack.com/archives/...</code> link, asks whether the <strong>bot/gateway/service is down</strong>, wants <strong>thread or channel context</strong>, or asks what was said in Slack — <strong>call Slack MCP read APIs first</strong> (e.g. <code>conversations_history</code>, <code>conversations_replies</code>, or the MCP tools your client exposes with the same semantics — in Claude Code this is often <code>mcp__slack__conversations_history</code> / <code>mcp__slack__conversations_replies</code>). <strong>Do not</strong> answer from guesswork, memory, or curl-only health checks alone, and <strong>do not</strong> say you &quot;cannot access Slack&quot; while Slack MCP is available.</p>
+<ul>
+<li>- Parse <strong>channel id</strong> from the URL path segment after <code>/archives/</code> (starts with <code>C</code> or <code>G</code>).</li>
+<li>- Use <strong><code>thread_ts</code></strong> from the query string when present; for permalink URLs with <code>p1775...</code>, derive <code>thread_ts</code> per Slack&#x27;s format if the tool requires it.</li>
+<li>- If MCP fails, report the <strong>exact error</strong>, then fall back only as policy allows (e.g. <code>SLACK_USER_TOKEN</code> for private reads).</li>
+</ul>
+<p><strong>Why this exists:</strong> Operators paste thread links to ask &quot;are we down?&quot; — answering from local <code>curl /health</code> without reading the thread <strong>misses the question</strong> and repeats the same mistake.</p>
+<h2 id="slack-posting">Slack — Posting</h2>
+<p><strong>USE THE SLACK MCP FIRST:</strong> <code>mcp__slack__conversations_add_message(channel_id=&quot;${SLACK_CHANNEL_ID}&quot;, text=&quot;...&quot;)</code>. Posts as hermes bot. No token setup needed.</p>
+<ul>
+<li>- Channel IDs: <code>#ai-slack-test</code> → <code>$SLACK_TEST_CHANNEL</code>, <code>#all-jleechan-ai</code> → <code>${SLACK_CHANNEL_ID}</code>, jleechan DM → <code>$JLEECHAN_DM_CHANNEL</code></li>
+<li>- All channel/user IDs are env vars in <code>~/.bashrc</code></li>
+<li>- <strong>Fallback</strong>: curl with <code>$SLACK_BOT_TOKEN</code> from <code>~/.bashrc</code></li>
+<li>- <code>SLACK_USER_TOKEN</code> (xoxp-...) in <code>~/.profile</code> is valid — required when you need Hermes to react (gateway ignores its own bot messages)</li>
+</ul>
+<p><strong>For agento dispatch</strong> — MUST post as jleechan, not bot:</p>
+<pre><code># SLACK_USER_TOKEN is exported from ~/.bashrc/~/.zshrc (see README env-var block) or ~/.profile
+source ~/.profile &amp;&amp; curl -s -X POST &quot;https://slack.com/api/chat.postMessage&quot; \
+  -H &quot;Authorization: Bearer $SLACK_USER_TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d &quot;{\&quot;channel\&quot;: \&quot;$AGENTO_CHANNEL\&quot;, \&quot;text\&quot;: \&quot;agento &lt;task&gt;\&quot;}&quot;</code></pre>
+<p>Do NOT use Slack MCP for agento triggers — MCP posts as bot, which gateway silently ignores.</p>
+<h2 id="durable-behavior-goal-not-incident-only">Durable Behavior Goal (Not Incident-Only)</h2>
+<p>Primary intent: Hermes should behave consistently for repeated user requests, not require one-off fixes per thread/PR.</p>
+<p>Execution rules:</p>
+<ol>
+<li>1. Treat behavior bugs as system bugs first (config/policy/workflow contract), not isolated incidents.</li>
+<li>2. Prefer reusable guardrails in config files at repo root (<code>~/.smartclaw/</code>) and shared automation templates over ad-hoc local patches.</li>
+<li>3. Enforce explicit routing and target resolution for external actions (repo, endpoint, channel) before mutation.</li>
+<li>4. Add fail-closed checks (tests/CI/policy validators) so the same class of error cannot silently recur.</li>
+<li>5. Validate fixes by replaying the same request style in multiple contexts.</li>
+</ol></main></div>
+<script>
+mermaid.initialize({startOnLoad:true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'});
+const links=[...document.querySelectorAll('#sidebar a[href^="#"]')];const heads=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function spy(){let cur=heads[0];for(const h of heads){if(h.getBoundingClientRect().top<120)cur=h}links.forEach(a=>a.classList.toggle('active',cur&&a.getAttribute('href')==='#'+cur.id))};
+addEventListener('scroll',spy,{passive:true});addEventListener('load',spy);addEventListener('resize',spy);
+</script></body></html>

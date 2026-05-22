@@ -16,7 +16,7 @@ export PATH="$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:
 trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
-LOCK_DIR="${AOPR_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-ao-progress.lock}"
+LOCK_DIR="${AOPR_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-ao-progress.lock}"
 LOG_DIR="${AOPR_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${AOPR_STATE_FILE:-$HOME/.smartclaw/logs/ao-progress-state.json}"
 REPORT_INTERVAL_SECS="${AOPR_INTERVAL_SECS:-1800}"   # 30 min
@@ -86,8 +86,8 @@ with urllib.request.urlopen(req) as resp:
 # ── GH token ─────────────────────────────────────────────────────────────────
 resolve_token() {
   local tok=""
-  # Try openclaw config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
-  for cfg in "$HOME/.smartclaw/openclaw.json" "$HOME/.smartclaw_prod/openclaw.prod.json"; do
+  # Try hermes config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
+  for cfg in "$HOME/.smartclaw/hermes.json" "$HOME/.smartclaw_prod/hermes.prod.json"; do
     [[ -f "$cfg" ]] || continue
     tok="$(jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' "$cfg" 2>/dev/null)" || tok=""
     [[ -n "$tok" && "$tok" != "null" ]] && break
@@ -144,6 +144,13 @@ resolve_thread_ts() {
 
   # No cached thread for today — post a new header to #agent-orchestrator,
   # capture the returned ts, store it in state, and use it as thread root.
+  local token="${SLACK_BOT_TOKEN:-}"
+  if [[ -z "$token" ]]; then
+    log "ERROR: SLACK_BOT_TOKEN not set; cannot create daily thread"
+    echo ""
+    return
+  fi
+
   log "Creating new thread for $TODAY_KEY"
   local response
   response="$(python3 -c "
@@ -157,7 +164,7 @@ payload = json.dumps({
 req = urllib.request.Request(
   'https://slack.com/api/chat.postMessage',
   data=payload.encode(),
-  headers={'Authorization': 'Bearer ${SLACK_BOT_TOKEN}', 'Content-Type': 'application/json'},
+  headers={'Authorization': 'Bearer ${token}', 'Content-Type': 'application/json'},
   method='POST'
 )
 with urllib.request.urlopen(req) as resp:

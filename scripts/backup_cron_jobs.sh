@@ -2,8 +2,8 @@
 # backup_cron_jobs.sh — exports current cron jobs to docs/context/CRON_JOBS_BACKUP.md
 set -euo pipefail
 
-OPENCLAW_BASE="${REPO_DIR:-${OPENCLAW_ROOT:-${OPENCLAW_DIR:-$HOME/.smartclaw}}}"
-DOCS="$OPENCLAW_BASE/docs/context"
+HERMES_BASE="${REPO_DIR:-${HERMES_ROOT:-${HERMES_DIR:-$HOME/.smartclaw}}}"
+DOCS="$HERMES_BASE/docs/context"
 OUT="$DOCS/CRON_JOBS_BACKUP.md"
 TMP_JSON="$OUT.json.$$"
 TMP_OUT="$OUT.tmp.$$"
@@ -12,23 +12,23 @@ trap cleanup EXIT
 
 mkdir -p "$DOCS"
 
-# Use openclaw cron list --json for cron jobs.
-# Verify subcommand exists before calling (openclaw CLI can hang on unknown subcommands).
-if ! openclaw cron list --help 2>&1 | head -3 >/dev/null; then
-    echo "ERROR: 'openclaw cron list' subcommand not available" >&2
+# Use hermes cron list --json for cron jobs.
+# Verify subcommand exists before calling (hermes CLI can hang on unknown subcommands).
+if ! hermes cron list --help 2>&1 | head -3 >/dev/null; then
+    echo "ERROR: 'hermes cron list' subcommand not available" >&2
     exit 1
 fi
 
 # Capture JSON to temp file; strip non-JSON prefix (plugin/config warnings).
-RAW=$(timeout 30 openclaw cron list --json 2>/dev/null || true)
+RAW=$(timeout 30 hermes cron list --json 2>/dev/null || true)
 if [[ -z "$RAW" ]]; then
-    echo "ERROR: openclaw cron list --json returned no output (may have hung or failed)" >&2
+    echo "ERROR: hermes cron list --json returned no output (may have hung or failed)" >&2
     exit 1
 fi
 # Strip everything before the first '{' to remove plugin/warning lines
 JSON_START=$(echo "$RAW" | awk '/^\{/{found=1} found{print}')
 if [[ -z "$JSON_START" ]]; then
-    echo "ERROR: No JSON object found in openclaw cron list output" >&2
+    echo "ERROR: No JSON object found in hermes cron list output" >&2
     exit 1
 fi
 echo "$JSON_START" > "$TMP_JSON"

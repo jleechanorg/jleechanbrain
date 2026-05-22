@@ -15,9 +15,9 @@
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/tmp/openclaw/thread-reply-nudge.log</string>
+  <string>/tmp/hermes/thread-reply-nudge.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/tmp/openclaw/thread-reply-nudge.log</string>
+  <string>/tmp/hermes/thread-reply-nudge.log</string>
 </dict>
 </plist>

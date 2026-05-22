@@ -90,7 +90,7 @@ If the referenced tool/project has known setup steps (check memory or common kno
 
 ### 5. Save the Skill
 
-- Save to `~/.hermes/skills/<skill_name>/SKILL.md`
+- Save to `~/.smartclaw/skills/<skill_name>/SKILL.md`
 - For repo-specific skills: ask the user whether to save to `.claude/skills/` instead
 
 ### 6. Report

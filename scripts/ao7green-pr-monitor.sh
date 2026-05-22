@@ -37,7 +37,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
   # ---------------------------------------------------------------------------
   resolve_token() {
     local tok=""
-    tok="$(cat "$HOME/.smartclaw/openclaw.json" 2>/dev/null | jq -r '.skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
+    tok="$(cat "$HOME/.smartclaw/hermes.json" 2>/dev/null | jq -r '.plugins.entries["gh-issues"].apiKey // .skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
     tok="${tok:-$GH_TOKEN}"
     tok="${tok:-$GITHUB_TOKEN}"
     tok="${tok:-$(gh auth token 2>/dev/null)}"
@@ -53,15 +53,15 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
   # ---------------------------------------------------------------------------
   # Pull AO session status once per run (skip on failure — not fatal)
-  # Uses openclaw sessions list when ao binary is broken/unavailable.
+  # Uses hermes sessions list when ao binary is broken/unavailable.
   # ---------------------------------------------------------------------------
   AO_STATUS="[]"
   if [[ -d "$AO_DIR" ]] && command -v "$AO_BIN" >/dev/null 2>&1; then
     AO_STATUS="$(cd "$AO_DIR" && "$AO_BIN" status --project "$AO_PROJECT" --json 2>/dev/null)" || true
   fi
-  # Fallback: use openclaw sessions if ao binary returned empty
+  # Fallback: use hermes sessions if ao binary returned empty
   if [[ -z "$AO_STATUS" || "$AO_STATUS" == "[]" ]]; then
-    AO_STATUS="$(openclaw sessions --all-agents --active 60 --json 2>/dev/null)" || AO_STATUS="[]"
+    AO_STATUS="$(hermes sessions --all-agents --active 60 --json 2>/dev/null)" || AO_STATUS="[]"
   fi
 
   # ---------------------------------------------------------------------------

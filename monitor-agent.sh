@@ -1,99 +1,125 @@
 #!/bin/bash
-# Periodic proactive monitoring agent for OpenClaw
+# Periodic proactive monitoring agent for Hermes
 
 set -u
 
 # Repo root = directory containing this script (same pattern as scripts/doctor.sh REPO_ROOT).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MONITOR_REPO_ROOT="$SCRIPT_DIR"
-LOG_FILE="${OPENCLAW_MONITOR_LOG_FILE:-$MONITOR_REPO_ROOT/logs/monitor-agent.log}"
+LOG_FILE="${HERMES_MONITOR_LOG_FILE:-$MONITOR_REPO_ROOT/logs/monitor-agent.log}"
 LOG_DIR="$(dirname "$LOG_FILE")"
-LOCK_DIR="${OPENCLAW_MONITOR_LOCK_DIR:-$MONITOR_REPO_ROOT/locks/monitor-agent.lock}"
+LOCK_DIR="${HERMES_MONITOR_LOCK_DIR:-$MONITOR_REPO_ROOT/locks/monitor-agent.lock}"
 LOCK_PID_FILE="$LOCK_DIR/pid"
-LOCK_STALE_SECONDS="${OPENCLAW_MONITOR_LOCK_STALE_SECONDS:-7200}"
+LOCK_STALE_SECONDS="${HERMES_MONITOR_LOCK_STALE_SECONDS:-7200}"
 
 export PATH="$HOME/.nvm/versions/node/v22.22.0/bin:$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-OPENCLAW_BIN="$(command -v openclaw || true)"
-ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
+HERMES_BIN="$(command -v hermes || true)"
+ALERT_SLACK_TARGET="${HERMES_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 # On failures, send the full monitor report to the monitoring channel (${SLACK_CHANNEL_ID}).
 # The all-jleechan-ai channel (${SLACK_CHANNEL_ID}) should not receive monitor reports.
-FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
-PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
-GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
-SLACK_READ_PROBE_ENABLED="${OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE:-1}"
+FAILURE_SLACK_TARGET="${HERMES_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
+PROBE_SLACK_TARGET="${HERMES_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
+GATEWAY_PROBE_TARGET="${HERMES_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
+SLACK_READ_PROBE_ENABLED="${HERMES_MONITOR_SLACK_READ_PROBE_ENABLE:-1}"
 # 0 = silent by default (avoid routine monitor chatter), 1 = post startup probe message.
-GATEWAY_PROBE_MESSAGE_ENABLED="${OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-0}"
-HTTP_GATEWAY_URL="${OPENCLAW_MONITOR_HTTP_GATEWAY_URL:-http://127.0.0.1:18789/health}"
-HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS:-3}"
-HTTP_GATEWAY_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_HTTP_GATEWAY_TIMEOUT_SECONDS:-12}"
-SLACK_API_BASE="${OPENCLAW_MONITOR_SLACK_API_BASE:-https://slack.com/api}"
-CANARY_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_CANARY_TIMEOUT_SECONDS:-45}"
-CANARY_POLL_INTERVAL_SECONDS="${OPENCLAW_MONITOR_CANARY_POLL_INTERVAL_SECONDS:-3}"
-SLACK_E2E_MATRIX_ENABLED="${OPENCLAW_MONITOR_SLACK_E2E_MATRIX_ENABLE:-1}"
-SLACK_E2E_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET:-${SLACK_CHANNEL_ID:-}}"
-SLACK_E2E_THREAD_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET:-C0AJ3SD5C79}"
-SLACK_E2E_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_SLACK_E2E_TIMEOUT_SECONDS:-180}"
-SLACK_E2E_POLL_INTERVAL_SECONDS="${OPENCLAW_MONITOR_SLACK_E2E_POLL_INTERVAL_SECONDS:-$CANARY_POLL_INTERVAL_SECONDS}"
-PHASE1_REMEDIATION_ENABLED="${OPENCLAW_MONITOR_PHASE1_REMEDIATION_ENABLE:-1}"
-PHASE2_ENABLED="${OPENCLAW_MONITOR_PHASE2_ENABLE:-1}"
-PHASE2_AUTOFIX_ENABLED="${OPENCLAW_MONITOR_PHASE2_AUTOFIX_ENABLE:-1}"
-PHASE2_ALLOW_CONFIG_MUTATIONS="${OPENCLAW_MONITOR_PHASE2_ALLOW_CONFIG_MUTATIONS:-0}"
-PHASE2_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_PHASE2_TIMEOUT_SECONDS:-120}"
-WS_CHURN_RESTART_ENABLED="${OPENCLAW_MONITOR_WS_CHURN_RESTART_ENABLE:-0}"
-RUN_CANARY="${OPENCLAW_MONITOR_RUN_CANARY:-1}"
-FAIL_CLOSED_CONFIG_SIGNATURES_ENABLED="${OPENCLAW_MONITOR_FAIL_CLOSED_CONFIG_SIGNATURES_ENABLE:-1}"
+GATEWAY_PROBE_MESSAGE_ENABLED="${HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-0}"
+HTTP_GATEWAY_URL="${HERMES_MONITOR_HTTP_GATEWAY_URL:-http://127.0.0.1:8642/health}"
+HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS="${HERMES_MONITOR_HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS:-3}"
+HTTP_GATEWAY_TIMEOUT_SECONDS="${HERMES_MONITOR_HTTP_GATEWAY_TIMEOUT_SECONDS:-12}"
+SLACK_API_BASE="${HERMES_MONITOR_SLACK_API_BASE:-https://slack.com/api}"
+CANARY_TIMEOUT_SECONDS="${HERMES_MONITOR_CANARY_TIMEOUT_SECONDS:-45}"
+CANARY_POLL_INTERVAL_SECONDS="${HERMES_MONITOR_CANARY_POLL_INTERVAL_SECONDS:-3}"
+SLACK_E2E_MATRIX_ENABLED="${HERMES_MONITOR_SLACK_E2E_MATRIX_ENABLE:-1}"
+SLACK_E2E_CHANNEL_TARGET="${HERMES_MONITOR_SLACK_E2E_CHANNEL_TARGET:-${SLACK_CHANNEL_ID}}"
+SLACK_E2E_THREAD_CHANNEL_TARGET="${HERMES_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET:-C0AJ3SD5C79}"
+SLACK_E2E_TIMEOUT_SECONDS="${HERMES_MONITOR_SLACK_E2E_TIMEOUT_SECONDS:-180}"
+SLACK_E2E_POLL_INTERVAL_SECONDS="${HERMES_MONITOR_SLACK_E2E_POLL_INTERVAL_SECONDS:-$CANARY_POLL_INTERVAL_SECONDS}"
+PHASE1_REMEDIATION_ENABLED="${HERMES_MONITOR_PHASE1_REMEDIATION_ENABLE:-1}"
+PHASE2_ENABLED="${HERMES_MONITOR_PHASE2_ENABLE:-1}"
+PHASE2_AUTOFIX_ENABLED="${HERMES_MONITOR_PHASE2_AUTOFIX_ENABLE:-1}"
+PHASE2_ALLOW_CONFIG_MUTATIONS="${HERMES_MONITOR_PHASE2_ALLOW_CONFIG_MUTATIONS:-0}"
+PHASE2_TIMEOUT_SECONDS="${HERMES_MONITOR_PHASE2_TIMEOUT_SECONDS:-120}"
+WS_CHURN_RESTART_ENABLED="${HERMES_MONITOR_WS_CHURN_RESTART_ENABLE:-0}"
+RUN_CANARY="${HERMES_MONITOR_RUN_CANARY:-1}"
+FAIL_CLOSED_CONFIG_SIGNATURES_ENABLED="${HERMES_MONITOR_FAIL_CLOSED_CONFIG_SIGNATURES_ENABLE:-1}"
 # Optional explicit token for canary sender identity (prefer dedicated second bot).
-MONITOR_CANARY_BOT_TOKEN="${OPENCLAW_MONITOR_CANARY_BOT_TOKEN:-}"
-STATUS_BROADCAST_ENABLED="${OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE:-1}"
-STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
+MONITOR_CANARY_BOT_TOKEN="${HERMES_MONITOR_CANARY_BOT_TOKEN:-}"
+STATUS_BROADCAST_ENABLED="${HERMES_MONITOR_STATUS_BROADCAST_ENABLE:-1}"
+STATUS_BROADCAST_SLACK_TARGET="${HERMES_MONITOR_STATUS_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 
-# Which systems to monitor: "openclaw", "hermes", or "openclaw,hermes" (default)
-# Set to "hermes" to skip all OpenClaw probes (useful when OpenClaw is not running)
-MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-openclaw,hermes}"
+# Which systems to monitor: "hermes", "hermes", or "hermes,hermes" (default)
+# Set to "hermes" to skip all Hermes probes (useful when Hermes is not running)
+MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-hermes,hermes}"
 
-# Helper to check if OpenClaw monitoring is enabled
-openclaw_mon_enabled() {
-  [[ "$MONITOR_SYSTEMS" =~ openclaw ]]
+# Helper to check if Hermes monitoring is enabled
+hermes_mon_enabled() {
+  [[ "$MONITOR_SYSTEMS" =~ hermes ]]
 }
-THREAD_REPLY_CHECK_ENABLED="${OPENCLAW_MONITOR_THREAD_REPLY_CHECK:-1}"
-THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
-THREAD_REPLY_LOOKBACK_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_LOOKBACK_SECONDS:-21600}"
-THREAD_REPLY_GRACE_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_GRACE_SECONDS:-120}"
-THREAD_REPLY_MAX_THREADS="${OPENCLAW_MONITOR_THREAD_REPLY_MAX_THREADS:-12}"
-THREAD_REPLY_WATCH_THREADS="${OPENCLAW_MONITOR_THREAD_REPLY_WATCH_THREADS:-}"
-THREAD_REPLY_FAILURE_REGEX="${OPENCLAW_MONITOR_THREAD_REPLY_FAILURE_REGEX:-Agent failed before reply|all models failed|authentication_error|OAuth token refresh failed}"
-THREAD_REPLY_FAILURE_MAX_AGE_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_FAILURE_MAX_AGE_SECONDS:-900}"
-THREAD_REPLY_BOT_USER_ID="${OPENCLAW_MONITOR_BOT_USER_ID:-}"
-DOCTOR_SH_ENABLED="${OPENCLAW_MONITOR_DOCTOR_SH_ENABLE:-1}"
-DOCTOR_SH_ALWAYS="${OPENCLAW_MONITOR_DOCTOR_SH_ALWAYS:-1}"
-DOCTOR_SH_PATH_OVERRIDE="${OPENCLAW_MONITOR_DOCTOR_SH_PATH:-}"
-INFERENCE_PROBE_ENABLED="${OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE:-1}"
-TOKEN_PROBES_ENABLED="${OPENCLAW_MONITOR_TOKEN_PROBES_ENABLE:-1}"
-INFERENCE_PROBE_TIMEOUT="${OPENCLAW_MONITOR_INFERENCE_PROBE_TIMEOUT:-30}"
+THREAD_REPLY_CHECK_ENABLED="${HERMES_MONITOR_THREAD_REPLY_CHECK:-1}"
+THREAD_REPLY_CHANNEL="${HERMES_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
+THREAD_REPLY_LOOKBACK_SECONDS="${HERMES_MONITOR_THREAD_REPLY_LOOKBACK_SECONDS:-21600}"
+THREAD_REPLY_GRACE_SECONDS="${HERMES_MONITOR_THREAD_REPLY_GRACE_SECONDS:-120}"
+THREAD_REPLY_MAX_THREADS="${HERMES_MONITOR_THREAD_REPLY_MAX_THREADS:-12}"
+THREAD_REPLY_WATCH_THREADS="${HERMES_MONITOR_THREAD_REPLY_WATCH_THREADS:-}"
+THREAD_REPLY_FAILURE_REGEX="${HERMES_MONITOR_THREAD_REPLY_FAILURE_REGEX:-Agent failed before reply|all models failed|authentication_error|OAuth token refresh failed}"
+THREAD_REPLY_FAILURE_MAX_AGE_SECONDS="${HERMES_MONITOR_THREAD_REPLY_FAILURE_MAX_AGE_SECONDS:-900}"
+THREAD_REPLY_BOT_USER_ID="${HERMES_MONITOR_BOT_USER_ID:-}"
+DOCTOR_SH_ENABLED="${HERMES_MONITOR_DOCTOR_SH_ENABLE:-1}"
+DOCTOR_SH_ALWAYS="${HERMES_MONITOR_DOCTOR_SH_ALWAYS:-1}"
+DOCTOR_SH_PATH_OVERRIDE="${HERMES_MONITOR_DOCTOR_SH_PATH:-}"
+INFERENCE_PROBE_ENABLED="${HERMES_MONITOR_INFERENCE_PROBE_ENABLE:-1}"
+TOKEN_PROBES_ENABLED="${HERMES_MONITOR_TOKEN_PROBES_ENABLE:-1}"
+INFERENCE_PROBE_TIMEOUT="${HERMES_MONITOR_INFERENCE_PROBE_TIMEOUT:-30}"
 # When doctor.sh always runs, it already includes an end-to-end LLM inference probe.
 # Skip the monitor's own inference probe to avoid a redundant (slow) LLM call.
-if [ "${OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE:-unset}" = "unset" ] \
+if [ "${HERMES_MONITOR_INFERENCE_PROBE_ENABLE:-unset}" = "unset" ] \
    && [ "$DOCTOR_SH_ENABLED" = "1" ] \
    && [ "$DOCTOR_SH_ALWAYS" = "1" ]; then
   INFERENCE_PROBE_ENABLED="0"
 fi
 
-# ── Icon definitions (used by both OpenClaw and Hermes monitoring) ──────
+# ── Icon definitions (used by both Hermes and Hermes monitoring) ──────
 ICON_GREEN="🟢"
 ICON_YELLOW="🟡"
 ICON_RED="🔴"
 
 # ── Hermes monitoring config ─────────────────────────────────────────
-HERMES_MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-openclaw,hermes}"
-HERMES_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.hermes}"
-HERMES_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.hermes_prod}"
+HERMES_MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-hermes,hermes}"
+HERMES_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.smartclaw}"
+HERMES_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.smartclaw_prod}"
 HERMES_MONITOR_ALERT_CHANNEL="${MONITOR_HERMES_ALERT_CHANNEL:-C0AJQ5M0A0Y}"
 HERMES_MONITOR_CANARY_ENABLED="${MONITOR_HERMES_CANARY_ENABLE:-0}"
 
 # ── Hermes process detection patterns ──────────────────────────────
-# Matches any Python running hermes_cli.main gateway run (venv or system python)
-_hermes_proc_pattern="hermes_cli.main gateway run"
+# Matches hermes binary via launchd-env-wrapper.sh: /opt/homebrew/bin/hermes gateway run
+# Pattern anchors on the binary path immediately before `gateway run` to avoid
+# false-matching cron/heartbeat bash commands that mention "hermes", "gateway",
+# and "run" as separate words in error messages (e.g. "gateway DOWN — run:").
+_hermes_proc_pattern="/hermes[^/]* gateway run"
+
+# Env-specific gateway ports — used for port-based liveness detection so that
+# staging and prod are distinguished (pgrep alone matches both binaries).
+HERMES_STAGING_PORT="${HERMES_STAGING_PORT:-18810}"
+HERMES_PROD_PORT="${HERMES_PROD_PORT:-8642}"
+
+# Detect a running gateway by the port it's bound to. Echoes the PID on stdout
+# when a LISTEN socket on $1 is owned by a hermes process; empty otherwise.
+# Verifies ownership via `ps -o command=` so unrelated processes squatting the
+# port (test fixtures, leftover servers) are not falsely reported as a gateway.
+hermes_gateway_pid_for_port() {
+  local _port="${1:-}"
+  [ -z "$_port" ] && return 1
+  local _pid _cmd
+  for _pid in $(lsof -t -sTCP:LISTEN -i ":${_port}" 2>/dev/null); do
+    _cmd=$(ps -p "$_pid" -o command= 2>/dev/null || true)
+    if [[ "$_cmd" == *hermes* ]]; then
+      printf '%s\n' "$_pid"
+      return 0
+    fi
+  done
+  return 1
+}
 
 ts() {
   date '+%Y-%m-%d %H:%M:%S'
@@ -109,7 +135,7 @@ is_placeholder_token() {
   if [ -z "$token" ] || [ "$token" = "null" ] || [ "$token" = "your-local-auth-token-here" ]; then
     return 0
   fi
-  # Catch any unexpanded ${VAR} reference (e.g. ${OPENCLAW_GATEWAY_TOKEN})
+  # Catch any unexpanded ${VAR} reference (e.g. ${HERMES_GATEWAY_TOKEN})
   if [[ "$token" =~ ^\$\{[A-Z0-9_]+\}$ ]]; then
     return 0
   fi
@@ -146,15 +172,15 @@ resolve_bearer_token_ref() {
 }
 
 resolve_monitor_config_path() {
-  if [ -n "${OPENCLAW_CONFIG_PATH:-}" ]; then
-    printf '%s' "$OPENCLAW_CONFIG_PATH"
+  if [ -n "${HERMES_CONFIG_PATH:-}" ]; then
+    printf '%s' "$HERMES_CONFIG_PATH"
     return 0
   fi
-  if [ -n "${OPENCLAW_STATE_DIR:-}" ]; then
-    if [ "${OPENCLAW_STATE_DIR%/}" = "${HOME}/.smartclaw" ] && [ -f "${OPENCLAW_STATE_DIR}/openclaw.staging.json" ]; then
-      printf '%s' "${OPENCLAW_STATE_DIR}/openclaw.staging.json"
+  if [ -n "${HERMES_STATE_DIR:-}" ]; then
+    if [ "${HERMES_STATE_DIR%/}" = "${HOME}/.smartclaw" ] && [ -f "${HERMES_STATE_DIR}/hermes.staging.json" ]; then
+      printf '%s' "${HERMES_STATE_DIR}/hermes.staging.json"
     else
-      printf '%s' "${OPENCLAW_STATE_DIR}/openclaw.json"
+      printf '%s' "${HERMES_STATE_DIR}/hermes.json"
     fi
     return 0
   fi
@@ -162,8 +188,8 @@ resolve_monitor_config_path() {
 }
 
 resolve_monitor_base_config_path() {
-  if [ -n "${OPENCLAW_STATE_DIR:-}" ] && [ -f "${OPENCLAW_STATE_DIR}/openclaw.json" ]; then
-    printf '%s' "${OPENCLAW_STATE_DIR}/openclaw.json"
+  if [ -n "${HERMES_STATE_DIR:-}" ] && [ -f "${HERMES_STATE_DIR}/hermes.json" ]; then
+    printf '%s' "${HERMES_STATE_DIR}/hermes.json"
     return 0
   fi
   printf ''
@@ -187,7 +213,7 @@ resolve_monitor_token_probe_config_path() {
     printf '%s' "$cfg"
     return 0
   fi
-  if monitor_config_value_is_set "$cfg" '.plugins.entries."openclaw-mem0".enabled // empty'; then
+  if [ -n "$cfg" ] && [ -f "$cfg" ]     && jq -e '.plugins.entries | has("hermes-mem0")' "$cfg" >/dev/null 2>&1; then
     printf '%s' "$cfg"
     return 0
   fi
@@ -201,8 +227,8 @@ resolve_monitor_token_probe_config_path() {
 
 resolve_monitor_gateway_port() {
   local cfg parsed_port
-  if [[ "${OPENCLAW_GATEWAY_PORT:-}" =~ ^[0-9]+$ ]]; then
-    printf '%s' "$OPENCLAW_GATEWAY_PORT"
+  if [[ "${HERMES_GATEWAY_PORT:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$HERMES_GATEWAY_PORT"
     return 0
   fi
   if [[ "$HTTP_GATEWAY_URL" =~ :([0-9]+)/ ]]; then
@@ -215,10 +241,10 @@ resolve_monitor_gateway_port() {
     printf '%s' "$parsed_port"
     return 0
   fi
-  case "${OPENCLAW_STATE_DIR%/}" in
+  case "${HERMES_STATE_DIR%/}" in
     "${HOME}/.smartclaw") printf '18810' ;;
-    "${HOME}/.smartclaw_prod") printf '18789' ;;
-    *) printf '18789' ;;
+    "${HOME}/.smartclaw_prod") printf '8642' ;;
+    *) printf '8642' ;;
   esac
 }
 
@@ -262,40 +288,40 @@ resolve_doctor_sh_path() {
   return 1
 }
 
-# When the gateway LaunchAgent uses OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH (e.g. prod
-# profile), the default openclaw CLI still reads ~/.smartclaw unless these are set — doctor.sh
+# When the gateway LaunchAgent uses HERMES_STATE_DIR / HERMES_CONFIG_PATH (e.g. prod
+# profile), the default hermes CLI still reads ~/.smartclaw unless these are set — doctor.sh
 # then false-fails Slack/memory probes while /health stays OK. Mirror gateway plist into the
 # environment for doctor only (respect env if already set; no-op on non-macOS or missing plist).
-apply_openclaw_env_from_gateway_launchd() {
-  local plist="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist}"
+apply_hermes_env_from_gateway_launchd() {
+  local plist="${HERMES_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist}"
   [ -f "$plist" ] || return 0
   [ -x /usr/libexec/PlistBuddy ] || return 0
   local val gateway_port inferred_state_dir
-  if [ -z "${OPENCLAW_STATE_DIR:-}" ]; then
-    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OPENCLAW_STATE_DIR" "$plist" 2>/dev/null)" || val=""
+  if [ -z "${HERMES_STATE_DIR:-}" ]; then
+    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HERMES_STATE_DIR" "$plist" 2>/dev/null)" || val=""
     if [ -n "$val" ]; then
-      export OPENCLAW_STATE_DIR="$val"
+      export HERMES_STATE_DIR="$val"
     else
-      gateway_port="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OPENCLAW_GATEWAY_PORT" "$plist" 2>/dev/null)" || gateway_port=""
-      if [ "$gateway_port" = "18789" ]; then
+      gateway_port="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HERMES_GATEWAY_PORT" "$plist" 2>/dev/null)" || gateway_port=""
+      if [ "$gateway_port" = "8642" ]; then
         inferred_state_dir="$HOME/.smartclaw_prod"
       elif [ "$gateway_port" = "18810" ]; then
         inferred_state_dir="$HOME/.smartclaw"
       else
         inferred_state_dir=""
       fi
-      [ -n "$inferred_state_dir" ] && export OPENCLAW_STATE_DIR="$inferred_state_dir"
+      [ -n "$inferred_state_dir" ] && export HERMES_STATE_DIR="$inferred_state_dir"
     fi
   fi
-  if [ -z "${OPENCLAW_CONFIG_PATH:-}" ]; then
-    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OPENCLAW_CONFIG_PATH" "$plist" 2>/dev/null)" || val=""
+  if [ -z "${HERMES_CONFIG_PATH:-}" ]; then
+    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HERMES_CONFIG_PATH" "$plist" 2>/dev/null)" || val=""
     if [ -n "$val" ]; then
-      export OPENCLAW_CONFIG_PATH="$val"
-    elif [ -n "${OPENCLAW_STATE_DIR:-}" ]; then
-      if [ "${OPENCLAW_STATE_DIR%/}" = "${HOME}/.smartclaw" ] && [ -f "${OPENCLAW_STATE_DIR}/openclaw.staging.json" ]; then
-        export OPENCLAW_CONFIG_PATH="${OPENCLAW_STATE_DIR}/openclaw.staging.json"
+      export HERMES_CONFIG_PATH="$val"
+    elif [ -n "${HERMES_STATE_DIR:-}" ]; then
+      if [ "${HERMES_STATE_DIR%/}" = "${HOME}/.smartclaw" ] && [ -f "${HERMES_STATE_DIR}/hermes.staging.json" ]; then
+        export HERMES_CONFIG_PATH="${HERMES_STATE_DIR}/hermes.staging.json"
       else
-        export OPENCLAW_CONFIG_PATH="${OPENCLAW_STATE_DIR}/openclaw.json"
+        export HERMES_CONFIG_PATH="${HERMES_STATE_DIR}/hermes.json"
       fi
     fi
   fi
@@ -303,8 +329,8 @@ apply_openclaw_env_from_gateway_launchd() {
 
 run_monitor_doctor_sh() {
   (
-    export OPENCLAW_DOCTOR_SKIP_INFERENCE=1
-    # OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH already set by apply_openclaw_env_from_gateway_launchd at startup.
+    export HERMES_DOCTOR_SKIP_INFERENCE=1
+    # HERMES_STATE_DIR / HERMES_CONFIG_PATH already set by apply_hermes_env_from_gateway_launchd at startup.
     bash "$DOCTOR_SH_PATH"
   ) 2>&1
 }
@@ -327,7 +353,7 @@ has_fail_closed_config_parse_signature() {
 
 cli_output_has_success_payload() {
   local text="${1:-}"
-  # openclaw CLI often returns JSON envelopes with "ok":true on success.
+  # hermes CLI often returns JSON envelopes with "ok":true on success.
   # Accept both compact and spaced forms.
   if printf '%s\n' "$text" | rg -q '"ok"[[:space:]]*:[[:space:]]*true'; then
     return 0
@@ -364,15 +390,15 @@ enforce_cli_output_fail_closed() {
   fi
 }
 
-if [ -z "$OPENCLAW_BIN" ]; then
-  log "openclaw CLI not found"
+if [ -z "$HERMES_BIN" ]; then
+  log "hermes CLI not found"
   exit 1
 fi
 
-# Mirror gateway plist into OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH before token probes and
+# Mirror gateway plist into HERMES_STATE_DIR / HERMES_CONFIG_PATH before token probes and
 # other checks so paths match the monitored gateway (prod vs staging plist via
-# OPENCLAW_MONITOR_GATEWAY_PLIST_PATH).
-apply_openclaw_env_from_gateway_launchd
+# HERMES_MONITOR_GATEWAY_PLIST_PATH).
+apply_hermes_env_from_gateway_launchd
 
 mkdir -p "$(dirname "$LOCK_DIR")" 2>/dev/null || true
 
@@ -430,13 +456,13 @@ if [ -f "$HOME/.profile" ]; then
   source "$HOME/.profile"
 fi
 
-# Tokens are hardcoded in ~/.smartclaw/openclaw.json — the gateway reads them directly.
+# Tokens are hardcoded in ~/.smartclaw/hermes.json — the gateway reads them directly.
 # Only hydrate behavioral tunables (channel targets, feature flags) that may be
 # overridden via .bashrc exports. Most token env vars are NOT read here.
-# Exception: OPENCLAW_MONITOR_CANARY_BOT_TOKEN is intentionally hydrated from .bashrc
-# to support dedicated canary bot tokens without requiring a full openclaw.json update.
+# Exception: HERMES_MONITOR_CANARY_BOT_TOKEN is intentionally hydrated from .bashrc
+# to support dedicated canary bot tokens without requiring a full hermes.json update.
 # Note: read_bashrc_export() requires double-quoted values, e.g.:
-#   export OPENCLAW_MONITOR_CANARY_BOT_TOKEN="xoxb-..."
+#   export HERMES_MONITOR_CANARY_BOT_TOKEN="xoxb-..."
 read_bashrc_export() {
   local key="$1"
   local rc_file="$HOME/.bashrc"
@@ -459,43 +485,43 @@ set_env_var_if_nonempty() {
   fi
 }
 
-set_env_var_if_nonempty OPENCLAW_MONITOR_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_SLACK_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_FAILURE_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_FAILURE_SLACK_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_PROBE_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_PROBE_SLACK_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE "$(read_bashrc_export OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_STATUS_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_STATUS_SLACK_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_E2E_SLACK_TOKEN "$(read_bashrc_export OPENCLAW_MONITOR_E2E_SLACK_TOKEN)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL "$(read_bashrc_export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_RUN_CANARY "$(read_bashrc_export OPENCLAW_MONITOR_RUN_CANARY)"
-set_env_var_if_nonempty OPENCLAW_MONITOR_CANARY_BOT_TOKEN "$(read_bashrc_export OPENCLAW_MONITOR_CANARY_BOT_TOKEN)"
+set_env_var_if_nonempty HERMES_MONITOR_SLACK_TARGET "$(read_bashrc_export HERMES_MONITOR_SLACK_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_FAILURE_SLACK_TARGET "$(read_bashrc_export HERMES_MONITOR_FAILURE_SLACK_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_PROBE_SLACK_TARGET "$(read_bashrc_export HERMES_MONITOR_PROBE_SLACK_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_GATEWAY_PROBE_TARGET "$(read_bashrc_export HERMES_MONITOR_GATEWAY_PROBE_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE "$(read_bashrc_export HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE)"
+set_env_var_if_nonempty HERMES_MONITOR_STATUS_SLACK_TARGET "$(read_bashrc_export HERMES_MONITOR_STATUS_SLACK_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_SLACK_E2E_CHANNEL_TARGET "$(read_bashrc_export HERMES_MONITOR_SLACK_E2E_CHANNEL_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET "$(read_bashrc_export HERMES_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET)"
+set_env_var_if_nonempty HERMES_MONITOR_E2E_SLACK_TOKEN "$(read_bashrc_export HERMES_MONITOR_E2E_SLACK_TOKEN)"
+set_env_var_if_nonempty HERMES_MONITOR_THREAD_REPLY_CHANNEL "$(read_bashrc_export HERMES_MONITOR_THREAD_REPLY_CHANNEL)"
+set_env_var_if_nonempty HERMES_MONITOR_RUN_CANARY "$(read_bashrc_export HERMES_MONITOR_RUN_CANARY)"
+set_env_var_if_nonempty HERMES_MONITOR_CANARY_BOT_TOKEN "$(read_bashrc_export HERMES_MONITOR_CANARY_BOT_TOKEN)"
 # Hydrate the primary bot token so resolve_thread_probe_slack_token() finds it
 # (launchd agents don't source .bashrc, so this var is empty without explicit hydration).
 set_env_var_if_nonempty SLACK_BOT_TOKEN "$(read_bashrc_export SLACK_BOT_TOKEN)"
 # Hydrate the human sender token used by the positive Slack E2E matrix.
-set_env_var_if_nonempty OPENCLAW_SLACK_USER_TOKEN "$(read_bashrc_export OPENCLAW_SLACK_USER_TOKEN)"
+set_env_var_if_nonempty HERMES_SLACK_USER_TOKEN "$(read_bashrc_export HERMES_SLACK_USER_TOKEN)"
 
 # Recompute monitor channels after env hydration from launchd/profile/bashrc.
-ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
-FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-$FAILURE_SLACK_TARGET}"
-PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
-GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
-GATEWAY_PROBE_MESSAGE_ENABLED="${OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-$GATEWAY_PROBE_MESSAGE_ENABLED}"
-STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-$STATUS_BROADCAST_SLACK_TARGET}"
-SLACK_E2E_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET:-$SLACK_E2E_CHANNEL_TARGET}"
-SLACK_E2E_THREAD_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET:-$SLACK_E2E_THREAD_CHANNEL_TARGET}"
-THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
-RUN_CANARY="${OPENCLAW_MONITOR_RUN_CANARY:-$RUN_CANARY}"
-MONITOR_CANARY_BOT_TOKEN="${OPENCLAW_MONITOR_CANARY_BOT_TOKEN:-$MONITOR_CANARY_BOT_TOKEN}"
+ALERT_SLACK_TARGET="${HERMES_MONITOR_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
+FAILURE_SLACK_TARGET="${HERMES_MONITOR_FAILURE_SLACK_TARGET:-$FAILURE_SLACK_TARGET}"
+PROBE_SLACK_TARGET="${HERMES_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
+GATEWAY_PROBE_TARGET="${HERMES_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
+GATEWAY_PROBE_MESSAGE_ENABLED="${HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-$GATEWAY_PROBE_MESSAGE_ENABLED}"
+STATUS_BROADCAST_SLACK_TARGET="${HERMES_MONITOR_STATUS_SLACK_TARGET:-$STATUS_BROADCAST_SLACK_TARGET}"
+SLACK_E2E_CHANNEL_TARGET="${HERMES_MONITOR_SLACK_E2E_CHANNEL_TARGET:-$SLACK_E2E_CHANNEL_TARGET}"
+SLACK_E2E_THREAD_CHANNEL_TARGET="${HERMES_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET:-$SLACK_E2E_THREAD_CHANNEL_TARGET}"
+THREAD_REPLY_CHANNEL="${HERMES_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
+RUN_CANARY="${HERMES_MONITOR_RUN_CANARY:-$RUN_CANARY}"
+MONITOR_CANARY_BOT_TOKEN="${HERMES_MONITOR_CANARY_BOT_TOKEN:-$MONITOR_CANARY_BOT_TOKEN}"
 
 resolve_canary_slack_token() {
   # Precedence:
-  # 1) OPENCLAW_MONITOR_CANARY_BOT_TOKEN (explicit dedicated bot)
+  # 1) HERMES_MONITOR_CANARY_BOT_TOKEN (explicit dedicated bot)
   # 2) ~/.mcp_mail/credentials.json: SLACK_BOT_TOKEN (second bot)
   if [ -n "${MONITOR_CANARY_BOT_TOKEN:-}" ] && ! is_placeholder_token "$MONITOR_CANARY_BOT_TOKEN"; then
-    printf '%s|%s\n' "$MONITOR_CANARY_BOT_TOKEN" "OPENCLAW_MONITOR_CANARY_BOT_TOKEN"
+    printf '%s|%s\n' "$MONITOR_CANARY_BOT_TOKEN" "HERMES_MONITOR_CANARY_BOT_TOKEN"
     return 0
   fi
 
@@ -514,8 +540,8 @@ resolve_canary_slack_token() {
 
 resolve_thread_probe_slack_token() {
   # Precedence:
-  # 1) primary OpenClaw bot token (env or config)
-  # 2) OPENCLAW_MONITOR_CANARY_BOT_TOKEN (dedicated monitor/canary bot)
+  # 1) primary Hermes bot token (env or config)
+  # 2) HERMES_MONITOR_CANARY_BOT_TOKEN (dedicated monitor/canary bot)
   # 3) ~/.mcp_mail/credentials.json: SLACK_BOT_TOKEN
   local primary_line
   primary_line="$(resolve_primary_bot_token)"
@@ -557,16 +583,16 @@ resolve_primary_bot_token() {
 
 resolve_positive_probe_slack_token() {
   # Positive E2E probes must use a sender that the gateway should actually answer.
-  if [ -n "${OPENCLAW_MONITOR_E2E_SLACK_TOKEN:-}" ] && ! is_placeholder_token "$OPENCLAW_MONITOR_E2E_SLACK_TOKEN"; then
-    printf '%s|%s\n' "$OPENCLAW_MONITOR_E2E_SLACK_TOKEN" "OPENCLAW_MONITOR_E2E_SLACK_TOKEN"
+  if [ -n "${HERMES_MONITOR_E2E_SLACK_TOKEN:-}" ] && ! is_placeholder_token "$HERMES_MONITOR_E2E_SLACK_TOKEN"; then
+    printf '%s|%s\n' "$HERMES_MONITOR_E2E_SLACK_TOKEN" "HERMES_MONITOR_E2E_SLACK_TOKEN"
     return 0
   fi
   if [ -n "${SLACK_USER_TOKEN:-}" ] && ! is_placeholder_token "$SLACK_USER_TOKEN"; then
     printf '%s|%s\n' "$SLACK_USER_TOKEN" "SLACK_USER_TOKEN"
     return 0
   fi
-  if [ -n "${OPENCLAW_SLACK_USER_TOKEN:-}" ] && ! is_placeholder_token "$OPENCLAW_SLACK_USER_TOKEN"; then
-    printf '%s|%s\n' "$OPENCLAW_SLACK_USER_TOKEN" "OPENCLAW_SLACK_USER_TOKEN"
+  if [ -n "${HERMES_SLACK_USER_TOKEN:-}" ] && ! is_placeholder_token "$HERMES_SLACK_USER_TOKEN"; then
+    printf '%s|%s\n' "$HERMES_SLACK_USER_TOKEN" "HERMES_SLACK_USER_TOKEN"
     return 0
   fi
   printf '%s|%s\n' "" ""
@@ -758,7 +784,7 @@ run_slack_e2e_matrix_probe() {
   sender_source="${sender_line#*|}"
   if [ -z "$sender_token" ]; then
     SLACK_CANARY_RC=2
-    SLACK_CANARY_SUMMARY="Slack E2E matrix missing sender token (checked OPENCLAW_MONITOR_E2E_SLACK_TOKEN, SLACK_USER_TOKEN)"
+    SLACK_CANARY_SUMMARY="Slack E2E matrix missing sender token (checked HERMES_MONITOR_E2E_SLACK_TOKEN, SLACK_USER_TOKEN)"
     return "$SLACK_CANARY_RC"
   fi
 
@@ -871,7 +897,7 @@ run_slack_e2e_matrix_probe() {
 }
 
 # --- Initial probes (parallelized) ---
-# ── OpenClaw RC defaults ( Hermes-only mode skips OpenClaw block ) ─────
+# ── Hermes RC defaults ( Hermes-only mode skips Hermes block ) ─────
 HTTP_GATEWAY_RC=0
 WS_CHURN_RC=0
 PROBE_REQUEST_RC=0
@@ -894,7 +920,7 @@ MEMORY_LOOKUP_SUMMARY="not run"
 WS_CHURN_SUMMARY="not run"
 PHASE1_REMEDIATION_ACTIONS=()
 PHASE2_REMEDIATION_ACTIONS=()
-if openclaw_mon_enabled; then
+if hermes_mon_enabled; then
   HTTP_GATEWAY_RC=0
   WS_CHURN_RC=0
   PROBE_REQUEST_RC=0
@@ -909,10 +935,21 @@ _PROBE_TMPDIR="$(mktemp -d /tmp/monitor-init-probes.XXXXXX)"
   out=""
   rc=0
   if [ "$SLACK_READ_PROBE_ENABLED" = "1" ]; then
-    out="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
-    rc=$?
+    # hermes message read removed in v0.13 — use direct Slack API
+    _bot_token="${SLACK_BOT_TOKEN:-}"
+    if [ -z "$_bot_token" ]; then
+      out="slack_read_probe: SLACK_BOT_TOKEN not set"
+      rc=2
+    else
+      out="$(curl -sS --max-time 10 \
+        -H "Authorization: Bearer $_bot_token" \
+        -H "Content-Type: application/json" \
+        "https://slack.com/api/conversations.history?channel=${PROBE_SLACK_TARGET}&limit=1" 2>&1)"
+      rc=$?
+      if echo "$out" | grep -q '"ok":true'; then rc=0; else rc=2; fi
+    fi
   else
-    out="slack read probe disabled (OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
+    out="slack read probe disabled (HERMES_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
     rc=0
   fi
   printf '%s\n' "$rc" > "$_PROBE_TMPDIR/read.rc"
@@ -924,11 +961,22 @@ _PROBE_READ_PID=$!
   out=""
   rc=0
   if [ "$GATEWAY_PROBE_MESSAGE_ENABLED" = "1" ]; then
-    out="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" \
-      --message "OpenClaw monitor check started: $(date '+%Y-%m-%d %H:%M:%S %Z')" --json 2>&1)"
-    rc=$?
+    # hermes message send removed in v0.13 — use direct Slack API
+    _bot_token="${SLACK_BOT_TOKEN:-}"
+    if [ -z "$_bot_token" ]; then
+      out='{"ok":false,"error":"SLACK_BOT_TOKEN not set"}'
+      rc=1
+    else
+      out="$(curl -sS --max-time 10 -X POST \
+        -H "Authorization: Bearer $_bot_token" \
+        -H "Content-Type: application/json; charset=utf-8" \
+        --data "{\"channel\":\"${GATEWAY_PROBE_TARGET}\",\"text\":\"Hermes monitor check started: $(date '+%Y-%m-%d %H:%M:%S %Z')\"}" \
+        "https://slack.com/api/chat.postMessage" 2>&1)"
+      rc=$?
+      echo "$out" | grep -q '"ok":true' && rc=0 || rc=1
+    fi
   else
-    out="gateway startup probe message disabled (OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0)"
+    out="gateway startup probe message disabled (HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0)"
     rc=0
   fi
   printf '%s\n' "$rc" > "$_PROBE_TMPDIR/send.rc"
@@ -940,7 +988,7 @@ _PROBE_SEND_PID=$!
   out="$(curl -sS -X GET "$HTTP_GATEWAY_URL" \
     --connect-timeout "$HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS" \
     --max-time "$HTTP_GATEWAY_TIMEOUT_SECONDS" \
-    -H "X-OpenClaw-Monitor-Message: [monitor-http-probe] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+    -H "X-Hermes-Monitor-Message: [monitor-http-probe] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
     -H "Accept: application/json" \
     -w '\nHTTP_STATUS:%{http_code}' 2>&1)"
   rc=$?
@@ -1102,11 +1150,11 @@ run_token_probes() {
     fi
   ) & _tp_pids+=("$!:$td/slack_app")
 
-  # --- openai / mem0 token --- (skip entirely when openclaw-mem0 plugin is disabled)
+  # --- openai / mem0 token --- (skip entirely when hermes-mem0 plugin is disabled)
   local mem0_enabled openai_token
-  mem0_enabled="$(jq -r '.plugins.entries."openclaw-mem0".enabled // "false"' "$token_cfg" 2>/dev/null || true)"
+  mem0_enabled="$(jq -r '.plugins.entries."hermes-mem0".enabled // "false"' "$token_cfg" 2>/dev/null || true)"
   if [ "$mem0_enabled" = "true" ]; then
-    openai_token="$(resolve_secret_ref "$(jq -r '.plugins.entries."openclaw-mem0".config.oss.embedder.config.apiKey // empty' "$token_cfg" 2>/dev/null || true)")"
+    openai_token="$(resolve_secret_ref "$(jq -r '.plugins.entries."hermes-mem0".config.oss.embedder.config.apiKey // empty' "$token_cfg" 2>/dev/null || true)")"
     (
       if is_placeholder_token "$openai_token"; then
         printf 'WARN:mem0.openai.apiKey:missing/placeholder\n' > "$td/openai"
@@ -1164,8 +1212,8 @@ run_token_probes() {
 
   # --- mcp-agent-mail ---
   local mcp_mail_url mcp_mail_auth_raw mcp_mail_token
-  mcp_mail_url="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .url // empty' "$cfg" 2>/dev/null | head -n1)"
-  mcp_mail_auth_raw="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .headers.Authorization // empty' "$cfg" 2>/dev/null | head -n1)"
+  mcp_mail_url="$(jq -r '.plugins.entries."hermes-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .url // empty' "$cfg" 2>/dev/null | head -n1)"
+  mcp_mail_auth_raw="$(jq -r '.plugins.entries."hermes-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .headers.Authorization // empty' "$cfg" 2>/dev/null | head -n1)"
   mcp_mail_token="$(resolve_bearer_token_ref "$mcp_mail_auth_raw")"
   if [ -n "$mcp_mail_url" ]; then
     (
@@ -1248,14 +1296,14 @@ MEMORY_LOOKUP_RC=0
 MEMORY_LOOKUP_SUMMARY="memory lookup check not run"
 
 # Core markdown file health check
-# Tracks the 8 policy/identity files that openclaw reads at startup.
+# Tracks the 8 policy/identity files that hermes reads at startup.
 # Broken symlinks (pointing to non-existent workspace/ paths) are the primary failure mode.
 CORE_MD_RC=0
 CORE_MD_SUMMARY=""
 
-# Probe logic lives in scripts/core-md-probe.sh (single source of truth for prod + tests).
-# shellcheck source=scripts/core-md-probe.sh
-source "$(dirname "${BASH_SOURCE[0]}")/scripts/core-md-probe.sh"
+# Probe logic lives in lib/core-md-probe.sh (single source of truth for prod + tests).
+# shellcheck source=lib/core-md-probe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/core-md-probe.sh"
 
 run_core_md_probe() {
   CORE_MD_RC=0
@@ -1276,14 +1324,14 @@ run_memory_lookup_probe() {
   MEMORY_LOOKUP_RC=0
   MEMORY_LOOKUP_SUMMARY="memory lookup check passed"
 
-  if [ "${OPENCLAW_MONITOR_MEMORY_LOOKUP_ENABLE:-1}" != "1" ]; then
+  if [ "${HERMES_MONITOR_MEMORY_LOOKUP_ENABLE:-1}" != "1" ]; then
     MEMORY_LOOKUP_SUMMARY="memory lookup disabled"
     return 0
   fi
 
-  if ! command -v openclaw >/dev/null 2>&1; then
+  if ! command -v hermes >/dev/null 2>&1; then
     MEMORY_LOOKUP_RC=1
-    MEMORY_LOOKUP_SUMMARY="openclaw CLI missing"
+    MEMORY_LOOKUP_SUMMARY="hermes CLI missing"
     return "$MEMORY_LOOKUP_RC"
   fi
 
@@ -1296,16 +1344,16 @@ run_memory_lookup_probe() {
     return "$MEMORY_LOOKUP_RC"
   fi
   memory_slot="$(jq -r '.plugins.slots.memory // empty' "$memory_cfg" 2>/dev/null || true)"
-  if [ "$memory_slot" = "openclaw-mem0" ]; then
-    memory_cmd='openclaw mem0 search "test"'
+  if [ "$memory_slot" = "hermes-mem0" ]; then
+    memory_cmd='hermes mem0 search "test"'
   else
-    memory_cmd='openclaw memory search "test"'
+    memory_cmd='hermes memory search "test"'
   fi
   local memory_output
   memory_output="$(timeout "$memory_timeout" bash -lc "$memory_cmd" 2>&1)"
   local memory_rc=$?
   if printf '%s\n' "$memory_output" | grep -qiE "unknown command 'memory'|Did you mean mem0|memory.*command is unavailable because.*plugins\.allow|plugins\.allow.*excludes.*memory"; then
-    memory_output="$(timeout "$memory_timeout" openclaw mem0 search "test" 2>&1)"
+    memory_output="$(timeout "$memory_timeout" hermes mem0 search "test" 2>&1)"
     memory_rc=$?
   fi
 
@@ -1323,7 +1371,7 @@ run_memory_lookup_probe() {
   fi
 
   # mem0 plugin disabled in config — not an error, just skip
-  if printf '%s\n' "$memory_output" | grep -qi "openclaw-mem0: plugin disabled"; then
+  if printf '%s\n' "$memory_output" | grep -qi "hermes-mem0: plugin disabled"; then
     MEMORY_LOOKUP_RC=0
     MEMORY_LOOKUP_SUMMARY="memory lookup skipped (mem0 plugin disabled in config)"
     return 0
@@ -1370,7 +1418,7 @@ run_thread_reply_probe() {
 
   if [ -z "$THREAD_PROBE_SLACK_TOKEN" ]; then
     THREAD_REPLY_RC=3
-    THREAD_REPLY_SUMMARY="bot token missing for thread reply probe (checked SLACK_BOT_TOKEN, OPENCLAW_MONITOR_CANARY_BOT_TOKEN, ~/.mcp_mail/credentials.json)"
+    THREAD_REPLY_SUMMARY="bot token missing for thread reply probe (checked SLACK_BOT_TOKEN, HERMES_MONITOR_CANARY_BOT_TOKEN, ~/.mcp_mail/credentials.json)"
     return "$THREAD_REPLY_RC"
   fi
   if ! command -v jq >/dev/null 2>&1; then
@@ -1516,15 +1564,15 @@ run_memory_lookup_probe || true
 # WS churn check: detect Slack WebSocket cycling (event loop blocked → pong timeout → reconnect)
 WS_CHURN_RC=0
 WS_CHURN_SUMMARY="skipped"
-LOG_TODAY="/tmp/openclaw/openclaw-$(date +%F).log"
+LOG_TODAY="/tmp/hermes/hermes-$(date +%F).log"
 if [ -f "$LOG_TODAY" ]; then
-  WS_THRESHOLD="${OPENCLAW_MONITOR_WS_CHURN_THRESHOLD:-30}"
+  WS_THRESHOLD="${HERMES_MONITOR_WS_CHURN_THRESHOLD:-30}"
   # Only scan the last WS_LOOKBACK_MINUTES (default 60) to avoid false positives
   # from past incidents earlier in the same day's log file.
-  WS_LOOKBACK_MINUTES="${OPENCLAW_MONITOR_WS_CHURN_LOOKBACK:-60}"
+  WS_LOOKBACK_MINUTES="${HERMES_MONITOR_WS_CHURN_LOOKBACK:-60}"
   # Validate numeric (CR: non-numeric override would break date arithmetic)
   if ! [[ "$WS_LOOKBACK_MINUTES" =~ ^[0-9]+$ ]]; then
-    log "OPENCLAW_MONITOR_WS_CHURN_LOOKBACK='$WS_LOOKBACK_MINUTES' is not numeric; defaulting to 60"
+    log "HERMES_MONITOR_WS_CHURN_LOOKBACK='$WS_LOOKBACK_MINUTES' is not numeric; defaulting to 60"
     WS_LOOKBACK_MINUTES=60
   fi
   WS_CUTOFF=$(date -v-${WS_LOOKBACK_MINUTES}M '+%Y-%m-%dT%H:%M' 2>/dev/null || \
@@ -1613,10 +1661,10 @@ fi
 
 if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
   if [ "$SLACK_READ_PROBE_ENABLED" = "1" ]; then
-    PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
+    PROBE_REQUEST_OUTPUT="$("$HERMES_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
     PROBE_REQUEST_RC=$?
   else
-    PROBE_REQUEST_OUTPUT="slack read probe disabled (OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
+    PROBE_REQUEST_OUTPUT="slack read probe disabled (HERMES_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
     PROBE_REQUEST_RC=0
   fi
   PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
@@ -1626,9 +1674,14 @@ if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
   PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
   enforce_cli_output_fail_closed PROBE_REQUEST_RC PROBE_REQUEST_SUMMARY "slack_read_probe_post_phase1" "$PROBE_REQUEST_OUTPUT"
 
-  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 1: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
-  GATEWAY_PROBE_RC=$?
+  GATEWAY_PROBE_TEXT="Hermes monitor recheck after phase 1: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  # hermes message send removed in v0.13 — use direct Slack API
+  GATEWAY_PROBE_OUTPUT="$(curl -sS --max-time 10 -X POST \
+    -H "Authorization: Bearer ${SLACK_BOT_TOKEN:-}" \
+    -H "Content-Type: application/json; charset=utf-8" \
+    --data "{\"channel\":\"${GATEWAY_PROBE_TARGET}\",\"text\":\"${GATEWAY_PROBE_TEXT}\"}" \
+    "https://slack.com/api/chat.postMessage" 2>&1)"
+  echo "$GATEWAY_PROBE_OUTPUT" | grep -q '"ok":true' && GATEWAY_PROBE_RC=0 || GATEWAY_PROBE_RC=1
   GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
   if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
     GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
@@ -1640,7 +1693,7 @@ if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
     curl -sS -X GET "$HTTP_GATEWAY_URL" \
       --connect-timeout "$HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS" \
       --max-time "$HTTP_GATEWAY_TIMEOUT_SECONDS" \
-      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase1] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      -H "X-Hermes-Monitor-Message: [monitor-http-probe-post-phase1] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
       -H "Accept: application/json" \
       -w '\nHTTP_STATUS:%{http_code}' 2>&1
   )"
@@ -1670,12 +1723,12 @@ SLACK_CANARY_SUMMARY="Slack E2E matrix skipped"
 SLACK_CANARY_THREAD_TS=""
 
   run_slack_e2e_matrix_probe || true
-fi  # end OpenClaw monitoring
+fi  # end Hermes monitoring
 
 # ── Hermes monitoring (gated by MONITOR_SYSTEMS) ──────────────────────
 if [ "${MONITOR_SYSTEMS:-x}" != "x" ] && [[ "$MONITOR_SYSTEMS" =~ hermes ]]; then
-  Hermes_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.hermes}"
-  Hermes_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.hermes_prod}"
+  Hermes_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.smartclaw}"
+  Hermes_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.smartclaw_prod}"
   Hermes_MONITOR_ALERT_CHANNEL="${MONITOR_HERMES_ALERT_CHANNEL:-C0AJQ5M0A0Y}"
   Hermes_STATUS="GOOD"
   Hermes_RED_ROWS=()
@@ -1694,13 +1747,17 @@ if [ "${MONITOR_SYSTEMS:-x}" != "x" ] && [[ "$MONITOR_SYSTEMS" =~ hermes ]]; the
     if [ "$_h_env" = "staging" ]; then
       _h_home="$Hermes_MONITOR_STAGING_HOME"
       _h_label="Hermes staging"
+      _h_port="$HERMES_STAGING_PORT"
     else
       _h_home="$Hermes_MONITOR_PROD_HOME"
       _h_label="Hermes prod"
+      _h_port="$HERMES_PROD_PORT"
     fi
 
-    # 1. Process check
-    if pgrep -f "hermes_cli.main gateway run" > /dev/null 2>&1; then
+    # 1. Process check — port-based so staging and prod are distinguished.
+    # pgrep on $_hermes_proc_pattern matches BOTH gateways; lsof on the
+    # env-specific LISTEN port pins the check to the right instance.
+    if [ -n "$(hermes_gateway_pid_for_port "$_h_port")" ]; then
       _h_proc_ok=1
     fi
 
@@ -1778,16 +1835,20 @@ run_hermes_monitor() {
     local _h_api_ok=0
     local _h_log_age=0
 
+    local _h_port=""
     if [ "$_h_env" = "staging" ]; then
       _h_home="$HERMES_MONITOR_STAGING_HOME"
       _h_label="Hermes staging"
+      _h_port="$HERMES_STAGING_PORT"
     else
       _h_home="$HERMES_MONITOR_PROD_HOME"
       _h_label="Hermes prod"
+      _h_port="$HERMES_PROD_PORT"
     fi
 
-    # 1. Process check
-    if pgrep -f "$_hermes_proc_pattern" > /dev/null 2>&1; then
+    # 1. Process check — port-scoped so staging and prod do not satisfy each
+    # other via the shared `hermes ... gateway run` pattern.
+    if [ -n "$(hermes_gateway_pid_for_port "$_h_port")" ]; then
       _h_proc_ok=1
     fi
 
@@ -1892,7 +1953,7 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ]; then
     PHASE2_MODE="diagnose_and_fix"
   fi
 
-  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (openclaw doctor, openclaw config set, cp/mv/jq edits on ~/.smartclaw/openclaw.json)."
+  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (hermes doctor, hermes config set, cp/mv/jq edits on ~/.smartclaw/hermes.json)."
   if [ "$PHASE2_ALLOW_CONFIG_MUTATIONS" = "1" ]; then
     PHASE2_CONFIG_RULE="Config mutation is allowed, but only if directly required for the unresolved failures."
   fi
@@ -1935,12 +1996,18 @@ If mode is diagnose_only, return:
   _PHASE2_BG_PID=$!
 fi
 
+# Wait for Phase2 background job to complete before running post-phase2 recheck.
+if [ "${_PHASE2_BG_PID:-}" != "" ]; then
+  wait "$_PHASE2_BG_PID" 2>/dev/null || true
+  PHASE2_RC="$(cat "$_PHASE2_TMPDIR/rc" 2>/dev/null || echo 124)"
+fi
+
 if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOFIX_ENABLED" = "1" ] && [ "$PHASE2_RC" -eq 0 ]; then
   if [ "$SLACK_READ_PROBE_ENABLED" = "1" ]; then
-    PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
+    PROBE_REQUEST_OUTPUT="$("$HERMES_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
     PROBE_REQUEST_RC=$?
   else
-    PROBE_REQUEST_OUTPUT="slack read probe disabled (OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
+    PROBE_REQUEST_OUTPUT="slack read probe disabled (HERMES_MONITOR_SLACK_READ_PROBE_ENABLE=0)"
     PROBE_REQUEST_RC=0
   fi
   PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
@@ -1950,9 +2017,14 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOF
   PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
   enforce_cli_output_fail_closed PROBE_REQUEST_RC PROBE_REQUEST_SUMMARY "slack_read_probe_post_phase2" "$PROBE_REQUEST_OUTPUT"
 
-  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
-  GATEWAY_PROBE_RC=$?
+  GATEWAY_PROBE_TEXT="Hermes monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  # hermes message send removed in v0.13 — use direct Slack API
+  GATEWAY_PROBE_OUTPUT="$(curl -sS --max-time 10 -X POST \
+    -H "Authorization: Bearer ${SLACK_BOT_TOKEN:-}" \
+    -H "Content-Type: application/json; charset=utf-8" \
+    --data "{\"channel\":\"${GATEWAY_PROBE_TARGET}\",\"text\":\"${GATEWAY_PROBE_TEXT}\"}" \
+    "https://slack.com/api/chat.postMessage" 2>&1)"
+  echo "$GATEWAY_PROBE_OUTPUT" | grep -q '"ok":true' && GATEWAY_PROBE_RC=0 || GATEWAY_PROBE_RC=1
   GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
   if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
     GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
@@ -1964,7 +2036,7 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOF
     curl -sS -X GET "$HTTP_GATEWAY_URL" \
       --connect-timeout "$HTTP_GATEWAY_CONNECT_TIMEOUT_SECONDS" \
       --max-time "$HTTP_GATEWAY_TIMEOUT_SECONDS" \
-      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      -H "X-Hermes-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
       -H "Accept: application/json" \
       -w '\nHTTP_STATUS:%{http_code}' 2>&1
   )"
@@ -2014,12 +2086,12 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
       DOCTOR_SH_RC=$?
 
       # Intermittent hardening: retry once when failure appears to be only
-      # "openclaw gateway health command failed" (transient gateway blip).
-      DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL="${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL:-1}"
-      DOCTOR_SH_RETRY_DELAY_SEC="${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}"
+      # "hermes gateway health command failed" (transient gateway blip).
+      DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL="${HERMES_MONITOR_DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL:-1}"
+      DOCTOR_SH_RETRY_DELAY_SEC="${HERMES_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}"
       if [ "$DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL" = "1" ] \
         && [ "$DOCTOR_SH_RC" -ne 0 ] \
-        && printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -q '^\[FAIL\] openclaw gateway health command failed'; then
+        && printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -q '^\[FAIL\] hermes gateway health command failed'; then
         sleep "$DOCTOR_SH_RETRY_DELAY_SEC"
         _doctor_retry_output="$(run_monitor_doctor_sh)"
         _doctor_retry_rc=$?
@@ -2041,7 +2113,7 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
         DOCTOR_SH_LEVEL="warn"
       fi
       # Actionable summary: [FAIL] lines (doctor.sh uses this prefix), then [WARN], then Summary:,
-      # then last non-empty lines (avoids useless first line like "OpenClaw Repo Doctor").
+      # then last non-empty lines (avoids useless first line like "Hermes Repo Doctor").
       DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[FAIL\]' | head -5 | awk 'BEGIN{sep=""} {printf "%s%s", sep, $0; sep=" | "} END{print ""}' || true)"
       if [ -z "$DOCTOR_SH_SUMMARY" ]; then
         DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[WARN\]' | head -5 | awk 'BEGIN{sep=""} {printf "%s%s", sep, $0; sep=" | "} END{print ""}' || true)"
@@ -2057,7 +2129,7 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
       DOCTOR_SH_RAN=1
       DOCTOR_SH_RC=127
       DOCTOR_SH_LEVEL="bad"
-      DOCTOR_SH_SUMMARY="doctor.sh not found. Set OPENCLAW_MONITOR_DOCTOR_SH_PATH."
+      DOCTOR_SH_SUMMARY="doctor.sh not found. Set HERMES_MONITOR_DOCTOR_SH_PATH."
     fi
   fi
 fi
@@ -2068,7 +2140,7 @@ if [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ]; then
 fi
 
 # ao doctor: Agent Orchestrator environment health check
-AO_DOCTOR_ENABLED="${OPENCLAW_MONITOR_AO_DOCTOR_ENABLE:-1}"
+AO_DOCTOR_ENABLED="${HERMES_MONITOR_AO_DOCTOR_ENABLE:-1}"
 AO_DOCTOR_RAN=0
 AO_DOCTOR_RC=0
 AO_DOCTOR_LEVEL="skipped"
@@ -2118,9 +2190,9 @@ fi
 INFERENCE_PROBE_RC=0
 INFERENCE_PROBE_OUTPUT=""
 INFERENCE_PROBE_SUMMARY="skipped"
-if [ "$INFERENCE_PROBE_ENABLED" = "1" ] && [ -n "$OPENCLAW_BIN" ]; then
+if [ "$INFERENCE_PROBE_ENABLED" = "1" ] && [ -n "$HERMES_BIN" ]; then
   INFERENCE_PROBE_OUTPUT="$(timeout "$INFERENCE_PROBE_TIMEOUT" \
-    "$OPENCLAW_BIN" agent --agent main --thinking off --timeout "$INFERENCE_PROBE_TIMEOUT" \
+    "$HERMES_BIN" agent --agent main --thinking off --timeout "$INFERENCE_PROBE_TIMEOUT" \
     --message "Reply with exactly one word: pong" 2>&1)"
   INFERENCE_PROBE_RC=$?
   if [ "$INFERENCE_PROBE_RC" -eq 0 ] && [ -n "$INFERENCE_PROBE_OUTPUT" ]; then
@@ -2158,7 +2230,7 @@ if [ "$STATUS" = "GOOD" ]; then
   elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ]; then
     HUMAN_SUMMARY_LINES+=("doctor.sh failures (rc=$DOCTOR_SH_RC): ${DOCTOR_SH_SUMMARY:-no parsed detail}")
   elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
-    HUMAN_SUMMARY_LINES+=("doctor.sh transient gateway-health failure recovered after retry (${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}s backoff).")
+    HUMAN_SUMMARY_LINES+=("doctor.sh transient gateway-health failure recovered after retry (${HERMES_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}s backoff).")
   fi
   if [ "$AO_DOCTOR_RAN" -eq 1 ] && [ "$AO_DOCTOR_LEVEL" = "warn" ]; then
     # Extract first WARN line from ao doctor output so the summary is self-explaining
@@ -2173,8 +2245,8 @@ if [ "$STATUS" = "GOOD" ]; then
   [ "$CORE_MD_RC" -eq 2 ] && HUMAN_SUMMARY_LINES+=("Core markdown file(s) are empty: $CORE_MD_SUMMARY")
 else
   HUMAN_SUMMARY_LINES+=("One or more active checks are failing right now.")
-  [ "$PROBE_REQUEST_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("OpenClaw could not read recent Slack messages from channel $PROBE_SLACK_TARGET.")
-  [ "$GATEWAY_PROBE_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("OpenClaw could not send a Slack probe message to channel $GATEWAY_PROBE_TARGET.")
+  [ "$PROBE_REQUEST_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Hermes could not read recent Slack messages from channel $PROBE_SLACK_TARGET.")
+  [ "$GATEWAY_PROBE_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Hermes could not send a Slack probe message to channel $GATEWAY_PROBE_TARGET.")
   [ "$HTTP_GATEWAY_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Gateway HTTP health probe failed (status=$HTTP_GATEWAY_STATUS).")
   [ "$THREAD_REPLY_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Thread reply check found an unanswered human message or a recent failure marker in channel $THREAD_REPLY_CHANNEL.")
   [ "$TOKEN_PROBE_RC" -eq 1 ] && HUMAN_SUMMARY_LINES+=("At least one required token probe failed. See token_probes evidence for the exact token path.")
@@ -2323,11 +2395,11 @@ ISSUE_LINES=()
 ACTION_LINES=()
 
 if [ "$PROBE_REQUEST_RC" -ne 0 ]; then
-  ISSUE_LINES+=("${ICON_RED} OpenClaw could not read recent Slack messages from $PROBE_SLACK_TARGET.")
+  ISSUE_LINES+=("${ICON_RED} Hermes could not read recent Slack messages from $PROBE_SLACK_TARGET.")
   ACTION_LINES+=("${ICON_RED} Verify Slack auth and gateway connectivity for Slack reads.")
 fi
 if [ "$GATEWAY_PROBE_RC" -ne 0 ]; then
-  ISSUE_LINES+=("${ICON_RED} OpenClaw could not send Slack probe messages to $GATEWAY_PROBE_TARGET.")
+  ISSUE_LINES+=("${ICON_RED} Hermes could not send Slack probe messages to $GATEWAY_PROBE_TARGET.")
   ACTION_LINES+=("${ICON_RED} Verify Slack auth and gateway connectivity for Slack sends.")
 fi
 if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
@@ -2469,7 +2541,7 @@ if [ "$INFERENCE_PROBE_ENABLED" = "1" ]; then
   [ "$INFERENCE_PROBE_RC" -ne 0 ] && RED_ROWS+=("$(_row "Inference (LLM)" "$INFERENCE_STATUS_TEXT")") || true  # passing — omit
 fi
 
-SLACK_REPORT="*OpenClaw Monitor*  ·  $SLACK_REPORT_TIME
+SLACK_REPORT="*Hermes Monitor*  ·  $SLACK_REPORT_TIME
 *Overall: $OVERALL_STATUS_TEXT*"
 
 # RED table
@@ -2628,7 +2700,7 @@ send_report_to_slack() {
     return 2
   fi
 
-  # Hermes alerts use curl directly since openclaw CLI may be unavailable when Hermes is down
+  # Hermes alerts use curl directly since hermes CLI may be unavailable when Hermes is down
   if [ "$label" = "hermes-alert" ]; then
     local _hermes_bot_token
     _hermes_bot_token=$(HERMES_HOME="$HERMES_MONITOR_STAGING_HOME" bash -c 'source "$HERMES_HOME/.env" 2>/dev/null; echo "${SLACK_BOT_TOKEN:-}"' 2>/dev/null | head -1)
@@ -2648,8 +2720,14 @@ send_report_to_slack() {
     return 1
   fi
 
-  send_output="$("$OPENCLAW_BIN" message send --channel slack --target "$target" --message "$SLACK_REPORT" --json 2>&1)"
+  # hermes message send removed in v0.13 — use direct Slack API
+  send_output="$(curl -sS --max-time 15 -X POST \
+    -H "Authorization: Bearer ${SLACK_BOT_TOKEN:-}" \
+    -H "Content-Type: application/json; charset=utf-8" \
+    --data "{\"channel\":\"${target}\",\"text\":$(printf '%s' "$SLACK_REPORT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" \
+    "https://slack.com/api/chat.postMessage" 2>&1)"
   send_rc=$?
+  echo "$send_output" | grep -q '"ok":true' && send_rc=0 || send_rc=1
   printf '%s\n' "$send_output" >> "$LOG_FILE"
 
   if has_fail_closed_config_parse_signature "$send_output"; then
@@ -2674,7 +2752,7 @@ PROBLEM_TARGET="${FAILURE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 
 if [ "$STATUS" = "PROBLEM" ]; then
   if [ -z "$PROBLEM_TARGET" ] && [ -z "$ALERT_SLACK_TARGET" ]; then
-    log "STATUS=PROBLEM but OPENCLAW_MONITOR_FAILURE_SLACK_TARGET and OPENCLAW_MONITOR_SLACK_TARGET are unset; Slack delivery skipped."
+    log "STATUS=PROBLEM but HERMES_MONITOR_FAILURE_SLACK_TARGET and HERMES_MONITOR_SLACK_TARGET are unset; Slack delivery skipped."
     exit 0
   fi
 
@@ -2682,7 +2760,7 @@ if [ "$STATUS" = "PROBLEM" ]; then
   # send-alert-email.sh lives next to this script under scripts/.
   # Use subshell+sleep+kill timeout to avoid depending on GNU timeout(1) (not on plain macOS).
   if [ -x "$MONITOR_REPO_ROOT/scripts/send-alert-email.sh" ]; then
-    EMAIL_SUBJECT="[OpenClaw Monitor] STATUS=PROBLEM — $(ts)"
+    EMAIL_SUBJECT="[Hermes Monitor] STATUS=PROBLEM — $(ts)"
     (
       "$MONITOR_REPO_ROOT/scripts/send-alert-email.sh" "$EMAIL_SUBJECT" "$SLACK_REPORT" >> "$LOG_FILE" 2>&1
     ) &
@@ -2713,7 +2791,7 @@ else
       exit 1
     fi
   else
-    log "Non-PROBLEM status but OPENCLAW_MONITOR_SLACK_TARGET is unset; Slack delivery skipped."
+    log "Non-PROBLEM status but HERMES_MONITOR_SLACK_TARGET is unset; Slack delivery skipped."
   fi
 fi
 

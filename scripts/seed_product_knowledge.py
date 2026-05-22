@@ -42,7 +42,7 @@ STATIC_SOURCES: list[tuple[str, Path]] = [
     # CLAUDE.md files — dense with encoded rules, exceptions, intent
     ("PRODUCT/ARCHITECTURE", HOME / "projects/worldarchitect.ai/CLAUDE.md"),
     ("PRODUCT/ARCHITECTURE", HOME / "projects/worldai_claw/CLAUDE.md"),
-    # OpenClaw harness — identity + routing rules
+    # Hermes harness — identity + routing rules
     ("PRODUCT/INTENT",       HOME / ".smartclaw/SOUL.md"),
     ("PRODUCT/INTENT",       HOME / ".smartclaw/HEARTBEAT.md"),
     # Note: Add project-specific CLAUDE.md via CLI arg or env var for portability
@@ -79,7 +79,7 @@ ROADMAP_SEARCH_DIRS: list[Path] = [
 REPO_DIR_PATTERNS: dict[str, list[str]] = {
     "worldarchitect.ai": ["worldarchitect", "worldarchitect-ai"],
     "worldai_claw":      ["worldai-claw", "worldai_claw", "worldaiclaw"],
-    "smartclaw":      ["smartclaw", "project-smartclaw", "openclaw-workspace-smartclaw"],
+    "smartclaw":      ["smartclaw", "project-smartclaw", "hermes-workspace-smartclaw"],
 }
 
 CHUNK_SIZE = 800

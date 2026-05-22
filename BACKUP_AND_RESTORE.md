@@ -1,4 +1,4 @@
-# OpenClaw Backup & Restore Guide
+# Hermes Backup & Restore Guide
 
 **Never Lose Your Setup Again!**
 
@@ -6,7 +6,7 @@
 
 ## 🔐 What Gets Backed Up
 
-✅ **Configuration**: `~/.smartclaw/openclaw.json`
+✅ **Configuration**: `~/.smartclaw/hermes.json`
 ✅ **Credentials**: `~/.smartclaw/credentials/` (WhatsApp, Slack tokens)
 ✅ **LaunchAgent**: `~/Library/LaunchAgents/ai.smartclaw.gateway.plist`
 ✅ **Custom Scripts**: Health check, startup scripts
@@ -34,12 +34,12 @@ This will:
 
 ```bash
 # Create timestamped backup
-tar -czf ~/openclaw-backup-$(date +%Y%m%d).tar.gz \
+tar -czf ~/hermes-backup-$(date +%Y%m%d).tar.gz \
   ~/.smartclaw/ \
   ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 # Backup location
-ls -lh ~/openclaw-backup-*.tar.gz
+ls -lh ~/hermes-backup-*.tar.gz
 ```
 
 ---
@@ -49,18 +49,18 @@ ls -lh ~/openclaw-backup-*.tar.gz
 If you ever need to restore (new machine, reinstall, etc.):
 
 ```bash
-# Install OpenClaw first
-npm install -g openclaw@latest
+# Install Hermes first
+npm install -g hermes@latest
 
 # Restore backup
 cd ~
-tar -xzf openclaw-backup-YYYYMMDD.tar.gz
+tar -xzf hermes-backup-YYYYMMDD.tar.gz
 
 # Reload LaunchAgent
 launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 # Verify
-openclaw channels list
+hermes channels list
 ```
 
 ---
@@ -70,17 +70,17 @@ openclaw channels list
 ### Option 1: iCloud
 ```bash
 # Backup to iCloud
-cp -r ~/.smartclaw ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw-backup
+cp -r ~/.smartclaw ~/Library/Mobile\ Documents/com~apple~CloudDocs/hermes-backup
 ```
 
 ### Option 2: Encrypted Archive
 ```bash
 # Create encrypted backup
 tar -czf - ~/.smartclaw ~/Library/LaunchAgents/ai.smartclaw.gateway.plist | \
-  openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 -out ~/openclaw-encrypted-backup.tar.gz.enc
+  openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 -out ~/hermes-encrypted-backup.tar.gz.enc
 
 # To restore encrypted backup:
-openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 -in ~/openclaw-encrypted-backup.tar.gz.enc | \
+openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 -in ~/hermes-encrypted-backup.tar.gz.enc | \
   tar -xzf - -C ~
 ```
 
@@ -92,7 +92,7 @@ Your tokens are stored in:
 - **WhatsApp**: `~/.smartclaw/credentials/whatsapp/`
 - **Slack Bot Token**: `SLACK_BOT_TOKEN` environment variable
 - **Slack App Token**: `SLACK_APP_TOKEN` environment variable
-- **Gateway Token**: `~/.smartclaw/openclaw.json`
+- **Gateway Token**: `~/.smartclaw/hermes.json`
 
 **NEVER commit these to git or share publicly!**
 
@@ -102,14 +102,14 @@ Your tokens are stored in:
 
 If you lose everything and need to restore:
 
-- [ ] Install OpenClaw: `npm install -g openclaw@latest`
-- [ ] Restore backup: `tar -xzf openclaw-backup-DATE.tar.gz`
-- [ ] Install LaunchAgent: `openclaw gateway install`
-- [ ] Verify WhatsApp: `openclaw channels list`
+- [ ] Install Hermes: `npm install -g hermes@latest`
+- [ ] Restore backup: `tar -xzf hermes-backup-DATE.tar.gz`
+- [ ] Install LaunchAgent: `hermes gateway install`
+- [ ] Verify WhatsApp: `hermes channels list`
 - [ ] Test WhatsApp: Send test message
 - [ ] Verify Slack: Check Slack connection
 - [ ] Test Slack: Send test message
-- [ ] Check auto-start: `launchctl list | grep openclaw`
+- [ ] Check auto-start: `launchctl list | grep hermes`
 
 ---
 
@@ -122,12 +122,12 @@ cd ~/.smartclaw
 git init
 echo "credentials/" >> .gitignore
 echo "logs/" >> .gitignore
-echo "openclaw.json" >> .gitignore
+echo "hermes.json" >> .gitignore
 git add *.md *.sh
-git commit -m "OpenClaw configuration backup"
+git commit -m "Hermes configuration backup"
 
 # Push to private repo
-git remote add origin git@github.com:YOUR-USERNAME/openclaw-config-private.git
+git remote add origin git@github.com:YOUR-USERNAME/hermes-config-private.git
 git push -u origin main
 ```
 
@@ -156,7 +156,7 @@ If you lose your Slack tokens:
 **App Token:**
 1. Go to: Basic Information → App-Level Tokens
 2. Generate new token with `connections:write` scope
-3. Update OpenClaw configuration
+3. Update Hermes configuration
 
 **WhatsApp:**
 - Cannot be recovered - must relink
@@ -169,7 +169,7 @@ If you lose your Slack tokens:
 ✓ LaunchAgent auto-starts on boot
 ✓ Health check runs every 5 minutes
 ✓ Logs preserved in `~/.smartclaw/logs/`
-✓ Configuration backed up on every `openclaw doctor --fix`
+✓ Configuration backed up on every `hermes doctor --fix`
 ✓ Crontab persists across reboots
 
 ---

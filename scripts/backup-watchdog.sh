@@ -2,7 +2,7 @@
 # backup-watchdog.sh — fires Slack webhook + email if newest backup is >6h old.
 #
 # Intended to run hourly via cron: 0 * * * * /path/to/backup-watchdog.sh
-# Install via: scripts/install-openclaw-backup-jobs.sh
+# Install via: scripts/install-hermes-backup-jobs.sh
 #
 # Required env vars for alerts (set in ~/.profile or cron env):
 #   SLACK_BACKUP_WEBHOOK  — Slack incoming webhook URL
@@ -19,7 +19,7 @@ SNAP_BASE="$REPO_ROOT/.smartclaw-backups"
 MAX_AGE_SECONDS=21600  # 6 hours
 SMTP_SERVER="smtp.gmail.com"
 SMTP_PORT="587"
-LOG_DIR="${HOME}/Library/Logs/openclaw-backup"
+LOG_DIR="${HOME}/Library/Logs/hermes-backup"
 LOG_FILE="$LOG_DIR/backup-watchdog.log"
 mkdir -p "$LOG_DIR"
 
@@ -48,7 +48,7 @@ fi
 NEWEST_TS="$(newest_backup_ts)"
 
 if [[ -z "$NEWEST_TS" ]]; then
-  SUBJECT="ALERT: OpenClaw backup — no snapshots found on $(hostname)"
+  SUBJECT="ALERT: Hermes backup — no snapshots found on $(hostname)"
   BODY="No backup snapshots found under $SNAP_BASE on $(hostname) at $(TS)."
   AGE_HOURS="unknown"
 else
@@ -73,8 +73,8 @@ else
     exit 0
   fi
 
-  SUBJECT="ALERT: OpenClaw backup stale — last backup ${AGE_HOURS}h ago on $(hostname)"
-  BODY="OpenClaw backup watchdog alert.
+  SUBJECT="ALERT: Hermes backup stale — last backup ${AGE_HOURS}h ago on $(hostname)"
+  BODY="Hermes backup watchdog alert.
 
 Host: $(hostname)
 Newest snapshot: $NEWEST_TS
@@ -82,10 +82,10 @@ Age: ${AGE_HOURS}h (threshold: 6h)
 Snapshot base: $SNAP_BASE
 Time: $(TS)
 
-All three schedulers (launchd, openclaw-cron, system cron) appear to have missed.
+All three schedulers (launchd, hermes-cron, system cron) appear to have missed.
 Check:
-  tail -50 ~/Library/Logs/openclaw-backup/openclaw-backup.log
-  launchctl list | grep openclaw
+  tail -50 ~/Library/Logs/hermes-backup/hermes-backup.log
+  launchctl list | grep hermes
   crontab -l"
 fi
 
