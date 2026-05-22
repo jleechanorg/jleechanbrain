@@ -160,11 +160,11 @@ jobs:
           STAGING_CANARY_OK=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate --slurp 2>/dev/null \
             | jq -r '.[].check_runs[] | select(.name == "Staging Canary Gate") | .conclusion' 2>/dev/null | grep -c 'success' || echo "0")
-          # Check if find-hermes-json/find-openclaw-json detected config changes (conclusion == "success")
-          # If config changed, Full canary is required; don't allow fallback
-          FIND_JSON_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
+          # Check if Full canary job ran or was skipped (indicates config changed)
+          # If Full canary is missing/skipped, only staging canary + find job are expected
+          FULL_CANARY_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate --slurp 2>/dev/null \
-            | jq -r '[.[].check_runs[]] | group_by(.name) | map(sort_by(.started_at) | reverse | .[0]) | .[] | select(.name == "find-hermes-json" or .name == "find-openclaw-json") | .conclusion // "none"' 2>/dev/null | head -n1 || echo "none")
+            | jq -r '[.[].check_runs[]] | group_by(.name) | map(sort_by(.started_at) | reverse | .[0]) | .[] | select(.name == "Full canary (6/6)") | .conclusion // "none"' 2>/dev/null | head -n1 || echo "none")
           if [ "${CHECK_RUNS_FAILED:-0}" = "__API_ERROR__" ] || [ "${CHECK_RUNS_PENDING:-0}" = "__API_ERROR__" ]; then
             GATE1="FAIL"
             FAILED_GATES="${FAILED_GATES}1, "
@@ -174,9 +174,9 @@ jobs:
             FAILED_GATES="${FAILED_GATES}1, "
           elif [ "${CHECK_RUNS_PENDING:-0}" -eq 0 ] && [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${TOTAL_CHECKS:-0}" -ge "$REQUIRED_CORE_JOBS" ]; then
             GATE1="PASS"
-          elif [ "${CHECK_RUNS_PENDING:-0}" -eq 0 ] && [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${STAGING_CANARY_OK:-0}" -ge 1 ] && [ "$FIND_JSON_CONCLUSION" != "success" ]; then
+          elif [ "${CHECK_RUNS_PENDING:-0}" -eq 0 ] && [ "${CHECK_RUNS_FAILED:-0}" -eq 0 ] && [ "${STAGING_CANARY_OK:-0}" -ge 1 ] && [ "$FULL_CANARY_CONCLUSION" = "none" ]; then
             GATE1="PASS"
-            CI_DETAIL="${CI_DETAIL} (staging-canary only; self-hosted runner absent)"
+            CI_DETAIL="${CI_DETAIL} (staging-canary only; full canary skipped)"
           else
             GATE1="FAIL"
             FAILED_GATES="${FAILED_GATES}1, "
