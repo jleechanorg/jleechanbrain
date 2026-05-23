@@ -48,6 +48,7 @@ jobs:
     needs: find-openclaw-json
     if: |
       needs.find-openclaw-json.outputs.found == 'true' &&
+      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id &&
       github.repository == 'jleechanorg/smartclaw' &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: [self-hosted, openclaw-staging]

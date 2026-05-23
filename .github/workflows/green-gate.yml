@@ -73,7 +73,26 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
-          REQUIRED_CORE_JOBS=3
+          
+          # Detect if openclaw.json is in the PR diff to determine expected core jobs
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...$HEAD_SHA" 2>/dev/null || echo "")
+          OPENCLAW_CHANGED=false
+          for f in $CHANGED; do
+            case "$f" in
+              openclaw.json|*/openclaw.json) OPENCLAW_CHANGED=true ;;
+            esac
+          done
+          
+          # Full canary only runs when openclaw.json changes; otherwise expect 2 core jobs
+          if [ "$OPENCLAW_CHANGED" = true ]; then
+            REQUIRED_CORE_JOBS=3
+            echo "openclaw.json changed — expecting 3 core jobs (including Full canary)"
+          else
+            REQUIRED_CORE_JOBS=2
+            echo "openclaw.json unchanged — expecting 2 core jobs (Staging Canary Gate, find-openclaw-json)"
+          fi
+          
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
