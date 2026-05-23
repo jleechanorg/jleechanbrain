@@ -494,13 +494,6 @@ else
   HOMEBREW_BASH="/bin/bash"
 fi
 
-# Resolve GITHUB_TOKEN for templates that need it (e.g. lifecycle-agent-orchestrator).
-# Precedence: env var > ~/.bashrc export
-GITHUB_TOKEN_VAL="${GITHUB_TOKEN:-}"
-if [[ -z "$GITHUB_TOKEN_VAL" ]]; then
-  GITHUB_TOKEN_VAL=$(grep -E '^export GITHUB_TOKEN=' ~/.bashrc 2>/dev/null | tail -1 | sed "s/^export GITHUB_TOKEN=[\"']*//;s/[\"']*\$//" || true)
-fi
-
 install_plist() {
   local src="$1"
   local base label
@@ -516,13 +509,6 @@ install_plist() {
   AO_DASHBOARD_DIR="${AO_DASHBOARD_DIR:-${HOME}/projects_reference/agent-orchestrator/packages/web}"
 
   mkdir -p "$LAUNCHD_DIR" "$HOME/.smartclaw/logs" "$HOME/.smartclaw/logs/scheduled-jobs"
-
-  # Guard: fail fast if template requires @GITHUB_TOKEN@/@GH_TOKEN@ but token is unresolved
-  if grep -qE '@(GITHUB_TOKEN|GH_TOKEN)@' "$src" 2>/dev/null && [[ -z "$GITHUB_TOKEN_VAL" ]]; then
-    echo "  ✗ $base: requires @GITHUB_TOKEN@ or @GH_TOKEN@ but GITHUB_TOKEN is not set (env or ~/.bashrc)" >&2
-    return 1
-  fi
-
   sed \
     -e "s|PLACEHOLDER_MC_TOKEN|$(_esc_sed "$MC_TOKEN")|g" \
     -e "s|@HOME@|$(_esc_sed "$HOME")|g" \
@@ -535,14 +521,7 @@ install_plist() {
     -e "s|@OPENCLAW_EXTRA_PATH@|$(_esc_sed "$OPENCLAW_EXTRA_PATH")|g" \
     -e "s|@OPENCLAW_BIN@|$(_esc_sed "$OPENCLAW_BIN")|g" \
     -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
-    -e "s|@GITHUB_TOKEN@|$(_esc_sed "$GITHUB_TOKEN_VAL")|g" \
     "$src" > "$dst"
-
-  # Derive label from the plist's <Label> key, not the filename.
-  # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
-  local plist_label
-  plist_label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$dst" 2>/dev/null || true)"
-  [[ -n "$plist_label" ]] && label="$plist_label"
 
   # Unregister any existing job with this label first. Re-running install when the
   # service is already loaded causes `launchctl bootstrap` to fail with EIO (exit 5).
@@ -738,7 +717,7 @@ if [[ "$OS" == "macos" ]]; then
   # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Install canonical gateway plist. Clean up legacy com.smartclaw.gateway if present.
-  if install_plist "$REPO_DIR/launchd/smartclaw.gateway.plist.template"; then
+  if install_plist "$REPO_DIR/launchd/ai.smartclaw.gateway.plist"; then
     # Tear down legacy com.smartclaw.gateway if it exists (migration from old label).
     launchctl bootout "gui/$(id -u)/com.smartclaw.gateway" 2>/dev/null || true
     rm -f "$LAUNCHD_DIR/com.smartclaw.gateway.plist"
@@ -771,8 +750,8 @@ if [[ "$OS" == "macos" ]]; then
     launchctl bootout "gui/$(id -u)/ai.smartclaw.staging" 2>/dev/null || true
     rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist"
   fi
-  if [[ -f "$REPO_DIR/launchd/smartclaw.staging.plist.template" ]]; then
-    install_plist "$REPO_DIR/launchd/smartclaw.staging.plist.template"
+  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist" ]]; then
+    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist"
   else
     echo "  • skipping ai.smartclaw.staging (plist not in repo — opt-in)"
   fi
@@ -793,7 +772,7 @@ fi
 # --- monitor-agent (periodic health monitoring) ---
 MONITOR_AGENT_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
-  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/smartclaw.monitor-agent.plist.template"
+  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist"
   if [[ -f "$MONITOR_AGENT_PLIST" ]]; then
     install_plist "$MONITOR_AGENT_PLIST"
     MONITOR_AGENT_INSTALLED=1
@@ -818,7 +797,7 @@ if [[ "$OS" == "macos" ]]; then
       cp "$ANTIG_CMUX_SCRIPT" "$_antig_dst"
     fi
     chmod +x "$_antig_dst"
-    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/smartclaw.antig-cmux-loop.plist.template"
+    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist"
     if [[ -f "$ANTIG_CMUX_PLIST" ]]; then
       install_plist "$ANTIG_CMUX_PLIST"
       echo "  ✓ ai.smartclaw.antig-cmux-loop installed"
@@ -1048,26 +1027,20 @@ if [[ "$OS" == "macos" ]]; then
   [[ "$AGENTO_DASHBOARD_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.agento.dashboard")
 
   # Scheduled job labels — only add if scheduled jobs were actually installed
-  # NOTE: Keep this list in sync with launchd/smartclaw.schedule.*.plist.template filenames
+  # NOTE: Keep this list in sync with launchd/ai.smartclaw.schedule.*.plist.template filenames
   if [[ "$SCHEDULED_JOBS_INSTALLED" -eq 1 ]]; then
-    for tmpl in "$REPO_DIR"/launchd/smartclaw.schedule.*.plist.template; do
+    for tmpl in "$REPO_DIR"/launchd/ai.smartclaw.schedule.*.plist.template; do
       [[ -f "$tmpl" ]] || continue
-      # Derive label from the plist's <Label> key, not the filename.
-      # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
-      label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$tmpl" 2>/dev/null || true)"
-      # Skip if Label key is missing — filename-based fallback would give wrong prefix
-      [[ -n "$label" ]] || continue
+      label="${tmpl%.plist.template}"
+      label="$(basename "$label")"
       EXPECTED_LABELS+=("$label")
     done
   fi
 
   # Also pick up any plist already in LAUNCHD_DIR (backwards compat)
-  for plist in "$LAUNCHD_DIR"/smartclaw.schedule.*.plist; do
+  for plist in "$LAUNCHD_DIR"/ai.smartclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
-    label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$plist" 2>/dev/null || true)"
-    # Skip if Label key is missing — filename-based fallback would give wrong prefix
-    [[ -n "$label" ]] || continue
-    EXPECTED_LABELS+=("$label")
+    EXPECTED_LABELS+=("$(basename "$plist" .plist)")
   done
   [[ -f "$MC_BACKEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control")
   [[ -f "$MC_FRONTEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control-frontend")

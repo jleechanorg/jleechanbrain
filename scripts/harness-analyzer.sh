@@ -10,7 +10,7 @@ set -e
 REPO="jleechanorg/smartclaw"
 WORK_DIR="/tmp/harness-analyzer-$$"
 LOG_FILE="$HOME/.smartclaw/logs/harness-analyzer.log"
-GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN-$HOME/.github_token}"
+GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN:-$HOME/.github_token}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"

@@ -7,7 +7,7 @@ set -u
 HERMES_BIN="${HERMES_BIN:-hermes}"
 HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.hermes}"
 HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.hermes_prod}"
-HERMES_PROD_HTTP_PORT="${HERMES_PROD_HTTP_PORT:-8642}"
+OPENCLAW_PROD_HEALTH_URL="${OPENCLAW_PROD_HEALTH_URL:-http://127.0.0.1:18789/health}"
 
 PASS=0
 FAIL=0
@@ -24,25 +24,22 @@ echo ""
 # ── Hermes staging ────────────────────────────────────────────
 info "Hermes staging (HERMES_HOME=$HERMES_STAGING_HOME)"
 
-# Use launchd state as authoritative — hermes gateway status reports all hermes PIDs
-STAGING_LAUNCHD=$(launchctl print gui/$(id -u)/ai.hermes-staging 2>&1 | grep "state =")
-if echo "$STAGING_LAUNCHD" | grep -q "state = running"; then
+STAGING_GW=$(HERMES_HOME="$HERMES_STAGING_HOME" "$HERMES_BIN" gateway status 2>&1)
+if echo "$STAGING_GW" | grep -q "Gateway is running"; then
     pass "Hermes staging gateway running"
 else
-    warn "Hermes staging gateway NOT running (non-blocking for prod deploy)"
+    fail "Hermes staging gateway NOT running"
 fi
 
 STAGING_STAT=$(HERMES_HOME="$HERMES_STAGING_HOME" "$HERMES_BIN" status 2>&1)
 if echo "$STAGING_STAT" | grep "Slack" | grep -q "✓"; then
     pass "Hermes staging Slack: configured"
 elif echo "$STAGING_STAT" | grep "Slack" | grep -q "✗"; then
-    warn "Hermes staging Slack: not configured (non-blocking)"
+    fail "Hermes staging Slack: error"
 else
     warn "Hermes staging Slack: unknown"
 fi
 
-# Token conflict check requires hermes gateway status (not available via launchctl)
-STAGING_GW=$(HERMES_HOME="$HERMES_STAGING_HOME" "$HERMES_BIN" gateway status 2>&1)
 if echo "$STAGING_GW" | grep -q "token already in use"; then
     # Discord/Telegram conflicts are expected when two instances share auth.json
     # Only Slack matters — both have separate tokens; downgrade to warn
@@ -74,18 +71,27 @@ else
 fi
 
 if echo "$PROD_GW" | grep -q "token already in use"; then
-    # Only warn (deploy context) when both staging and prod are running.
-    # If only prod is running, a token conflict is a real failure.
-    staging_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes-staging" || true)
-    prod_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes.prod" || true)
-    conflict_msg=$(echo "$PROD_GW" | grep 'token already in use' | head -1 | sed 's/^[ ]*⚠ //' | sed 's/ Stop.*//')
-    if [[ "$staging_count" -gt 0 && "$prod_count" -gt 0 ]]; then
-        warn "Hermes prod platform conflict (both instances running — deploy restart expected): $conflict_msg"
-    else
-        fail "Hermes prod platform conflict: $conflict_msg"
-    fi
+    fail "Hermes prod platform conflict: $(echo "$PROD_GW" | grep 'token already in use' | head -1)"
 else
     pass "Hermes prod no token conflicts"
+fi
+
+echo ""
+
+# ── OpenClaw prod (AO path) ──────────────────────────────────
+info "OpenClaw prod health (AO path)"
+OC_STATUS=$(curl -fsS -m 10 "$OPENCLAW_PROD_HEALTH_URL" 2>&1)
+if echo "$OC_STATUS" | grep -q '"ok":true'; then
+    pass "OpenClaw prod HTTP health OK"
+else
+    fail "OpenClaw prod HTTP health FAIL: $OC_STATUS"
+fi
+
+OPENCLAW_GW_HEALTH=$(OPENCLAW_STATE_DIR=~/.smartclaw_prod openclaw gateway health --timeout 30000 2>&1 | grep -v ExperimentalWarning | tail -5)
+if echo "$OPENCLAW_GW_HEALTH" | grep -q "Slack: ok"; then
+    pass "OpenClaw prod Slack (staging tokens): ok"
+else
+    warn "OpenClaw prod Slack: $(echo "$OPENCLAW_GW_HEALTH" | grep Slack)"
 fi
 
 echo ""

@@ -15,10 +15,10 @@ LOCK_STALE_SECONDS="${OPENCLAW_MONITOR_LOCK_STALE_SECONDS:-7200}"
 export PATH="$HOME/.nvm/versions/node/v22.22.0/bin:$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
-ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
+ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 # On failures, send the full monitor report to the monitoring channel (${SLACK_CHANNEL_ID}).
 # The all-jleechan-ai channel (${SLACK_CHANNEL_ID}) should not receive monitor reports.
-FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
+FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
 SLACK_READ_PROBE_ENABLED="${OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE:-1}"
@@ -31,7 +31,7 @@ SLACK_API_BASE="${OPENCLAW_MONITOR_SLACK_API_BASE:-https://slack.com/api}"
 CANARY_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_CANARY_TIMEOUT_SECONDS:-45}"
 CANARY_POLL_INTERVAL_SECONDS="${OPENCLAW_MONITOR_CANARY_POLL_INTERVAL_SECONDS:-3}"
 SLACK_E2E_MATRIX_ENABLED="${OPENCLAW_MONITOR_SLACK_E2E_MATRIX_ENABLE:-1}"
-SLACK_E2E_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET:-${SLACK_CHANNEL_ID:-}}"
+SLACK_E2E_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_CHANNEL_TARGET:-${SLACK_CHANNEL_ID}}"
 SLACK_E2E_THREAD_CHANNEL_TARGET="${OPENCLAW_MONITOR_SLACK_E2E_THREAD_CHANNEL_TARGET:-C0AJ3SD5C79}"
 SLACK_E2E_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_SLACK_E2E_TIMEOUT_SECONDS:-180}"
 SLACK_E2E_POLL_INTERVAL_SECONDS="${OPENCLAW_MONITOR_SLACK_E2E_POLL_INTERVAL_SECONDS:-$CANARY_POLL_INTERVAL_SECONDS}"
@@ -46,16 +46,7 @@ FAIL_CLOSED_CONFIG_SIGNATURES_ENABLED="${OPENCLAW_MONITOR_FAIL_CLOSED_CONFIG_SIG
 # Optional explicit token for canary sender identity (prefer dedicated second bot).
 MONITOR_CANARY_BOT_TOKEN="${OPENCLAW_MONITOR_CANARY_BOT_TOKEN:-}"
 STATUS_BROADCAST_ENABLED="${OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE:-1}"
-STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
-
-# Which systems to monitor: "openclaw", "hermes", or "openclaw,hermes" (default)
-# Set to "hermes" to skip all OpenClaw probes (useful when OpenClaw is not running)
-MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-openclaw,hermes}"
-
-# Helper to check if OpenClaw monitoring is enabled
-openclaw_mon_enabled() {
-  [[ "$MONITOR_SYSTEMS" =~ openclaw ]]
-}
+STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 THREAD_REPLY_CHECK_ENABLED="${OPENCLAW_MONITOR_THREAD_REPLY_CHECK:-1}"
 THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
 THREAD_REPLY_LOOKBACK_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_LOOKBACK_SECONDS:-21600}"
@@ -78,11 +69,6 @@ if [ "${OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE:-unset}" = "unset" ] \
    && [ "$DOCTOR_SH_ALWAYS" = "1" ]; then
   INFERENCE_PROBE_ENABLED="0"
 fi
-
-# ── Icon definitions (used by both OpenClaw and Hermes monitoring) ──────
-ICON_GREEN="🟢"
-ICON_YELLOW="🟡"
-ICON_RED="🔴"
 
 # ── Hermes monitoring config ─────────────────────────────────────────
 HERMES_MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-openclaw,hermes}"
@@ -871,38 +857,6 @@ run_slack_e2e_matrix_probe() {
 }
 
 # --- Initial probes (parallelized) ---
-# ── OpenClaw RC defaults ( Hermes-only mode skips OpenClaw block ) ─────
-HTTP_GATEWAY_RC=0
-WS_CHURN_RC=0
-PROBE_REQUEST_RC=0
-GATEWAY_PROBE_RC=0
-SLACK_CANARY_RC=0
-THREAD_REPLY_RC=0
-TOKEN_PROBE_RC=0
-MEMORY_LOOKUP_RC=0
-CORE_MD_RC=0
-CORE_MD_SUMMARY=""
-
-PROBE_REQUEST_SUMMARY="not run"
-GATEWAY_PROBE_SUMMARY="not run"
-HTTP_GATEWAY_STATUS="0"
-HTTP_GATEWAY_SUMMARY="not run"
-SLACK_CANARY_SUMMARY="skipped (hermes-only mode)"
-THREAD_REPLY_SUMMARY="not run"
-TOKEN_PROBE_SUMMARY="not run"
-MEMORY_LOOKUP_SUMMARY="not run"
-WS_CHURN_SUMMARY="not run"
-PHASE1_REMEDIATION_ACTIONS=()
-PHASE2_REMEDIATION_ACTIONS=()
-if openclaw_mon_enabled; then
-  HTTP_GATEWAY_RC=0
-  WS_CHURN_RC=0
-  PROBE_REQUEST_RC=0
-  GATEWAY_PROBE_RC=0
-  SLACK_CANARY_RC=0
-  THREAD_REPLY_RC=0
-  TOKEN_PROBE_RC=0
-
 _PROBE_TMPDIR="$(mktemp -d /tmp/monitor-init-probes.XXXXXX)"
 
 (
@@ -1253,9 +1207,9 @@ MEMORY_LOOKUP_SUMMARY="memory lookup check not run"
 CORE_MD_RC=0
 CORE_MD_SUMMARY=""
 
-# Probe logic lives in scripts/core-md-probe.sh (single source of truth for prod + tests).
-# shellcheck source=scripts/core-md-probe.sh
-source "$(dirname "${BASH_SOURCE[0]}")/scripts/core-md-probe.sh"
+# Probe logic lives in lib/core-md-probe.sh (single source of truth for prod + tests).
+# shellcheck source=lib/core-md-probe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/core-md-probe.sh"
 
 run_core_md_probe() {
   CORE_MD_RC=0
@@ -1658,10 +1612,10 @@ if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
     HTTP_GATEWAY_RC=1
   fi
 
-  type run_token_probes >/dev/null 2>&1 && run_token_probes || true
-  type run_thread_reply_probe >/dev/null 2>&1 && run_thread_reply_probe || true
-  type run_core_md_probe >/dev/null 2>&1 && run_core_md_probe || true
-  type run_memory_lookup_probe >/dev/null 2>&1 && run_memory_lookup_probe || true
+  run_token_probes || true
+  run_thread_reply_probe || true
+  run_core_md_probe || true
+  run_memory_lookup_probe || true
 fi
 
 SLACK_CANARY_TEXT="[monitor-e2e-slack-matrix] $(date '+%Y-%m-%d %H:%M:%S %Z')"
@@ -1669,94 +1623,12 @@ SLACK_CANARY_RC=0
 SLACK_CANARY_SUMMARY="Slack E2E matrix skipped"
 SLACK_CANARY_THREAD_TS=""
 
-  run_slack_e2e_matrix_probe || true
-fi  # end OpenClaw monitoring
+run_slack_e2e_matrix_probe || true
 
-# ── Hermes monitoring (gated by MONITOR_SYSTEMS) ──────────────────────
-if [ "${MONITOR_SYSTEMS:-x}" != "x" ] && [[ "$MONITOR_SYSTEMS" =~ hermes ]]; then
-  Hermes_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.hermes}"
-  Hermes_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.hermes_prod}"
-  Hermes_MONITOR_ALERT_CHANNEL="${MONITOR_HERMES_ALERT_CHANNEL:-C0AJQ5M0A0Y}"
-  Hermes_STATUS="GOOD"
-  Hermes_RED_ROWS=()
-  Hermes_YELLOW_ROWS=()
-  Hermes_ACTION_LINES=()
-
-  for _h_env in staging prod; do
-    _h_home=""
-    _h_label=""
-    _h_proc_ok=0
-    _h_log_ok=0
-    _h_slack_ok=0
-    _h_api_ok=0
-    _h_log_age=0
-
-    if [ "$_h_env" = "staging" ]; then
-      _h_home="$Hermes_MONITOR_STAGING_HOME"
-      _h_label="Hermes staging"
-    else
-      _h_home="$Hermes_MONITOR_PROD_HOME"
-      _h_label="Hermes prod"
-    fi
-
-    # 1. Process check
-    if pgrep -f "hermes_cli.main gateway run" > /dev/null 2>&1; then
-      _h_proc_ok=1
-    fi
-
-    # 2. Log activity (< 90s old)
-    _h_log="${_h_home}/logs/gateway.log"
-    if [ -f "$_h_log" ]; then
-      _h_log_age=$(($(date +%s) - $(stat -f %m "$_h_log" 2>/dev/null || echo 0)))
-      [ "$_h_log_age" -lt 90 ] && _h_log_ok=1
-    fi
-
-    # 3. Platform status via "hermes status"
-    _h_stat=$(HERMES_HOME="$_h_home" hermes status 2>&1)
-    if echo "$_h_stat" | grep "Slack" | grep -q "✓"; then
-      _h_slack_ok=1
-    fi
-
-    # 4. MiniMax API reachability
-    _h_api_key=$(HERMES_HOME="$_h_home" bash -c 'source "$HERMES_HOME/.env" 2>/dev/null; echo "${MINIMAX_API_KEY:-${ANTHROPIC_AUTH_TOKEN:-}}"' 2>/dev/null | head -1)
-    if [ -n "$_h_api_key" ] && [ "${#_h_api_key}" -gt 20 ]; then
-      _h_api_result=$(curl -s -m 10 -X POST "https://api.minimax.io/v1/text/chatcompletion_v2" \
-        -H "Authorization: Bearer $_h_api_key" \
-        -H "Content-Type: application/json" \
-        -d '{"model":"MiniMax-M2.7","messages":[{"role":"user","content":"hi"}],"max_tokens":5}' 2>&1)
-      if echo "$_h_api_result" | grep -q '"id":"'; then
-        _h_api_ok=1
-      fi
-    fi
-
-    # Build status row
-    _h_row_icon="${ICON_GREEN}"
-    _h_row_detail=""
-
-    if [ "$_h_proc_ok" -eq 0 ]; then
-      _h_row_icon="${ICON_RED}"
-      _h_row_detail="process down"
-      Hermes_STATUS="PROBLEM"
-    elif [ "$_h_api_ok" -eq 0 ]; then
-      _h_row_icon="${ICON_RED}"
-      _h_row_detail="API unreachable"
-      Hermes_STATUS="PROBLEM"
-    elif [ "$_h_log_ok" -eq 0 ]; then
-      _h_row_icon="${ICON_YELLOW}"
-      _h_row_detail="log stale \(${_h_log_age}s old\)"
-    elif [ "$_h_slack_ok" -eq 0 ]; then
-      _h_row_icon="${ICON_YELLOW}"
-      _h_row_detail="Slack not configured"
-    fi
-
-    if [ "$_h_row_icon" = "${ICON_RED}" ]; then
-      Hermes_RED_ROWS+=("$_h_label | ${_h_row_icon} ${_h_row_detail}")
-      Hermes_ACTION_LINES+=("Check ${_h_label} — proc=$_h_proc_ok api=$_h_api_ok")
-    elif [ "$_h_row_icon" = "${ICON_YELLOW}" ]; then
-      Hermes_YELLOW_ROWS+=("$_h_label | ${_h_row_icon} ${_h_row_detail}")
-    fi
-  done
-fi  # end Hermes monitoring
+# ── Icon definitions (used by Hermes monitor and Slack report) ───────────────
+ICON_GREEN="🟢"
+ICON_YELLOW="🟡"
+ICON_RED="🔴"
 
 # ── Hermes monitoring ────────────────────────────────────────────────────────
 _row() { printf '%-22s  %s' "$1" "$2"; }
@@ -1982,10 +1854,10 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOF
     HTTP_GATEWAY_RC=1
   fi
 
-  type run_token_probes >/dev/null 2>&1 && run_token_probes || true
-  type run_thread_reply_probe >/dev/null 2>&1 && run_thread_reply_probe || true
-  type run_core_md_probe >/dev/null 2>&1 && run_core_md_probe || true
-  type run_memory_lookup_probe >/dev/null 2>&1 && run_memory_lookup_probe || true
+  run_token_probes || true
+  run_thread_reply_probe || true
+  run_core_md_probe || true
+  run_memory_lookup_probe || true
   collect_force_reasons
   FORCE_PROBLEM=0
   if [ "${#FORCE_REASONS[@]}" -gt 0 ]; then
@@ -2731,4 +2603,3 @@ if [ "$STATUS_BROADCAST_ENABLED" = "1" ]; then
 fi
 
 exit 0
-

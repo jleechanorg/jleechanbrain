@@ -115,23 +115,6 @@ mcporter emit-ts <server> --mode client
 mcporter emit-ts <server> --mode types
 ```
 
-## Slack Message Posting (critical fallback)
-
-**The Hermes MCP runtime (`mcp__slack__conversations_add_message`) may not be available in all runtimes — only read tools (history, list, search) may be present.**
-
-When you need to post a Slack message but the MCP write tool is missing:
-
-```bash
-# Use mcporter as a fallback — it has the full toolset including conversations_add_message
-mcporter call --output json slack.conversations_add_message channel_id=C0AMM2B4319 content_type=text/plain text="Your message here"
-```
-
-**Key channel IDs (Jeffrey's workspace):**
-- `#life` → `C0AMM2B4319`
-- `#ai-general` → `C0AJQ5M0A0Y`
-
-**Proof it works:** `mcporter list slack` shows `conversations_add_message` with signature `(channel_id, content_type?, text?, thread_ts?)`.
-
 ## Notes
 
 - Use `--output json` for structured output that's easier to parse

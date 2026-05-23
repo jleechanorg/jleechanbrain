@@ -101,14 +101,12 @@ get_merged_prs() {
 }
 
 # Initialize report file
-# AGENTS defined early to avoid unbound variable under set -u
-AGENTS=("claude" "codex" "minimax")
 cat > "$REPORT_FILE" << EOF
 # Bug Hunt Report - ${TIMESTAMP}
 
 **Generated:** $(date)
 **Period:** Last ${DAYS_LOOKBACK} days
-**Agents:** ${AGENTS[*]}
+**Agents:** claude, codex, cursor, minimax, gemini
 
 ---
 
@@ -146,6 +144,7 @@ done
 
 # Agent configurations for parallel execution
 # Agents run through OpenClaw one-shot prompts so this job waits for real output.
+AGENTS=("claude" "codex" "minimax")
 AGENT_PIDS=()
 OPENCLAW_MESSAGE_FLAG="--message"
 OPENCLAW_AGENT_AVAILABLE=1

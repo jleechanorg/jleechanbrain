@@ -8,13 +8,13 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>@HOME@/.smartclaw/scripts/ao-progress-reporter.sh</string>
+        <string>${HOME}/.smartclaw/scripts/ao-progress-reporter.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>@HOME@</string>
+        <string>/Users/jleechan</string>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>SLACK_BOT_TOKEN</key>
@@ -30,10 +30,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>@HOME@/.smartclaw/logs/ao-progress-reporter.log</string>
+    <string>${HOME}/.smartclaw/logs/ao-progress-reporter.log</string>
 
     <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/ao-progress-reporter.err</string>
+    <string>${HOME}/.smartclaw/logs/ao-progress-reporter.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>

@@ -8,13 +8,11 @@ description: Dispatch a bead-tracked task via ao spawn/ao send, register the map
 
 Use this skill when jleechan asks you to work on a task and you decide to dispatch it to an agent.
 
-## When to use AO dispatch vs. inline execution
+## When to use
 
-**Dispatch to AO when:** coding tasks, PR creation, multi-step implementation, or any task requiring git worktree isolation and a reviewable output (PR/commit) that must survive session death.
-
-**Do inline in the gateway session when:** read-only research tasks (code review, grep, analysis) that produce file outputs. AO workers cannot reliably return file contents to the parent session — if the worker session is cleaned up before retrieval (context compaction, timeout), the output is lost with no way to recover it. ao-4583 (2026-04-27): 50+ tool calls in parent → session compacted → worker died before writing any code. wa-1514 (2026-05-01): spawned AO worker for ZFC audit — sessions cleaned up, results unrecoverable. The workaround was re-running the entire audit inline.
-
-**Rule of thumb:** If the task's deliverable is a file or a verbal answer (not a PR), consider doing it inline. If the deliverable must survive session death and have a reviewable URL (PR, commit, artifact), dispatch to AO.
+- jleechan asks you to implement, fix, or investigate something that warrants spawning an agent
+- You have decided the task merits a full agent run (not a quick inline answer)
+- This applies regardless of how the request arrived: Slack, HTTP gateway, cron, or inline prompt
 
 ## NEVER use `sessions_spawn` for coding tasks
 

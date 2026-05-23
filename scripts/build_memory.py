@@ -249,7 +249,7 @@ ACTIVITY:
 """
 
 
-def call_ai_orch(prompt: str, model: str = "MiniMax-M2.7") -> str:
+def call_ai_orch(prompt: str, model: str = "claude-haiku-4-5-20251001") -> str:
     """Call ai_orch with a prompt, return stdout."""
     try:
         result = subprocess.run(

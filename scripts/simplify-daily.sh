@@ -19,7 +19,6 @@ declare -A GH_REPOS=(
   ["agent-orchestrator"]="jleechanorg/agent-orchestrator"
   ["worldarchitect.ai"]="jleechanorg/worldarchitect.ai"
   ["worldai_claw"]="jleechanorg/worldai_claw"
-  ["worldclaw_dev"]="jleechanorg/worldclaw_dev"
   ["ai_universe_living_blog"]="jleechanorg/ai_universe_living_blog"
   ["mcp_mail"]="jleechanorg/mcp_mail"
 )

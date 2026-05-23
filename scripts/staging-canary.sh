@@ -144,7 +144,7 @@ fi
 
 # ── Check 3: Native modules load (mem0 better-sqlite3) ──
 echo "[3/9] Native module ABI check..."
-NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print gui/$(id -u)/ai.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo "${HOME}/.nvm/versions/node/v22.22.0/bin/node")}"
+NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print gui/$(id -u)/ai.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo '${HOME}/.nvm/versions/node/v22.22.0/bin/node')}"
 BETTER_SQLITE_PATH="$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3"
 if [[ ! -d "$BETTER_SQLITE_PATH" ]]; then
     check "Native module ABI" 1 "better-sqlite3 not found at $BETTER_SQLITE_PATH"

@@ -296,7 +296,6 @@ get_session_info() {
       browserclaw)        repo="jleechanorg/browserclaw" ;;
       worldarchitect)     repo="jleechanorg/worldarchitect.ai" ;;
       worldai-claw)       repo="jleechanorg/worldai_claw" ;;
-      worldclaw-dev)      repo="jleechanorg/worldclaw_dev" ;;
       claude-commands)    repo="jleechanorg/claude-commands" ;;
       ralph)              repo="jleechanorg/ralph" ;;
       smartclaw)       repo="jleechanorg/smartclaw" ;;

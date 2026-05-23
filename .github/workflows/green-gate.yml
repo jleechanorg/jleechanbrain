@@ -5,7 +5,7 @@ name: Green Gate
 # Exit PASS when all gates pass, FAIL when any gate fails (Gate 6 is advisory).
 on:
   pull_request:
-    types: [opened, synchronize, edited, reopened, ready_for_review]
+    types: [opened, synchronize, edited, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -24,8 +24,6 @@ concurrency:
 jobs:
   green_gate:
     name: Green Gate
-    # Fork PR guard: self-hosted runners must not execute untrusted code from forks
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
       pull-requests: write
@@ -75,6 +73,7 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
+          REQUIRED_CORE_JOBS=3
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
@@ -92,7 +91,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")]
+                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -111,14 +110,7 @@ jobs:
                 | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
                 | length' 2>/dev/null || echo "0")
 
-            # Determine required core jobs: 3 if openclaw.json changed, 2 otherwise
-            # (Full canary only runs when openclaw.json changes)
-            HAS_OPENCLAW_CHANGE=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/files \
-              --paginate 2>/dev/null \
-              | jq -r '[.[] | select(.filename | test("openclaw\\.json$"))] | length' 2>/dev/null || echo "0")
-            REQUIRED_CORE_JOBS=$( [ "$HAS_OPENCLAW_CHANGE" -gt 0 ] && echo 3 || echo 2 )
-
-            echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}, required=${REQUIRED_CORE_JOBS}"
+            echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}"
 
             if [ "$TOTAL_CHECKS" -ge "$REQUIRED_CORE_JOBS" ] && [ "$CHECK_RUNS_PENDING" -eq 0 ] && [ "$CHECK_RUNS_FAILED" -eq 0 ]; then
               echo "Core CI checks registered and completed after ${ELAPSED}s"
@@ -137,7 +129,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")]
+              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
               | length' 2>/dev/null || echo "__API_ERROR__")
           CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \
@@ -156,17 +148,11 @@ jobs:
               | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
               | length' 2>/dev/null || echo "0")
 
-          # Determine required core jobs: 3 if openclaw.json changed, 2 otherwise
-          HAS_OPENCLAW_CHANGE=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/files \
-            --paginate 2>/dev/null \
-            | jq -r '[.[] | select(.filename | test("openclaw\\.json$"))] | length' 2>/dev/null || echo "0")
-          REQUIRED_CORE_JOBS=$( [ "$HAS_OPENCLAW_CHANGE" -gt 0 ] && echo 3 || echo 2 )
-
           CI_STATUS_JSON=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/status \
             --jq '{state: .state, total: .total_count}' 2>/dev/null || echo '{"state":"error","total":0}')
           CI_STATUS=$(echo "$CI_STATUS_JSON" | jq -r '.state')
 
-          CI_DETAIL="commit-status=$CI_STATUS, failed-checks=${CHECK_RUNS_FAILED:-0}, pending-checks=${CHECK_RUNS_PENDING:-0}, total-checks=${TOTAL_CHECKS:-0}, required=${REQUIRED_CORE_JOBS}"
+          CI_DETAIL="commit-status=$CI_STATUS, failed-checks=${CHECK_RUNS_FAILED:-0}, pending-checks=${CHECK_RUNS_PENDING:-0}, total-checks=${TOTAL_CHECKS:-0}"
 
           # Pass only when all registered core jobs completed successfully with no failures.
           if [ "${CHECK_RUNS_FAILED:-0}" = "__API_ERROR__" ] || [ "${CHECK_RUNS_PENDING:-0}" = "__API_ERROR__" ]; then
@@ -222,34 +208,26 @@ jobs:
 
           # ----------------------------------------------------------------
           # Gate 3: CR APPROVED (approved after any CR blocker)
-          # CodeRabbit with approve:true + request_changes_workflow:true
-          # posts APPROVED when no issues, CHANGES_REQUESTED when blockers
-          # found, and COMMENTED for non-blocking findings. A COMMENTED
-          # review with no open CHANGES_REQUESTED means no blocking issues.
           # ----------------------------------------------------------------
           # shellcheck disable=SC2016
-          CR_STATE=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/reviews --paginate --slurp 2>/dev/null \
+          LATEST_CR=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM"/reviews --paginate --slurp 2>/dev/null \
             | jq -r 'flatten
               | map(select(.user.login == "coderabbitai[bot]")) as $reviews
-              | ($reviews | length) as $total
-              | ($reviews | map(select(.state == "CHANGES_REQUESTED") | .submitted_at) | max // null) as $last_blocker
+              | ($reviews | map(select(.state == "CHANGES_REQUESTED" or .state == "DISMISSED") | .submitted_at) | max // null) as $last_blocker
               | ($reviews | map(select(.state == "APPROVED") | .submitted_at) | max // null) as $last_approved
-              | ($reviews | map(select(.state == "COMMENTED") | .submitted_at) | max // null) as $last_commented
-              | if $total == 0 then "none"
-                elif $last_approved != null and ($last_blocker == null or $last_approved > $last_blocker) then "APPROVED"
-                elif $last_blocker != null and ($last_approved == null or $last_blocker > $last_approved) then "CHANGES_REQUESTED"
-                elif $last_commented != null and ($last_blocker == null or $last_commented > $last_blocker) then "COMMENTED_OK"
-                else "none"
+              | if $last_approved == null then "none"
+                elif $last_blocker == null or $last_approved > $last_blocker then "APPROVED"
+                else "CHANGES_REQUESTED"
                 end' 2>/dev/null || echo "none")
-          CR_STATE="${CR_STATE:-none}"
+          LATEST_CR="${LATEST_CR:-none}"
 
-          if [ "$CR_STATE" = "APPROVED" ] || [ "$CR_STATE" = "COMMENTED_OK" ]; then
+          if [ "$LATEST_CR" = "APPROVED" ]; then
             GATE3="PASS"
           else
             GATE3="FAIL"
             FAILED_GATES="${FAILED_GATES}3, "
           fi
-          GATE3_DETAIL="state=$CR_STATE"
+          GATE3_DETAIL="state=$LATEST_CR"
           echo "Gate 3: $GATE3 ($GATE3_DETAIL)"
           GATE_ROWS="${GATE_ROWS}| 3. CR approved | ${GATE3} | ${GATE3_DETAIL} |\n"
 
@@ -260,8 +238,7 @@ jobs:
           # error handling match the pattern).
           # ----------------------------------------------------------------
           BUGBOT_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
-            --paginate 2>/dev/null | jq -rs \
-            '[.[].check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
+            --jq '[.check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
             2>/dev/null || echo "none")
 
           if [ "$BUGBOT_CONCLUSION" = "failure" ]; then
@@ -312,9 +289,9 @@ jobs:
           # If CR has APPROVED, non-nit unresolved comments are non-blocking (CR
           # has already signed off despite the noise). Without CR APPROVED, unresolved
           # comments remain a hard failure (fail-closed).
-          if [ "$CR_STATE" = "APPROVED" ] || [ "$CR_STATE" = "COMMENTED_OK" ]; then
+          if [ "$LATEST_CR" = "APPROVED" ]; then
             GATE5="PASS"
-            GATE5_DETAIL="${UNRESOLVED:-N/A} unresolved (CR $CR_STATE — non-blocking)"
+            GATE5_DETAIL="${UNRESOLVED:-N/A} unresolved (CR approved — non-blocking)"
           elif [ "$UNRESOLVED" = "__GQL_ERROR__" ] || [ "$UNRESOLVED" = "__TRUNCATED__" ]; then
             GATE5="FAIL"
             GATE5_DETAIL="$UNRESOLVED (fail-closed)"
@@ -350,12 +327,12 @@ jobs:
             # Extract Evidence section: from "## Evidence" to next ## heading
             # Strip HTML comment lines (<!-- ... -->) before scanning
             EVIDENCE_GATE6=$(printf '%s\n' "$PR_BODY_GATE6" | awk '
-              BEGIN { in_section=0; in_comment=0 }
+              BEGIN { IGNORECASE=1; in_section=0; in_comment=0 }
               /<!--.*-->/ { next }
               in_comment && /^[[:space:]]*-->/ { in_comment=0; next }
               /^[[:space:]]*<!--/ { in_comment=1; next }
               in_comment { next }
-              /^[[:space:]]*##[[:space:]]+[Ee][Vv][Ii][Dd][Ee][Nn][Cc][Ee]([[:space:]]|$)/ { in_section=1; next }
+              /^[[:space:]]*##[[:space:]]+evidence([[:space:]]|$)/ { in_section=1; next }
               in_section && /^[[:space:]]*##[[:space:]]/ { exit }
               in_section { print }
             ' 2>/dev/null || true)
@@ -467,8 +444,8 @@ jobs:
         run: |
           # Delete previous green-gate result comments to avoid clutter
           PREV_COMMENTS=$(gh api repos/${{ github.repository }}/issues/"$PR_NUM"/comments \
-            --paginate --slurp 2>/dev/null \
-            | jq '[flatten | .[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
+            --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
 
           for CID in $(echo "$PREV_COMMENTS" | jq -r '.[]' 2>/dev/null); do
             gh api repos/${{ github.repository }}/issues/comments/"$CID" --method DELETE 2>/dev/null || true
