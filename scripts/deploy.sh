@@ -725,9 +725,9 @@ hermes_restart_prod() {
   # Pipeline canary: prove the full Slack→LLM→response stack works.
   # This catches issues that PID/port/health checks cannot: missing API keys,
   # provider misconfig, Slack WS disconnect, LLM auth failures.
-  if [[ -x "$HERMES_REPO/scripts/hermes-canary.sh" ]]; then
+  if [[ -x "$REPO_DIR/scripts/hermes-canary.sh" ]]; then
     echo "  Running pipeline canary..."
-    if HERMES_CANARY_TIMEOUT=30 "$HERMES_REPO/scripts/hermes-canary.sh" --json 2>/dev/null; then
+    if HERMES_CANARY_TIMEOUT=30 "$REPO_DIR/scripts/hermes-canary.sh" --json 2>/dev/null; then
       echo "  Pipeline canary: PASS"
     else
       echo "  WARN: Pipeline canary failed — gateway is up but message pipeline may be broken"

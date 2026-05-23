@@ -24,7 +24,7 @@
 		<key>HERMES_HOME</key>
 		<string>@HOME@/.smartclaw_prod</string>
 		<key>HERMES_WATCHDOG_ALERT_CHANNEL</key>
-		<string>${SLACK_CHANNEL_ID}</string>
+		<string>@SLACK_CHANNEL_ID@</string>
 	</dict>
 </dict>
 </plist>

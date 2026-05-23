@@ -521,6 +521,7 @@ install_plist() {
     -e "s|@HERMES_EXTRA_PATH@|$(_esc_sed "$HERMES_EXTRA_PATH")|g" \
     -e "s|@HERMES_BIN@|$(_esc_sed "$HERMES_BIN")|g" \
     -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
+    -e "s|@SLACK_CHANNEL_ID@|$(_esc_sed "${SLACK_CHANNEL_ID:-}")|g" \
     "$src" > "$dst"
 
   # Unregister any existing job with this label first. Re-running install when the

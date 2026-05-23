@@ -22,7 +22,7 @@
         <key>AO_MONITOR_PROJECT</key>
         <string>smartclaw</string>
         <key>AO_MONITOR_CHANNEL</key>
-        <string>${SLACK_CHANNEL_ID}</string>
+        <string>@SLACK_CHANNEL_ID@</string>
         <key>AO_MONITOR_LOG</key>
         <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.log</string>
     </dict>

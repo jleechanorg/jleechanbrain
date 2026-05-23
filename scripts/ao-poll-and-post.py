@@ -7,10 +7,11 @@ detect completed/failed sessions, then posts results via Hermes's Slack MCP.
 """
 
 import json
+import os
 import subprocess
 import sys
 
-NOTIFIER = "${HOME}/.smartclaw_prod/scripts/ao-session-notifier.py"
+NOTIFIER = os.path.expanduser("~/.smartclaw_prod/scripts/ao-session-notifier.py")
 
 def main():
     # Run the notifier poll
