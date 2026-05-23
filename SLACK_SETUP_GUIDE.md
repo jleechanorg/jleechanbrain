@@ -87,7 +87,8 @@ With Socket Mode:
 ```bash
 hermes channels add \
   --channel slack \
-  --account default
+  --account default \
+  --app-token xapp-YOUR-APP-TOKEN
 ```
 
 
@@ -130,7 +131,7 @@ hermes channels add \
    ```
 
 3. **Configure auto-start:**
-   - Already configured! Slack will auto-start with WhatsApp on boot
+   - Already configured! Slack will auto-start on boot
 
 4. **Monitor logs:**
    ```bash
