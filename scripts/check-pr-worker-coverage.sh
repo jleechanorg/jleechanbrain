@@ -68,6 +68,13 @@ sessions_raw=$(ao session ls --project "$PROJECT" 2>/dev/null) || {
 
 if [[ -z "$sessions_raw" ]]; then
   echo "No active sessions found for project $PROJECT"
+  # All PRs are uncovered
+  uncovered=$(echo "$pr_json" | python3 -c "import sys,json; [print(p['number']) for p in json.load(sys.stdin)]" 2>/dev/null)
+  if [[ -n "$uncovered" ]]; then
+    echo ""
+    echo "UNCOVERED PRs: $(echo "$uncovered" | tr '\n' ' ')"
+  fi
+  exit 1
 fi
 
 # --- Filter to active sessions only (exclude killed / completed) ---

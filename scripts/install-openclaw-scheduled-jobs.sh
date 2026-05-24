@@ -153,6 +153,10 @@ declare -a JOB_SCRIPTS=(
   "$REPO_ROOT/scripts/gmail-daily-recap.sh"
   "$REPO_ROOT/scripts/composio-upstream-reminder.sh"
   "$REPO_ROOT/scripts/commit-pending-changes.sh"
+  "$REPO_ROOT/scripts/hermes-canary.sh"
+  "$REPO_ROOT/scripts/hermes-health.sh"
+  "$REPO_ROOT/scripts/gh-actions-cost-monitor.sh"
+  "$REPO_ROOT/scripts/spend-alert-daily.sh"
 )
 for script in "${JOB_SCRIPTS[@]}"; do
   if [[ ! -f "$script" ]]; then
@@ -190,10 +194,6 @@ _install_plist() {
     -e "s|@REPO_ROOT@|$REPO_ROOT|g" \
     "$src" >"$dst"
 
-  # Derive label from the plist's <Label> key, not the filename.
-  # Filenames use smartclaw.schedule.* but <Label> is ai.smartclaw.schedule.*.
-  label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$dst" 2>/dev/null || echo "$label")"
-
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   sleep 0.35
   local _attempt=1
@@ -216,14 +216,14 @@ _install_plist() {
 }
 
 echo "Installing launchd scheduled job plists..."
-for plist in "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
+for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
   [[ -f "$plist" ]] || continue
   _install_plist "$plist"
 done
 
 # Standalone schedule plists (no .template suffix), e.g. stability-report.
 # Skip when a .plist.template exists for the same label (avoid double bootstrap).
-for plist in "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist; do
+for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist; do
   [[ -f "$plist" ]] || continue
   [[ "$plist" == *.plist.template ]] && continue
   _base="${plist%.plist}"
@@ -279,11 +279,9 @@ else
 fi
 
 printf '\nVerifying loaded labels...\n'
-for plist in "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
-  # Extract real label from the plist's <Label> key (filenames use smartclaw.schedule.* but
-  # <Label> is ai.smartclaw.schedule.*).
-  rendered="$(sed -e "s|@HOME@|$HOME|g" -e "s|@OPENCLAW_EXTRA_PATH@|${OPENCLAW_EXTRA_PATH}|g" -e "s|@GOG_EXTRA_PATH@|${GOG_EXTRA_PATH}|g" -e "s|@REPO_ROOT@|$REPO_ROOT|g" "$plist")"
-  label="$(echo "$rendered" | grep -A1 '<key>Label</key>' | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/')"
+for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
+  [[ -f "$plist" ]] || continue
+  label="$(basename "$plist" .plist.template)"
   if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
     echo "  - $label registered"
   else

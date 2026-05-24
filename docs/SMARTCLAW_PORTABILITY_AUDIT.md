@@ -1,12 +1,12 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-05-02 16:25:56 PDT
+Generated: 2026-05-23 13:17:33 PDT
 
 ## Summary
 
-- Candidate files evaluated: 1017
-- Included in export map: 993
-- Excluded as non-portable/private/runtime: 24
+- Candidate files evaluated: 1003
+- Included in export map: 985
+- Excluded as non-portable/private/runtime: 18
 
 ## Selection Rules
 
@@ -40,7 +40,6 @@ Non-portable paths are excluded when they contain:
 - `.claude/commands/roadmap.md`
 - `.claude/commands/smartclaw-export.md`
 - `.claude/skills/agento_report.md`
-- `.claude/skills/deploy-hermes/SKILL.md`
 - `.claude/skills/evolve_loop/SKILL.md`
 - `.claude/skills/smartclaw-eloop/SKILL.md`
 - `.claude/skills/mem0-memory-operations.md`
@@ -81,12 +80,14 @@ Non-portable paths are excluded when they contain:
 - `docs/SWITCH_TO_HERMES.html`
 - `docs/SWITCH_TO_HERMES.md`
 - `docs/ZOE_AGENT_SWARM_REFERENCE.md`
+- `docs/antigravity-control-plane/.stale-comments-resolved`
 - _...truncated; see `scripts/smartclaw-export-map.tsv` for full list._
 
 ## Excluded Files (sample)
 
 - `docs/context/CRON_JOBS_BACKUP.html`
 - `docs/context/CRON_JOBS_BACKUP.json`
+- `docs/context/CRON_JOBS_BACKUP.json.bak`
 - `docs/context/CRON_JOBS_BACKUP.md`
 - `docs/context/DOC_GAPS.md`
 - `docs/context/FILE_MAP.md`
@@ -102,10 +103,3 @@ Non-portable paths are excluded when they contain:
 - `docs/superpowers/plans/2026-03-28-sync-to-smartclaw.html`
 - `docs/superpowers/plans/2026-03-28-sync-to-smartclaw.md`
 - `docs/superpowers/specs/2026-03-28-self-hosted-runner-pypi-design.md`
-- `launchd/ai.agento.dashboard.plist`
-- `launchd/ai.smartclaw.gateway.plist`
-- `launchd/ai.smartclaw.github-intake.plist`
-- `launchd/ai.smartclaw.health-check.plist`
-- `launchd/ai.smartclaw.monitor-agent.plist`
-- `launchd/ai.smartclaw.schedule.bug-hunt-9am.plist`
-- `launchd/com.jleechan.ai-reviewer-stress-test.plist`

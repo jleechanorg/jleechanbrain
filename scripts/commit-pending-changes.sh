@@ -513,21 +513,16 @@ fi
 git config user.email "$GIT_EMAIL" 2>/dev/null || true
 git config user.name "$GIT_NAME" 2>/dev/null || true
 
-# Ensure on main or $PR_BRANCH (skip only if on an unrelated branch to avoid data loss).
-# This guard prevents accidental commits on feature branches unrelated to the
-# current PR context. The branch name "main" is the default integration branch;
-# override via DEFAULT_BRANCH env var if your repo uses a different name.
+# Ensure on main or $PR_BRANCH (skip only if on an unrelated branch to avoid data loss)
 current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
-_default_branch="${DEFAULT_BRANCH:-main}"
-if [[ -n "$current_branch" && "$current_branch" != "$_default_branch" && "$current_branch" != "$PR_BRANCH" ]]; then
+if [[ -n "$current_branch" && "$current_branch" != "main" && "$current_branch" != "$PR_BRANCH" ]]; then
   log "SKIP: on branch '$current_branch' — refusing to switch to avoid data loss"
   exit 1
 fi
 
 # Execute commit + PR
 # Return codes: 0=success with tracked work, 1=failure, 2=no-work (skip/idempotent)
-result=0
-do_commit_and_pr || result=$?
+do_commit_and_pr && result=0 || result=$?
 
 if [[ "$result" == "1" ]]; then
   log "ERROR: do_commit_and_pr failed — running AO fallback"

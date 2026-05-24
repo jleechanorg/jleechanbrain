@@ -32,9 +32,9 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PAT
 trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
-LOCK_DIR="${DROP_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-dropped-thread.lock}"
-LOG_DIR="${DROP_LOG_DIR:-${HOME}/.hermes_prod/logs}"
-STATE_FILE="${DROP_STATE_FILE:-$HOME/.hermes_prod/logs/dropped-thread-state.json}"
+LOCK_DIR="${DROP_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-dropped-thread.lock}"
+LOG_DIR="${DROP_LOG_DIR:-${HOME}/.smartclaw/logs}"
+STATE_FILE="${DROP_STATE_FILE:-$HOME/.smartclaw/logs/dropped-thread-state.json}"
 NUDGE_INTERVAL_SECS="${DROP_NUDGE_INTERVAL_SECS:-1800}"   # 30 minutes default
 LOOKBACK_HOURS="${DROP_LOOKBACK_HOURS:-8}"               # scan last N hours
 PROGRESS_STALE_MINUTES="${DROP_PROGRESS_STALE_MINUTES:-5}"  # dispatched task with no progress
@@ -48,7 +48,7 @@ else
   JEFFREY_ONLY_CHANNELS="${SLACK_CHANNEL_ID}"
 fi
 POST_AS_BOT="${DROP_POST_AS_BOT:-1}"                      # 0 = post as user
-AGENT_USER_ID="${HERMES_BOT_USER_ID:-${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}}"  # bot user ID for classification
+AGENT_USER_ID="${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}"     # bot user ID for classification
 JEFFREY_USER_ID="${JLEECHAN_USER_ID:-U09GH5BR3QU}"        # Jeffrey's Slack user ID (standalone msg detection)
 
 mkdir -p "$LOG_DIR"
@@ -287,7 +287,7 @@ if len(user_msgs_list) == 1 and _is_assistant_boilerplate(user_msgs_list[0].get(
 
 
 def _is_automated_report(text: str) -> bool:
-    """Cron/automation posts (bug hunt, scan summaries, monitor-e2e, canary) — not operator tasks."""
+    """Cron/automation posts (bug hunt, scan summaries) — not operator tasks."""
     t = (text or "").strip().lower()
     if not t:
         return False
@@ -298,16 +298,6 @@ def _is_automated_report(text: str) -> bool:
     if "*period:*" in t and "*prs reviewed*" in t:
         return True
     if t.startswith("*weekly") and "report" in t[:120]:
-        return True
-    # Monitor E2E and canary test messages — automated infrastructure probes
-    if "[monitor-e2e]" in t or "[canary" in t:
-        return True
-    if "canary thread test" in t:
-        return True
-    # Monitor ping/status reports — automated health checks, not operator tasks
-    if "*openclaw monitor*" in t or "*hermes monitor*" in t:
-        return True
-    if t.startswith("status=") or ("status=" in t[:80] and ("pass=" in t or "fail=" in t)):
         return True
     return False
 
@@ -367,10 +357,6 @@ ACTION_VERBS = [
 ]
 looks_actionable = any(v in last_user_text for v in ACTION_VERBS) or ("<@" in last_user_text)
 if user_after_agent and minutes_since_last_user >= 5 and looks_actionable:
-    if _root_automated_report():
-        print(json.dumps({"admitted": False, "action_needed": False,
-                           "reason": "thread root is automated report (monitor/canary)", "kind": "none"}))
-        sys.exit(0)
     if _jeffrey_only_skip():
         _emit_jeffrey_only_skip()
     print(json.dumps({
@@ -400,10 +386,6 @@ if hours_old < 0.5 and has_result and not user_after_agent:
 
 # Agent replied recently but didn't complete work AND admission present → nudge
 if hours_old < 0.5 and admitted:
-    if _root_automated_report():
-        print(json.dumps({"admitted": False, "action_needed": False,
-                           "reason": "thread root is automated report (monitor/canary)", "kind": "none"}))
-        sys.exit(0)
     if _jeffrey_only_skip():
         _emit_jeffrey_only_skip()
     print(json.dumps({"admitted": True, "action_needed": True,
@@ -484,10 +466,10 @@ MCP_MAIL_BOT_TOKEN="${MCP_MAIL_SLACK_TOKEN:-$(resolve_mcp_mail_token)}"
 # ── Slack API via curl ──────────────────────────────────────────────────────────
 # Uses MCP mail bot (U0A4G7LDJ4R) for posting nudge messages.
 # Falls back to OpenClaw bot (U0AEZC7RX1Q) only if MCP mail bot unavailable.
-SLACK_TOKEN="${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}}"
+SLACK_TOKEN="${SLACK_BOT_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}"
 
 resolve_channels() {
-  local config="${HERMES_CONFIG_FILE:-${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}}"
+  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}"
   if [[ -f "$config" ]] && command -v python3 >/dev/null 2>&1; then
     python3 - "$config" <<'PYEOF'
 import json, sys
@@ -526,7 +508,7 @@ filter_channels() {
   echo "$result"
 }
 
-# Always include DM channel — resolve_channels() only returns C-prefixed IDs from config.
+# Always include DM channel — resolve_channels() only returns C-prefixed IDs from openclaw.json.
 # DM channels (D-prefix) are never in that list, so we add it unless already present.
 DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-${SLACK_CHANNEL_ID}}"
 case " ${DEFAULT_CHANNELS} " in
@@ -620,16 +602,6 @@ def _is_automated_report(text: str) -> bool:
         return True
     if t.startswith("*weekly") and "report" in t[:120]:
         return True
-    # Monitor E2E and canary test messages — automated infrastructure probes
-    if "[monitor-e2e]" in t or "[canary" in t:
-        return True
-    if "canary thread test" in t:
-        return True
-    # Monitor ping/status reports — automated health checks, not operator tasks
-    if "*openclaw monitor*" in t or "*hermes monitor*" in t:
-        return True
-    if t.startswith("status=") or ("status=" in t[:80] and ("pass=" in t or "fail=" in t)):
-        return True
     return False
 
 try:
@@ -694,8 +666,8 @@ post_reply() {
   elif [[ "$as_user" == "0" ]]; then
     token="${SLACK_USER_TOKEN:-}"
   else
-    # Prefer MCP mail bot token for dropped-thread nudges
-    token="${MCP_MAIL_BOT_TOKEN:-${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN:-}}}"
+    # Prefer MCP mail bot token for dropped-thread nudges (not OpenClaw bot)
+    token="${MCP_MAIL_BOT_TOKEN:-${SLACK_BOT_TOKEN:-}}"
   fi
 
   response="$(curl --silent --show-error --fail \
@@ -717,7 +689,7 @@ post_reply() {
 
 log "Starting dropped-thread-followup (lookback: ${LOOKBACK_HOURS}h)"
 
-[[ -z "$SLACK_TOKEN" ]] && { log "ERROR: SLACK_BOT_TOKEN (or SLACK_BOT_TOKEN) not set"; exit 1; }
+[[ -z "$SLACK_TOKEN" ]] && { log "ERROR: SLACK_BOT_TOKEN not set"; exit 1; }
 
 actioned=0 skipped=0
 

@@ -46,7 +46,7 @@ jobs:
               return;
             }
 
-            const body = '@coderabbitai review';
+            const body = '@coderabbitai all good?';
 
             for (const pr of prs) {
               await github.rest.issues.createComment({

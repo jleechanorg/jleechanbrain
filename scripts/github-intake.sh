@@ -113,13 +113,8 @@ for i in $(seq 0 $(( NOTIF_COUNT - 1 ))); do
         continue
       fi
 
-      # Map repo to AO project (only pass PR number for PullRequest events)
-      subject_type="$(echo "$notif" | jq -r '.subject.type // ""')"
-      if [[ "$subject_type" == "PullRequest" ]]; then
-        ao_project="$(repo_to_ao_project "$repo_name" "$pr_number")"
-      else
-        ao_project="$(repo_to_ao_project "$repo_name")"
-      fi
+      # Map repo to AO project
+      ao_project="$(repo_to_ao_project "$repo_name")"
       if [[ -z "$ao_project" ]]; then
         log "SKIP: no AO project mapping for repo $repo_name"
         skipped=$(( skipped + 1 ))
@@ -127,7 +122,8 @@ for i in $(seq 0 $(( NOTIF_COUNT - 1 ))); do
       fi
 
       # Check PR state — skip merged/closed PRs
-      if [[ "$subject_type" == "PullRequest" ]]; then
+      subject_type_raw="$(echo "$notif" | jq -r '.subject.type // ""')"
+      if [[ "$subject_type_raw" == "PullRequest" ]]; then
         pr_state="$(check_pr_state "$repo_name" "$pr_number")"
         if [[ "$pr_state" == "merged" ]]; then
           log "SKIP MERGED: PR #$pr_number ($title)"

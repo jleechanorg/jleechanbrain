@@ -36,7 +36,6 @@ detect_project() {
         worldarchitect-ai|worldarchitect) echo "-Users-jleechan-projects-worldarchitect-ai" ;;
         ai-universe-living-blog|ai-universe|living-blog) echo "-Users-jleechan-projects-other-ai-universe-living-blog" ;;
         worldai-claw|worldaiclaw) echo "-Users-jleechan-project-worldaiclaw-worldai-claw" ;;
-        worldclaw-dev|worldclaw_dev) echo "-Users-jleechan-worktree-worldclaw-dev" ;;
         smartclaw|jc-claw) echo "-Users-jleechan-project-smartclaw-smartclaw" ;;
         user-scope|user_scope) echo "-Users-jleechan-projects-other-user-scope" ;;
         harness|harness-automation) echo "-Users-jleechan-projects-worktree-harness" ;;

@@ -14,18 +14,6 @@ metadata:
         description: Path to the LLM Wiki knowledge base directory
         default: "~/wiki"
         prompt: Wiki directory path
-      - key: wiki.prefetch
-        description: When true, Hermes keyword-searches the wiki each user turn and injects excerpts next to mem0 prefetch (needs ripgrep `rg` on PATH)
-        default: false
-      - key: wiki.prefetch_max_chars
-        description: Max characters for wiki excerpts in prefetch (merged with memory-context fence)
-        default: 8000
-      - key: wiki.prefetch_max_files
-        description: Max wiki files to include per turn
-        default: 12
-      - key: wiki.prefetch_timeout_sec
-        description: Timeout for ripgrep wiki scan
-        default: 4
 ---
 
 # Karpathy's LLM Wiki

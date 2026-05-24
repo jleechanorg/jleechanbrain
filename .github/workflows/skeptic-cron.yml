@@ -303,9 +303,10 @@ jobs:
             if [ "$SKEPTIC_VERDICT" = "PASS" ]; then
               echo "  → Skeptic VERDICT: PASS confirmed"
             elif [ "$SKEPTIC_VERDICT" = "SKEPTIC_NO_VERDICT" ]; then
-              # No VERDICT comment found — Green Gate may still be running (up to 900s).
-              # Wait for Green Gate to post its verdict instead of auto-merging.
-              echo "  → No VERDICT comment yet, waiting for Green Gate (skipping)"
+              # No VERDICT comment found — skeptic-gate has not run yet or is still running.
+              # Wait for Green Gate/skeptic-gate to complete and post a real verdict.
+              # Do not auto-merge when there is no verdict (fail-closed).
+              echo "  → No skeptic verdict found — skipping (waiting for skeptic-gate)"
               continue
             elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
               # ANTHROPIC_API_KEY not configured — skeptic-gate cannot run.

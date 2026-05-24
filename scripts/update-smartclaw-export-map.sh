@@ -43,13 +43,6 @@ EXCLUDE_PATHS=(
   "docs/AGENTO_QUICK_REFERENCE.md"
   "docs/superpowers/plans/2026-03-28-sync-to-smartclaw.md"
   "launchd/ai.smartclaw.config-sync.plist.template"
-  "launchd/ai.smartclaw.gateway.plist"
-  "launchd/ai.smartclaw.health-check.plist"
-  "launchd/ai.smartclaw.github-intake.plist"
-  "launchd/ai.agento.dashboard.plist"
-  "launchd/com.jleechan.ai-reviewer-stress-test.plist"
-  "launchd/ai.smartclaw.monitor-agent.plist"
-  "launchd/ai.smartclaw.schedule.bug-hunt-9am.plist"
   "scripts/generate_redacted_config.py"
   "scripts/install-config-sync.sh"
   "scripts/sync-openclaw-config.sh"
@@ -122,11 +115,10 @@ while IFS= read -r path; do
   echo "$path" >> "$TMP_INCLUDED"
 done < <(git ls-files)
 
-mkdir -p "$(dirname "$MAP_FILE")"
 # Keep output stable and deterministic.
 {
   head -n 2 "$TMP_MAP"
-  tail -n +3 "$TMP_MAP" | LC_ALL=C sort
+  tail -n +3 "$TMP_MAP" | sort
 } > "$MAP_FILE"
 
 INCLUDED_COUNT=$(wc -l < "$TMP_INCLUDED" | tr -d ' ')
