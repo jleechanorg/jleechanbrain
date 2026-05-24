@@ -92,9 +92,9 @@ def upsert_mapping(
 ) -> None:
     with _registry_lock:
         by_bead: dict[str, BeadSessionMapping] = {
-            item.bead_id: item for item in list_mappings(registry_path=registry_path)
+            item.bead_id.lower(): item for item in list_mappings(registry_path=registry_path)
         }
-        by_bead[mapping.bead_id] = mapping
+        by_bead[mapping.bead_id.lower()] = mapping
         _write_all(list(by_bead.values()), registry_path=registry_path)
 
 
@@ -111,7 +111,7 @@ def update_mapping_status(
         updated_items: list[BeadSessionMapping] = []
 
         for item in items:
-            if item.bead_id == bead_id:
+            if item.bead_id.lower() == bead_id.lower():
                 # CAS guard: if from_status is given, only update if current
                 # status matches — prevents double-notification when two
                 # reconciler processes overlap.
@@ -135,8 +135,9 @@ def get_mapping(
     *,
     registry_path: str = DEFAULT_REGISTRY_PATH,
 ) -> BeadSessionMapping | None:
+    normalized = bead_id.lower()
     for item in list_mappings(registry_path=registry_path):
-        if item.bead_id == bead_id:
+        if item.bead_id.lower() == normalized:
             return item
     return None
 
