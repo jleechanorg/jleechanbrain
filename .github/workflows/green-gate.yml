@@ -26,6 +26,7 @@ jobs:
     name: Green Gate
     if: |
       github.event_name == 'workflow_dispatch' ||
+      github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
@@ -82,8 +83,9 @@ jobs:
           ELAPSED=0
           
           # Detect if openclaw.json is in the PR diff to determine expected core jobs
-          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1 2>/dev/null || true
-          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...$HEAD_SHA" 2>/dev/null || echo "")
+          BASE_REF="${{ github.event.pull_request.base.ref || 'main' }}"
+          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/$BASE_REF...$HEAD_SHA" 2>/dev/null || echo "")
           OPENCLAW_CHANGED=false
           for f in $CHANGED; do
             case "$f" in
