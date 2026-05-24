@@ -161,6 +161,56 @@ def test_archive_terminal_mappings_moves_old_dead_entries(tmp_path: Path) -> Non
     assert archived_items[0].bead_id == "ORCH-old"
 
 
+def test_get_mapping_case_insensitive(tmp_path: Path) -> None:
+    """get_mapping is case-insensitive: BR-123 matches bead stored as br-123."""
+    registry = tmp_path / "registry.jsonl"
+    upsert_mapping(_mapping("BR-123"), registry_path=str(registry))
+
+    # Exact case
+    found = get_mapping("BR-123", registry_path=str(registry))
+    assert found is not None
+    assert found.bead_id == "BR-123"
+
+    # Lowercase lookup
+    found_lower = get_mapping("br-123", registry_path=str(registry))
+    assert found_lower is not None
+    assert found_lower.bead_id == "BR-123"
+
+    # Uppercase lookup
+    found_upper = get_mapping("Br-123", registry_path=str(registry))
+    assert found_upper is not None
+    assert found_upper.bead_id == "BR-123"
+
+
+def test_update_mapping_status_case_insensitive(tmp_path: Path) -> None:
+    """update_mapping_status is case-insensitive."""
+    registry = tmp_path / "registry.jsonl"
+    upsert_mapping(_mapping("ORCH-Case", "queued"), registry_path=str(registry))
+
+    changed = update_mapping_status(
+        "orch-case",
+        "done",
+        registry_path=str(registry),
+    )
+    assert changed is True
+
+    found = get_mapping("ORCH-Case", registry_path=str(registry))
+    assert found is not None
+    assert found.status == "done"
+
+
+def test_upsert_merges_case_variant_same_bead(tmp_path: Path) -> None:
+    """Upserting with a case-variant bead_id updates the same bead."""
+    registry = tmp_path / "registry.jsonl"
+    upsert_mapping(_mapping("ORCH-Dupe", "queued"), registry_path=str(registry))
+    upsert_mapping(_mapping("orch-dupe", "in_progress"), registry_path=str(registry))
+
+    all_items = list_mappings(registry_path=str(registry))
+    # Should merge into one entry (case-normalized key)
+    assert len(all_items) == 1
+    assert all_items[0].status == "in_progress"
+
+
 def test_archive_terminal_mappings_keeps_live_or_recent_entries(tmp_path: Path) -> None:
     registry = tmp_path / "registry.jsonl"
     live_worktree = tmp_path / "wt-live"
