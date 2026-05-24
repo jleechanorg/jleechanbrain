@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AO_HOOK_EVENT_NAME='PreToolUse' 'metadata-updater.sh'",
+            "command": "AO_HOOK_EVENT_NAME='PreToolUse' '.claude/metadata-updater.sh'",
             "timeout": 5000
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AO_HOOK_EVENT_NAME='PostToolUse' 'metadata-updater.sh'",
+            "command": "AO_HOOK_EVENT_NAME='PostToolUse' '.claude/metadata-updater.sh'",
             "timeout": 5000
           }
         ]
