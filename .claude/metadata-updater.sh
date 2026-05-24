@@ -231,6 +231,18 @@ print(
 PY
     exit 0
   fi
+  if [[ "$normalize_prefixed_command_status" == "deny" && "$hook_event" == "PostToolUse" ]]; then
+    # Deny in PostToolUse: still extract PR URL from the original output for metadata
+    pr_url=$(echo "$output" | grep -Eo 'https://github[.]com/[^/]+/[^/]+/pull/[0-9]+' | head -1 || true)
+    if [[ -n "$pr_url" ]]; then
+      update_metadata_key "pr" "$pr_url"
+      update_metadata_key "status" "pr_open"
+      echo '{"systemMessage": "Updated metadata: PR created at '"$pr_url"'"}'
+      exit 0
+    fi
+    echo '{}'
+    exit 0
+  fi
   if [[ "$normalize_prefixed_command_status" == "safe" ]]; then
     clean_command="$normalize_prefixed_command_payload"
   fi
@@ -532,7 +544,7 @@ fi
 
 # Detect: gh pr merge (only when explicitly allowed AND in PostToolUse — not PreToolUse)
 # Gate on PostToolUse to avoid marking status=merged before the merge actually succeeds.
-if [[ "$clean_command" =~ $merge_pattern && ${AO_ALLOW_GH_PR_MERGE:-_} == "1" && ("$hook_event" == "PostToolUse" || -z "$hook_event") ]]; then
+if [[ "$clean_command" =~ $merge_pattern && ${AO_ALLOW_GH_PR_MERGE:-_} == "1" && ("$hook_event" == "PostToolUse" || HOOK_EVENT_NAME=="PostToolUse") ]]; then
   update_metadata_key "status" "merged"
   echo '{"systemMessage": "Updated metadata: status = merged"}'
   exit 0
