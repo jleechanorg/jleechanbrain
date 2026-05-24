@@ -11,6 +11,7 @@ set -euo pipefail
 
 # Configuration
 AO_DATA_DIR="${AO_DATA_DIR:-${HOME}/.ao-sessions}"
+HOOK_EVENT_NAME="${AO_HOOK_EVENT_NAME:-}"
 
 # Read hook input from stdin
 input=$(cat)
@@ -22,6 +23,8 @@ if command -v jq &>/dev/null; then
   output=$(echo "$input" | jq -r '.tool_response // empty')
   exit_code=$(echo "$input" | jq -r '.exit_code // 0')
   hook_event=$(echo "$input" | jq -r '.hook_event_name // empty')
+  # Env var fallback: runner may pass event name via environment instead of JSON
+  hook_event="${hook_event:-${HOOK_EVENT_NAME}}"
 else
   # Fallback: basic JSON parsing without jq
   tool_name=$(echo "$input" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
@@ -29,6 +32,7 @@ else
   output=$(echo "$input" | grep -o '"tool_response"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
   exit_code=$(echo "$input" | grep -o '"exit_code"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$' || echo "0")
   hook_event=$(echo "$input" | grep -o '"hook_event_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
+  hook_event="${hook_event:-${HOOK_EVENT_NAME}}"
 fi
 
 # Only process successful commands (exit code 0)
@@ -338,7 +342,7 @@ def prefix_fragment(raw_value):
         return "'" + PREFIX + raw_value[1:]
     if raw_value.startswith('"') and raw_value.endswith('"') and len(raw_value) >= 2:
         return '"' + PREFIX + raw_value[1:]
-    return "'" + PREFIX + "'" + raw_value
+    return "'" + PREFIX + raw_value.replace("'", "'\\''") + "'"
 
 clean = sys.argv[1]
 full = sys.argv[2]
@@ -528,7 +532,7 @@ fi
 
 # Detect: gh pr merge (only when explicitly allowed AND in PostToolUse — not PreToolUse)
 # Gate on PostToolUse to avoid marking status=merged before the merge actually succeeds.
-if [[ "$clean_command" =~ $merge_pattern && ${AO_ALLOW_GH_PR_MERGE:-_} == "1" && "$hook_event" == "PostToolUse" ]]; then
+if [[ "$clean_command" =~ $merge_pattern && ${AO_ALLOW_GH_PR_MERGE:-_} == "1" && ("$hook_event" == "PostToolUse" || -z "$hook_event") ]]; then
   update_metadata_key "status" "merged"
   echo '{"systemMessage": "Updated metadata: status = merged"}'
   exit 0
