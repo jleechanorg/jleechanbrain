@@ -149,8 +149,12 @@ source = sys.argv[1]
 try:
     tokens = tokenize(source)
 except ValueError:
-    print("raw")
-    print(source)
+    if "gh pr create" in source or "gh pr merge" in source:
+        print("deny")
+        print("Blocked by AO policy: unable to safely analyze a guarded shell command. Run gh pr create/merge directly after any env assignments or cd prefixes.")
+    else:
+        print("raw")
+        print(source)
     raise SystemExit(0)
 
 index = 0
@@ -182,6 +186,10 @@ while index < len(tokens):
 
     if next_op is not None:
         if is_guarded_segment(words) or remaining_segments_contain_guarded(tokens, segment_end + 1):
+            print("deny")
+            print("Blocked by AO policy: cannot safely analyze chained shell commands before gh pr create or gh pr merge. Run the guarded command directly after any env assignments or cd prefixes.")
+            raise SystemExit(0)
+        if "gh pr create" in source or "gh pr merge" in source:
             print("deny")
             print("Blocked by AO policy: cannot safely analyze chained shell commands before gh pr create or gh pr merge. Run the guarded command directly after any env assignments or cd prefixes.")
             raise SystemExit(0)
@@ -405,7 +413,8 @@ fi
 
 # All metadata writers run in PostToolUse only.
 # Allow PreToolUse (hook_event empty or "PreToolUse") to fall through to guards above.
-if [[ "$hook_event" != "PostToolUse" && -n "$hook_event" ]]; then
+# Only hard-exit for events that are neither PreToolUse nor PostToolUse.
+if [[ -n "$hook_event" && "$hook_event" != "PreToolUse" && "$hook_event" != "PostToolUse" ]]; then
   echo '{}'
   exit 0
 fi

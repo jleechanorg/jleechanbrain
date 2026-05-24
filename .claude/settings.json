@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AO_HOOK_EVENT_NAME='PreToolUse' '/Users/jleechan/.worktrees/smartclaw/sma-29/.claude/metadata-updater.sh'",
+            "command": "AO_HOOK_EVENT_NAME='PreToolUse' 'metadata-updater.sh'",
             "timeout": 5000
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AO_DATA_DIR='/Users/jleechan/.agent-orchestrator/953501c04ccc-smartclaw/sessions' AO_HOOK_EVENT_NAME='PostToolUse' '/Users/jleechan/.worktrees/smartclaw/sma-29/.claude/metadata-updater.sh'",
+            "command": "AO_HOOK_EVENT_NAME='PostToolUse' 'metadata-updater.sh'",
             "timeout": 5000
           }
         ]
