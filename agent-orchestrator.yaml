@@ -142,7 +142,7 @@ projects:
   smartclaw:
     name: smartclaw orchestration
     repo: jleechanorg/smartclaw
-    path: ${HOME}/projects/smartclaw
+    path: ${HOME}/.smartclaw
     defaultBranch: main
     sessionPrefix: jc
     workspace: worktree

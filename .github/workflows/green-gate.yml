@@ -5,7 +5,7 @@ name: Green Gate
 # Exit PASS when all gates pass, FAIL when any gate fails (Gate 6 is advisory).
 on:
   pull_request:
-    types: [opened, synchronize, edited, reopened]
+    types: [opened, synchronize, edited, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -31,6 +31,10 @@ jobs:
       contents: read
       checks: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Run 6-green gate checks
         id: gates
         env:
@@ -257,7 +261,8 @@ jobs:
           # error handling match the pattern).
           # ----------------------------------------------------------------
           BUGBOT_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
-            --jq '[.check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
+            --paginate --slurp 2>/dev/null \
+            | jq -r '[.[].check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
             2>/dev/null || echo "none")
 
           if [ "$BUGBOT_CONCLUSION" = "failure" ]; then
@@ -463,8 +468,13 @@ jobs:
         run: |
           # Delete previous green-gate result comments to avoid clutter
           PREV_COMMENTS=$(gh api repos/${{ github.repository }}/issues/"$PR_NUM"/comments \
-            --paginate \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
+            --paginate --slurp 2>/dev/null \
+            | jq -r '[.[]
+              | select(.user.login == "github-actions[bot]"
+                and ((.body | test("green-gate-result-"))
+                  or ((.body | test("Skeptic Gate"))
+                    and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))))
+              | .[].id]' 2>/dev/null || echo "")
 
           for CID in $(echo "$PREV_COMMENTS" | jq -r '.[]' 2>/dev/null); do
             gh api repos/${{ github.repository }}/issues/comments/"$CID" --method DELETE 2>/dev/null || true
