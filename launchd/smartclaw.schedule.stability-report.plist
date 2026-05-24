@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/stability-report.launchd.sh</string>
+        <string>@HOME@/.smartclaw/scripts/stability-report.launchd.sh</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -18,13 +18,13 @@
     <integer>43200</integer>  <!-- 12 hours in seconds -->
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/stability-report.log</string>
+    <string>@HOME@/.smartclaw/logs/stability-report.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/stability-report.error.log</string>
+    <string>@HOME@/.smartclaw/logs/stability-report.error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>${HOME}/.smartclaw</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>ProcessType</key>
     <string>Background</string>
