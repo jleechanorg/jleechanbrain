@@ -45,12 +45,12 @@ DROP_THREAD_REPLY_LIMIT="${DROP_THREAD_REPLY_LIMIT:-200}"
 if [[ "${DROP_JEFFREY_ONLY_CHANNELS+x}" = x ]]; then
   JEFFREY_ONLY_CHANNELS="$DROP_JEFFREY_ONLY_CHANNELS"
 else
-  JEFFREY_ONLY_CHANNELS="${SLACK_CHANNEL_ID}"
+  JEFFREY_ONLY_CHANNELS="${SLACK_CHANNEL_ID:-}"
 fi
 POST_AS_BOT="${DROP_POST_AS_BOT:-1}"                      # 0 = post as user
 AGENT_USER_ID="${HERMES_BOT_USER_ID:-${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}}"  # bot user ID for classification
 JEFFREY_USER_ID="${JLEECHAN_USER_ID:-U09GH5BR3QU}"        # Jeffrey's Slack user ID (standalone msg detection)
-ESCALATION_CHANNEL="${DROP_ESCALATION_CHANNEL:-${SLACK_CHANNEL_ID}}"  # channel for uncertain-classification escalations
+ESCALATION_CHANNEL="${DROP_ESCALATION_CHANNEL:-${SLACK_CHANNEL_ID:-}}"  # channel for uncertain-classification escalations
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$STATE_FILE")"
@@ -549,7 +549,7 @@ filter_channels() {
 
 # Always include DM channel — conversations.list only returns C/G-prefixed channels.
 # DM channels (D-prefix) are never in that list, so we add it unless already present.
-DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-${SLACK_CHANNEL_ID}}"
+DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-${SLACK_CHANNEL_ID:-}}"
 case " ${DEFAULT_CHANNELS} " in
   *" ${DM_CHANNEL} "*) : ;;  # already present
   *) DEFAULT_CHANNELS="${DEFAULT_CHANNELS} ${DM_CHANNEL}" ;;
@@ -870,6 +870,7 @@ Message excerpt: ${original_msg:-[empty]}"
         -d "$(jq -n --arg ch "$ESCALATION_CHANNEL" --arg txt "$esc_text" \
           '{channel: $ch, text: $txt}')" > /dev/null 2>&1 || true
       log "  ESCALATED (LLM: uncertain): $channel $thread_ts"
+      record_nudge "$channel" "$thread_ts"
       continue
     fi
 
@@ -953,6 +954,7 @@ Message: ${msg_text:-[empty]}"
         -d "$(jq -n --arg ch "$ESCALATION_CHANNEL" --arg txt "$esc_text" \
           '{channel: $ch, text: $txt}')" > /dev/null 2>&1 || true
       log "  ESCALATED standalone (LLM: uncertain): $channel $msg_ts"
+      record_nudge "$channel" "$msg_ts"
       continue
     fi
 

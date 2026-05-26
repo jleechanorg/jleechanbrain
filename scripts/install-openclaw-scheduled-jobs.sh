@@ -216,14 +216,20 @@ _install_plist() {
 }
 
 echo "Installing launchd scheduled job plists..."
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
+for plist in \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template \
+  "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
   [[ -f "$plist" ]] || continue
   _install_plist "$plist"
 done
 
 # Standalone schedule plists (no .template suffix), e.g. stability-report.
 # Skip when a .plist.template exists for the same label (avoid double bootstrap).
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist; do
+for plist in \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist \
+  "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist; do
   [[ -f "$plist" ]] || continue
   [[ "$plist" == *.plist.template ]] && continue
   _base="${plist%.plist}"
@@ -279,7 +285,7 @@ else
 fi
 
 printf '\nVerifying loaded labels...\n'
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
+for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
   [[ -f "$plist" ]] || continue
   label="$(basename "$plist" .plist.template)"
   if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
