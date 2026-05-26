@@ -762,31 +762,6 @@ projects:
       Use conventional commits; never push directly to main.
 
       After each push, comment: @coderabbitai all good?
-  smartclaw:
-    name: smartclaw
-    repo: jleechanorg/smartclaw
-    path: ${HOME}/smartclaw
-    defaultBranch: main
-    sessionPrefix: sma
-    agentRules: |-
-      Always run tests before pushing.
-      Use conventional commits (feat:, fix:, chore:, docs:, refactor:, test:).
-      Link issue numbers in commit messages.
-      Write clear commit messages that explain WHY, not just WHAT.
-
-      Follow Python best practices:
-
-      - Use type hints for function parameters and return values
-      - Follow PEP 8 style guide
-      - Use f-strings for string formatting
-      - Use context managers (with statements) for resource management
-      - Write docstrings for classes and functions
-      - Prefer composition over inheritance
-
-      Before pushing, run these commands:
-      - pytest (run tests)
-      - black . (format code)
-      - mypy . (type checking)
   cmux:
     name: cmux
     repo: jleechanorg/cmux
