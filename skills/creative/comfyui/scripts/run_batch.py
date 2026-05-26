@@ -195,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
                     output_dir=run_dir, timeout=timeout, ws=args.ws,
                 )
                 future_to_idx[fut] = i
+            aborting = False
             for fut in as_completed(future_to_idx):
                 i = future_to_idx[fut]
                 try:
@@ -208,9 +209,15 @@ def main(argv: list[str] | None = None) -> int:
                     log(f"  run {i} → {r['status']}: {r.get('error','?')}")
                     if not args.continue_on_error:
                         log("  --continue-on-error not set; aborting batch")
+                        aborting = True
+                        for pending in future_to_idx:
+                            if not pending.done():
+                                pending.cancel()
                         break
                 else:
                     log(f"  run {i} → success: {len(r.get('outputs', []))} files")
+            if aborting:
+                log("Batch aborted after first failure; pending runs cancelled where possible.")
     else:
         for i, ar in enumerate(runs):
             run_dir = base_dir / f"run_{i:04d}"

@@ -76,6 +76,12 @@ class TestCloudCheckDepsLive:
         # are present on cloud; with folder aliasing, none should be missing.
         # If this fails, either the cloud removed the model or the aliasing logic broke.
         missing_filenames = {m["value"] for m in report["missing_models"]}
+        assert "flux1-dev.safetensors" not in missing_filenames, \
+            "flux1-dev.safetensors should be reachable via unet → diffusion_models alias"
+        assert "t5xxl_fp16.safetensors" not in missing_filenames, \
+            "t5xxl_fp16.safetensors should be reachable via clip → text_encoders alias"
+        assert "clip_l.safetensors" not in missing_filenames, \
+            "clip_l.safetensors should be reachable via clip → text_encoders alias"
         assert "ae.safetensors" not in missing_filenames, \
             "ae.safetensors should be on cloud's vae folder"
         # t5xxl_fp16 / clip_l should be reachable via the clip → text_encoders alias

@@ -36,6 +36,6 @@ Gap-crossing structure connecting problem to solution or current to future state
 
 ## Recommended Pairings
 
-- `cartoon-hand-drawn`: Friendly journeys
+- `hand-drawn-edu`: Friendly journeys
 - `corporate-memphis`: Business transformations
-- `isometric-3d`: Technical transitions
+- `technical-schematic`: Technical transitions
