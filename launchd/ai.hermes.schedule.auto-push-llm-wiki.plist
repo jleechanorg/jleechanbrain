@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.hermes.schedule.auto-push-llm-wiki</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${HOME}/.hermes/scripts/auto-push-to-main.sh</string>
+        <string>${HOME}/llm_wiki</string>
+        <string>llm-wiki</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>${HOME}/.hermes/logs/scheduled-jobs/auto-push-llm-wiki.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${HOME}/.hermes/logs/scheduled-jobs/auto-push-llm-wiki.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>${HOME}/.hermes</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>1800</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/jleechan</string>
+        <key>PATH</key>
+        <string>${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:${HOME}/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+    </dict>
+</dict>
+</plist>

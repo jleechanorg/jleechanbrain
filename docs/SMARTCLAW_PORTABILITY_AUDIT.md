@@ -1,11 +1,11 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-05-23 13:17:33 PDT
+Generated: 2026-05-26 10:46:41 PDT
 
 ## Summary
 
-- Candidate files evaluated: 1003
-- Included in export map: 985
+- Candidate files evaluated: 1208
+- Included in export map: 1190
 - Excluded as non-portable/private/runtime: 18
 
 ## Selection Rules

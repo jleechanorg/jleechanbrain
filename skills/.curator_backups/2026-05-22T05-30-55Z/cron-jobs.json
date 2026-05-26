@@ -1,0 +1,11 @@
+{
+  "jobs": [
+    {
+      "id": "gateway-heartbeat",
+      "schedule": "*/30 * * * *",
+      "description": "Supplementary heartbeat — confirms gateway was healthy at fire time. NOT a liveness indicator: if gateway is down this cron will not fire. Use watchdog + hermes-health.sh for authoritative liveness.",
+      "command": "bash -c 'source ~/.bashrc 2>/dev/null; ~/.hermes/scripts/hermes-health.sh --quiet; STATUS=$?; if [ $STATUS -eq 0 ]; then MSG=\"✅ Hermes gateway healthy ($(date +%H:%M))\"; elif [ $STATUS -eq 1 ]; then MSG=\"⚠️ Hermes gateway DEGRADED — warnings detected — run: hermes-health.sh for details\"; else MSG=\"🚨 Hermes gateway DOWN — failures detected — run: hermes-health.sh + watchdog for details\"; fi; curl -s -X POST https://slack.com/api/chat.postMessage -H \"Authorization: Bearer ${SLACK_BOT_TOKEN:-${SLACK_MCP_XOXB_TOKEN:-}}\" -H \"Content-Type: application/json\" -d \"{\\\"channel\\\":\\\"C0AJQ5M0A0Y\\\",\\\"text\\\":\\\"$MSG\\\"}\" > /dev/null'"
+    }
+  ],
+  "updated_at": "2026-05-17T00:00:00.000000-07:00"
+}

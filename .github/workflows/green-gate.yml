@@ -5,7 +5,7 @@ name: Green Gate
 # Exit PASS when all gates pass, FAIL when any gate fails (Gate 6 is advisory).
 on:
   pull_request:
-    types: [opened, synchronize, edited, reopened, ready_for_review]
+    types: [opened, synchronize, edited, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -24,10 +24,6 @@ concurrency:
 jobs:
   green_gate:
     name: Green Gate
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
       pull-requests: write
@@ -35,10 +31,6 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Run 6-green gate checks
         id: gates
         env:
@@ -81,27 +73,7 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
-          
-          # Detect if openclaw.json is in the PR diff to determine expected core jobs
-          BASE_REF="${{ github.event.pull_request.base.ref || 'main' }}"
-          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
-          CHANGED=$(git diff --name-only "origin/$BASE_REF...$HEAD_SHA" 2>/dev/null || echo "")
-          OPENCLAW_CHANGED=false
-          for f in $CHANGED; do
-            case "$f" in
-              openclaw.json|*/openclaw.json) OPENCLAW_CHANGED=true ;;
-            esac
-          done
-          
-          # Full canary only runs when openclaw.json changes; otherwise expect 2 core jobs
-          if [ "$OPENCLAW_CHANGED" = true ]; then
-            REQUIRED_CORE_JOBS=3
-            echo "openclaw.json changed — expecting 3 core jobs (including Full canary)"
-          else
-            REQUIRED_CORE_JOBS=2
-            echo "openclaw.json unchanged — expecting 2 core jobs (Staging Canary Gate, find-openclaw-json)"
-          fi
-          
+          REQUIRED_CORE_JOBS=3
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
@@ -266,8 +238,7 @@ jobs:
           # error handling match the pattern).
           # ----------------------------------------------------------------
           BUGBOT_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
-            --paginate --slurp 2>/dev/null \
-            | jq -r '[.[].check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
+            --jq '[.check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
             2>/dev/null || echo "none")
 
           if [ "$BUGBOT_CONCLUSION" = "failure" ]; then
@@ -473,13 +444,8 @@ jobs:
         run: |
           # Delete previous green-gate result comments to avoid clutter
           PREV_COMMENTS=$(gh api repos/${{ github.repository }}/issues/"$PR_NUM"/comments \
-            --paginate --slurp 2>/dev/null \
-            | jq -r '[.[]
-              | select(.user.login == "github-actions[bot]"
-                and ((.body | test("green-gate-result-"))
-                  or ((.body | test("Skeptic Gate"))
-                    and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))))
-              | .[].id]' 2>/dev/null || echo "")
+            --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
 
           for CID in $(echo "$PREV_COMMENTS" | jq -r '.[]' 2>/dev/null); do
             gh api repos/${{ github.repository }}/issues/comments/"$CID" --method DELETE 2>/dev/null || true

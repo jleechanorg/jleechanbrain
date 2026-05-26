@@ -522,7 +522,8 @@ fi
 
 # Execute commit + PR
 # Return codes: 0=success with tracked work, 1=failure, 2=no-work (skip/idempotent)
-do_commit_and_pr && result=0 || result=$?
+do_commit_and_pr
+result=$?
 
 if [[ "$result" == "1" ]]; then
   log "ERROR: do_commit_and_pr failed — running AO fallback"

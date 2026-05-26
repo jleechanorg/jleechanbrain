@@ -6,7 +6,7 @@
     <string>ai.smartclaw.schedule.gmail-daily-recap</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
+        <string>/usr/bin/env bash</string>
         <string>@HOME@/.smartclaw/scripts/gmail-daily-recap.sh</string>
     </array>
     <key>StartCalendarInterval</key>

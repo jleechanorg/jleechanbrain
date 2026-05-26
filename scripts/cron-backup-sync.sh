@@ -87,8 +87,7 @@ if [[ "$CHANGED" -eq 1 ]]; then
     if git add "$BACKUP_JSON" "$BACKUP_MD" 2>/dev/null; then
       if ! git diff --cached --quiet; then
         if git commit -m "chore: refresh cron backup" 2>/dev/null; then
-          COMMIT_SHA="$(git rev-parse HEAD)"
-          log "Committed: $COMMIT_SHA"
+          log "Committed: $(git rev-parse HEAD)"
           git push 2>/dev/null || true
         fi
       fi
@@ -112,7 +111,7 @@ do_slack() {
     >> "$ROOT/logs/cron-backup/slack-$(date +%Y%m%d).log" 2>&1 || true
 }
 
-if [[ "$CHANGED" -eq 1 ]] && [[ -n "${COMMIT_SHA:-}" ]]; then
+if [[ "$CHANGED" -eq 1 ]] && [[ -n "$COMMIT_SHA" ]]; then
   do_slack "Cron Backup: committed. Total: $TOTAL jobs ($ENABLED enabled)."
 elif [[ "$CHANGED" -eq 1 ]]; then
   do_slack "Cron Backup: changed (not committed). Total: $TOTAL jobs."

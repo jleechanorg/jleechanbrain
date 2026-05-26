@@ -30,6 +30,7 @@ set -euo pipefail
 # ── Defaults ──────────────────────────────────────────────────────────────────
 CHANNEL="${SLACK_TEST_CHANNEL:-${SLACK_CHANNEL_ID}}"
 TIMEOUT="${HERMES_CANARY_TIMEOUT:-20}"
+PORT="${HERMES_CANARY_PORT:-8642}"
 JSON_OUTPUT=false
 CANARY_TAG="canary-$(date +%s)-$$"
 # Unique nonce that the bot must include in its response to prove LLM processing.
@@ -41,9 +42,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --channel)  CHANNEL="$2"; shift 2 ;;
     --timeout)  TIMEOUT="$2"; shift 2 ;;
+    --port)     PORT="$2"; shift 2 ;;
     --json)     JSON_OUTPUT=true; shift ;;
     -h|--help)
-      echo "Usage: $0 [--channel Cxxx] [--timeout N] [--json]"
+      echo "Usage: $0 [--channel Cxxx] [--timeout N] [--port PORT] [--json]"
       exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -136,8 +138,8 @@ slack_delete_message() {
 }
 
 # ── Pre-flight checks ─────────────────────────────────────────────────────────
-if ! curl -sf --max-time 5 "http://127.0.0.1:8642/health" >/dev/null 2>&1; then
-  echo "FAIL: gateway health endpoint not responding on :8642" >&2
+if ! curl -sf --max-time 5 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+  echo "FAIL: gateway health endpoint not responding on :${PORT}" >&2
   $JSON_OUTPUT && echo "{\"status\":\"fail\",\"reason\":\"health_endpoint_down\",\"tag\":\"${CANARY_TAG}\"}"
   exit 1
 fi

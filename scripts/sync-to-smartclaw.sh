@@ -83,6 +83,12 @@ load_sync_map() {
 sanitize_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+  # Skip binary files — sed chokes on non-text content (PDFs, images, etc.)
+  local mime
+  mime=$(file --mime-type --brief "$file" 2>/dev/null || echo "application/octet-stream")
+  if [[ "$mime" != text/* ]]; then
+    return 0
+  fi
   local tmp
   # Use a template so mktemp is portable (BSD/macOS require it)
   tmp=$(mktemp "${file}.sanitize.XXXXXX")
