@@ -3,35 +3,37 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.smartclaw.schedule.dropped-thread-followup</string>
+    <string>ai.smartclaw.schedule.ao-progress-reporter</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/dropped-thread-followup.sh</string>
+        <string>@HOME@/.smartclaw/scripts/ao-progress-reporter.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>/Users/jleechan</string>
+        <string>@HOME@</string>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>SLACK_BOT_TOKEN</key>
         <string>@SLACK_BOT_TOKEN@</string>
+        <key>AOPR_SLACK_THREAD_TS</key>
+        <string>1775197044.035089</string>
     </dict>
 
     <key>StartInterval</key>
-    <integer>14400</integer>
+    <integer>1800</integer>
 
     <key>RunAtLoad</key>
     <true/>
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/dropped-thread-followup.log</string>
+    <string>@HOME@/.smartclaw/logs/ao-progress-reporter.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/dropped-thread-followup.err</string>
+    <string>@HOME@/.smartclaw/logs/ao-progress-reporter.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>

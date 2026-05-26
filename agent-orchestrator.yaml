@@ -879,7 +879,7 @@ reactions:
     priority: action
   worker-signals-completion:
     auto: true
-    action: skeptic-review
+    action: notify
     skepticModel: claude
     skepticPostComment: true
   agent-stuck:
@@ -923,5 +923,5 @@ reactions:
     priority: action
   agent-exited:
     auto: true
-    action: agent-fallback
+    action: send-to-agent
     priority: urgent

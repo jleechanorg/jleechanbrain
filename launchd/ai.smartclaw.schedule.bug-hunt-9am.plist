@@ -3,17 +3,22 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.smartclaw.schedule.gmail-daily-recap</string>
+    <string>ai.smartclaw.schedule.bug-hunt-9am</string>
+    
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/env bash</string>
-        <string>@HOME@/.smartclaw/scripts/gmail-daily-recap.sh</string>
+        <string>/bin/bash</string>
+        <string>@HOME@/project_smartclaw/smartclaw/scripts/bug-hunt-daily.sh</string>
     </array>
+    
+    <key>RunAtLoad</key>
+    <false/>
+    
     <key>StartCalendarInterval</key>
     <array>
         <dict>
             <key>Hour</key>
-            <integer>8</integer>
+            <integer>9</integer>
             <key>Minute</key>
             <integer>0</integer>
             <key>Weekday</key>
@@ -21,7 +26,7 @@
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>8</integer>
+            <integer>9</integer>
             <key>Minute</key>
             <integer>0</integer>
             <key>Weekday</key>
@@ -29,7 +34,7 @@
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>8</integer>
+            <integer>9</integer>
             <key>Minute</key>
             <integer>0</integer>
             <key>Weekday</key>
@@ -37,7 +42,7 @@
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>8</integer>
+            <integer>9</integer>
             <key>Minute</key>
             <integer>0</integer>
             <key>Weekday</key>
@@ -45,31 +50,27 @@
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>8</integer>
+            <integer>9</integer>
             <key>Minute</key>
             <integer>0</integer>
             <key>Weekday</key>
             <integer>5</integer>
         </dict>
     </array>
-    <key>RunAtLoad</key>
-    <false/>
+    
     <key>StandardOutPath</key>
-    <string>@HOME@/.smartclaw/logs/scheduled-jobs/gmail-daily-recap.out.log</string>
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.log</string>
+    
     <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/scheduled-jobs/gmail-daily-recap.err.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>TZ</key>
-        <string>America/Los_Angeles</string>
-        <key>PATH</key>
-        <string>@OPENCLAW_EXTRA_PATH@@GOG_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-        <key>HOME</key>
-        <string>@HOME@</string>
-    </dict>
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.error.log</string>
+    
+    <key>WorkingDirectory</key>
+    <string>@HOME@/project_smartclaw/smartclaw</string>
+    
     <key>ProcessType</key>
     <string>Background</string>
+    
     <key>ThrottleInterval</key>
-    <integer>300</integer>
+    <integer>86400</integer>
 </dict>
 </plist>

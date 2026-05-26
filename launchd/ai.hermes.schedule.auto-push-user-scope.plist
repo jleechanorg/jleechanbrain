@@ -8,8 +8,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.hermes/scripts/auto-push-to-main.sh</string>
-        <string>${HOME}/projects/user_scope</string>
+        <string>@HOME@/.hermes/scripts/auto-push-to-main.sh</string>
+        <string>@HOME@/projects/user_scope</string>
         <string>user-scope</string>
     </array>
 
@@ -20,13 +20,13 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.hermes/logs/scheduled-jobs/auto-push-user-scope.out.log</string>
+    <string>@HOME@/.hermes/logs/scheduled-jobs/auto-push-user-scope.out.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.hermes/logs/scheduled-jobs/auto-push-user-scope.err.log</string>
+    <string>@HOME@/.hermes/logs/scheduled-jobs/auto-push-user-scope.err.log</string>
 
     <key>WorkingDirectory</key>
-    <string>${HOME}/.hermes</string>
+    <string>@HOME@/.hermes</string>
 
     <key>ProcessType</key>
     <string>Background</string>
@@ -37,9 +37,9 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>/Users/jleechan</string>
+        <string>@HOME@</string>
         <key>PATH</key>
-        <string>${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:${HOME}/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>TZ</key>
         <string>America/Los_Angeles</string>
     </dict>

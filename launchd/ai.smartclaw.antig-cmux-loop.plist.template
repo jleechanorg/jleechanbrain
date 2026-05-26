@@ -3,20 +3,21 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.smartclaw.antig-cmux-loop-kill</string>
+    <string>ai.smartclaw.antig-cmux-loop</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>-c</string>
-        <string>launchctl remove ai.smartclaw.antig-cmux-loop</string>
+        <string>@HOME@/.smartclaw/scripts/antig-cmux-loop.sh</string>
     </array>
     <key>StartInterval</key>
-    <integer>28800</integer>
+    <integer>600</integer>
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop-kill.log</string>
+    <string>@HOME@/.smartclaw/logs/antig-cmux-loop.log</string>
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/antig-cmux-loop-kill.err</string>
+    <string>@HOME@/.smartclaw/logs/antig-cmux-loop.err</string>
+    <key>LowPriorityIO</key>
+    <true/>
 </dict>
 </plist>

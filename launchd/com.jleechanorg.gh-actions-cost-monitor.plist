@@ -9,7 +9,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>${HOME}/.smartclaw/scripts/gh-actions-cost-monitor.sh</string>
+        <string>@HOME@/.smartclaw/scripts/gh-actions-cost-monitor.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -38,7 +38,7 @@
     <string>/tmp/gh-actions-cost-monitor.log</string>
 
     <key>WorkingDirectory</key>
-    <string>${HOME}/.smartclaw</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>ProcessType</key>
     <string>Background</string>

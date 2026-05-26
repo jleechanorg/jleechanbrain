@@ -6,7 +6,7 @@
   <string>ai.smartclaw.thread-reply-nudge</string>
 
   <key>Program</key>
-  <string>${HOME}/.smartclaw/scripts/thread-reply-nudge.sh</string>
+  <string>@HOME@/.smartclaw/scripts/thread-reply-nudge.sh</string>
 
   <key>StartInterval</key>
   <integer>120</integer>

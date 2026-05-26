@@ -14,7 +14,6 @@
     "class_type": "ImageUpscaleWithModel",
     "_meta": {"title": "Upscale Image (with Model)"},
     "inputs": {
-      "upscale_method": "lanczos",
       "upscale_model": ["2", 0],
       "image": ["1", 0]
     }

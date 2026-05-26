@@ -717,10 +717,10 @@ if [[ "$OS" == "macos" ]]; then
   # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Install canonical gateway plist. Clean up legacy com.smartclaw.gateway if present.
-  if install_plist "$REPO_DIR/launchd/smartclaw.gateway.plist"; then
+  if install_plist "$REPO_DIR/launchd/ai.smartclaw.gateway.plist"; then
     # Tear down legacy com.smartclaw.gateway if it exists (migration from old label).
     launchctl bootout "gui/$(id -u)/com.smartclaw.gateway" 2>/dev/null || true
-    rm -f "$LAUNCHD_DIR/com.smartclaw.gateway.plist"
+    rm -f "$LAUNCHD_DIR/com.ai.smartclaw.gateway.plist"
   else
     echo "ERROR: gateway plist failed to load." >&2
   fi

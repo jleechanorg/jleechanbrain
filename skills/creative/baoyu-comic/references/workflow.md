@@ -39,8 +39,8 @@ Read source content, save it if needed, and perform deep analysis.
 **Actions**:
 1. **Save source content** (if not already a file):
    - If user provides a file path: use as-is
-   - If user pastes content: save to `source-{slug}.md` in the target directory using `write_file`, where `{slug}` is the kebab-case topic slug used for the output directory
-   - **Backup rule**: If `source-{slug}.md` already exists, rename it to `source-{slug}-backup-YYYYMMDD-HHMMSS.md` before writing
+   - If user pastes content: save to `source-{topic-slug}.md` in the target directory using `write_file`, where `{topic-slug}` is the kebab-case topic slug used for the output directory
+   - **Backup rule**: If `source-{topic-slug}.md` already exists, rename it to `source-{topic-slug}-backup-YYYYMMDD-HHMMSS.md` before writing
 2. Read source content
 3. **Deep analysis** following `analysis-framework.md`:
    - Target audience identification
@@ -73,7 +73,7 @@ question: "Existing content found at comic/{topic-slug}. How to proceed?"
 options:
   - "Regenerate storyboard — Keep images, regenerate storyboard and characters only"
   - "Regenerate images — Keep storyboard, regenerate images only"
-  - "Backup and regenerate — Backup to {slug}-backup-{timestamp}, then regenerate all"
+  - "Backup and regenerate — Backup to {topic-slug}-backup-{timestamp}, then regenerate all"
   - "Exit — Cancel, keep existing content unchanged"
 ```
 
@@ -321,7 +321,7 @@ With confirmed prompts from Step 5/6, use the `image_generate` tool. The tool ac
 **Download procedure** (run after every successful `image_generate` call):
 
 1. Extract the `url` field from the tool result
-2. Fetch it to disk, e.g. `curl -fsSL "<url>" -o comic/{slug}/<target>.png`
+2. Fetch it to disk, e.g. `curl -fsSL "<url>" -o comic/{topic-slug}/<target>.png`
 3. Verify the file is non-empty (`test -s <target>.png`); on failure, retry the generation once
 
 ### 7.1 Generate Character Reference Sheet (conditional)
@@ -380,7 +380,7 @@ Character sheet is recommended for multi-page comics with recurring characters, 
 Comic Complete!
 Title: [title] | Art: [art] | Tone: [tone] | Pages: [count] | Aspect: [ratio] | Language: [lang]
 Location: [path]
-✓ source-{slug}.md (if content was pasted)
+✓ source-{topic-slug}.md (if content was pasted)
 ✓ analysis.md
 ✓ characters.png (if generated)
 ✓ 00-cover-[slug].png ... NN-page-[slug].png

@@ -5,7 +5,7 @@ version: 4.0.0
 author: 0xbyt4, Hermes Agent
 license: MIT
 dependencies: []
-platforms: [linux, macos, windows]
+platforms: [linux, macos]
 metadata:
   hermes:
     tags: [ASCII, Art, Banners, Creative, Unicode, Text-Art, pyfiglet, figlet, cowsay, boxes]
