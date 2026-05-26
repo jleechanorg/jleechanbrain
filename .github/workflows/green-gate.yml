@@ -24,6 +24,7 @@ concurrency:
 jobs:
   green_gate:
     name: Green Gate
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
       pull-requests: write
@@ -87,13 +88,32 @@ jobs:
               openclaw.json|*/openclaw.json) OPENCLAW_CHANGED=true ;;
             esac
           done
-          if [ "$OPENCLAW_CHANGED" = "true" ]; then
+          # Check if find-openclaw-json will run (requires canary not disabled)
+          CANARY_ENABLED=true
+          if [ "${{ vars.ENABLE_STAGING_CANARY_SELFHOSTED }}" = "false" ]; then
+            CANARY_ENABLED=false
+          fi
+          # Determine required core jobs count
+          if [ "$CANARY_ENABLED" = "false" ]; then
+            REQUIRED_CORE_JOBS=1
+            echo "Staging canary disabled — expecting 1 core job (Staging Canary Gate only)"
+          elif [ "$OPENCLAW_CHANGED" = "true" ]; then
             REQUIRED_CORE_JOBS=3
             echo "openclaw.json changed — expecting 3 core jobs"
           else
             REQUIRED_CORE_JOBS=2
             echo "openclaw.json unchanged — expecting 2 core jobs"
           fi
+          
+          # Build jq filter based on which jobs should run
+          if [ "$CANARY_ENABLED" = "false" ]; then
+            JQ_FILTER='.name == "Staging Canary Gate"'
+          elif [ "$OPENCLAW_CHANGED" = "true" ]; then
+            JQ_FILTER='(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")'
+          else
+            JQ_FILTER='(.name == "Staging Canary Gate" or .name == "find-openclaw-json")'
+          fi
+          
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
@@ -111,7 +131,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+                | [.[] | select('"$JQ_FILTER"' and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -119,7 +139,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .status != "completed")]
+                | [.[] | select('"$JQ_FILTER"' and .status != "completed")]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             TOTAL_CHECKS=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -127,7 +147,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
+                | [.[] | select('"$JQ_FILTER"')]
                 | length' 2>/dev/null || echo "0")
 
             echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}"
@@ -149,7 +169,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+              | [.[] | select('"$JQ_FILTER"' and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
               | length' 2>/dev/null || echo "__API_ERROR__")
           CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \
@@ -157,7 +177,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .status != "completed")]
+              | [.[] | select('"$JQ_FILTER"' and .status != "completed")]
               | length' 2>/dev/null || echo "__API_ERROR__")
           TOTAL_CHECKS=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \
@@ -165,7 +185,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
+              | [.[] | select('"$JQ_FILTER"')]
               | length' 2>/dev/null || echo "0")
 
           CI_STATUS_JSON=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/status \
