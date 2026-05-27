@@ -5,7 +5,7 @@ name: Green Gate
 # Exit PASS when all gates pass, FAIL when any gate fails (Gate 6 is advisory).
 on:
   pull_request:
-    types: [opened, synchronize, edited, reopened, ready_for_review]
+    types: [opened, synchronize, edited, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -24,10 +24,7 @@ concurrency:
 jobs:
   green_gate:
     name: Green Gate
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     permissions:
       pull-requests: write
@@ -35,7 +32,8 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -81,25 +79,39 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
-          
-          # Detect if openclaw.json is in the PR diff to determine expected core jobs
-          BASE_REF="${{ github.event.pull_request.base.ref || 'main' }}"
-          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
-          CHANGED=$(git diff --name-only "origin/$BASE_REF...$HEAD_SHA" 2>/dev/null || echo "")
+          # Detect if openclaw.json changed to determine if Full canary (6/6) will run
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...$HEAD_SHA" 2>/dev/null || echo "")
           OPENCLAW_CHANGED=false
           for f in $CHANGED; do
             case "$f" in
               openclaw.json|*/openclaw.json) OPENCLAW_CHANGED=true ;;
             esac
           done
-          
-          # Full canary only runs when openclaw.json changes; otherwise expect 2 core jobs
-          if [ "$OPENCLAW_CHANGED" = true ]; then
+          # Check if find-openclaw-json will run (requires canary not disabled)
+          CANARY_ENABLED=true
+          if [ "${{ vars.ENABLE_STAGING_CANARY_SELFHOSTED }}" = "false" ]; then
+            CANARY_ENABLED=false
+          fi
+          # Determine required core jobs count
+          if [ "$CANARY_ENABLED" = "false" ]; then
+            REQUIRED_CORE_JOBS=1
+            echo "Staging canary disabled — expecting 1 core job (Staging Canary Gate only)"
+          elif [ "$OPENCLAW_CHANGED" = "true" ]; then
             REQUIRED_CORE_JOBS=3
-            echo "openclaw.json changed — expecting 3 core jobs (including Full canary)"
+            echo "openclaw.json changed — expecting 3 core jobs"
           else
             REQUIRED_CORE_JOBS=2
-            echo "openclaw.json unchanged — expecting 2 core jobs (Staging Canary Gate, find-openclaw-json)"
+            echo "openclaw.json unchanged — expecting 2 core jobs"
+          fi
+          
+          # Build jq filter based on which jobs should run
+          if [ "$CANARY_ENABLED" = "false" ]; then
+            JQ_FILTER='.name == "Staging Canary Gate"'
+          elif [ "$OPENCLAW_CHANGED" = "true" ]; then
+            JQ_FILTER='(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")'
+          else
+            JQ_FILTER='(.name == "Staging Canary Gate" or .name == "find-openclaw-json")'
           fi
           
           while [ $ELAPSED -lt $MAX_WAIT ]; do
@@ -119,7 +131,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+                | [.[] | select('"$JQ_FILTER"' and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -127,7 +139,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .status != "completed")]
+                | [.[] | select('"$JQ_FILTER"' and .status != "completed")]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             TOTAL_CHECKS=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -135,7 +147,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
+                | [.[] | select('"$JQ_FILTER"')]
                 | length' 2>/dev/null || echo "0")
 
             echo "  [${ELAPSED}s] total=${TOTAL_CHECKS}, pending=${CHECK_RUNS_PENDING}, failed=${CHECK_RUNS_FAILED}"
@@ -157,7 +169,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+              | [.[] | select('"$JQ_FILTER"' and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
               | length' 2>/dev/null || echo "__API_ERROR__")
           CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \
@@ -165,7 +177,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .status != "completed")]
+              | [.[] | select('"$JQ_FILTER"' and .status != "completed")]
               | length' 2>/dev/null || echo "__API_ERROR__")
           TOTAL_CHECKS=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \
@@ -173,7 +185,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select(.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)")]
+              | [.[] | select('"$JQ_FILTER"')]
               | length' 2>/dev/null || echo "0")
 
           CI_STATUS_JSON=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/status \
@@ -266,8 +278,7 @@ jobs:
           # error handling match the pattern).
           # ----------------------------------------------------------------
           BUGBOT_CONCLUSION=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
-            --paginate --slurp 2>/dev/null \
-            | jq -r '[.[].check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
+            --jq '[.check_runs[] | select(.name == "Cursor Bugbot")] | sort_by(.started_at) | reverse | .[0].conclusion // "none"' \
             2>/dev/null || echo "none")
 
           if [ "$BUGBOT_CONCLUSION" = "failure" ]; then
@@ -473,13 +484,8 @@ jobs:
         run: |
           # Delete previous green-gate result comments to avoid clutter
           PREV_COMMENTS=$(gh api repos/${{ github.repository }}/issues/"$PR_NUM"/comments \
-            --paginate --slurp 2>/dev/null \
-            | jq -r '[.[]
-              | select(.user.login == "github-actions[bot]"
-                and ((.body | test("green-gate-result-"))
-                  or ((.body | test("Skeptic Gate"))
-                    and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))))
-              | .[].id]' 2>/dev/null || echo "")
+            --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and ((.body | test("green-gate-result-")) or ((.body | test("Skeptic Gate")) and (.body | test("<!--[[:space:]]*HEAD-SHA:[[:space:]]*[a-f0-9]+[[:space:]]*-->"))))) | .id]' 2>/dev/null || echo "[]")
 
           for CID in $(echo "$PREV_COMMENTS" | jq -r '.[]' 2>/dev/null); do
             gh api repos/${{ github.repository }}/issues/comments/"$CID" --method DELETE 2>/dev/null || true

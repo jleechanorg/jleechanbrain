@@ -717,10 +717,10 @@ if [[ "$OS" == "macos" ]]; then
   # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Install canonical gateway plist. Clean up legacy com.smartclaw.gateway if present.
-  if install_plist "$REPO_DIR/launchd/smartclaw.gateway.plist"; then
+  if install_plist "$REPO_DIR/launchd/ai.smartclaw.gateway.plist.template"; then
     # Tear down legacy com.smartclaw.gateway if it exists (migration from old label).
     launchctl bootout "gui/$(id -u)/com.smartclaw.gateway" 2>/dev/null || true
-    rm -f "$LAUNCHD_DIR/com.smartclaw.gateway.plist"
+    rm -f "$LAUNCHD_DIR/com.ai.smartclaw.gateway.plist.template"
   else
     echo "ERROR: gateway plist failed to load." >&2
   fi
@@ -746,12 +746,12 @@ fi
 if [[ "$OS" == "macos" ]]; then
   ensure_staging_config_file
   # Remove the auto-generated plist from staging-gateway.sh (now managed by installer)
-  if [[ -f "$HOME/.smartclaw/ai.smartclaw.staging.plist" ]]; then
+  if [[ -f "$HOME/.smartclaw/ai.smartclaw.staging.plist.template" ]]; then
     launchctl bootout "gui/$(id -u)/ai.smartclaw.staging" 2>/dev/null || true
-    rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist"
+    rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist.template"
   fi
-  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist" ]]; then
-    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist"
+  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist.template" ]]; then
+    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist.template"
   else
     echo "  • skipping ai.smartclaw.staging (plist not in repo — opt-in)"
   fi
@@ -762,7 +762,7 @@ fi
 # --- startup check ---
 install_startup_check_script
 if [[ "$OS" == "macos" ]]; then
-  install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist"
+  : # install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist" (missing in repo)
 else
   install_systemd_service "openclaw-startup-check" \
     "/bin/bash $OPENCLAW_HOME/startup-check.sh" \
@@ -772,7 +772,7 @@ fi
 # --- monitor-agent (periodic health monitoring) ---
 MONITOR_AGENT_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
-  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist"
+  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist.template"
   if [[ -f "$MONITOR_AGENT_PLIST" ]]; then
     install_plist "$MONITOR_AGENT_PLIST"
     MONITOR_AGENT_INSTALLED=1
@@ -797,7 +797,7 @@ if [[ "$OS" == "macos" ]]; then
       cp "$ANTIG_CMUX_SCRIPT" "$_antig_dst"
     fi
     chmod +x "$_antig_dst"
-    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist"
+    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist.template"
     if [[ -f "$ANTIG_CMUX_PLIST" ]]; then
       install_plist "$ANTIG_CMUX_PLIST"
       echo "  ✓ ai.smartclaw.antig-cmux-loop installed"
@@ -813,7 +813,7 @@ fi
 
 # --- ao7green-smartclaw (drive smartclaw PRs to 7-green every 30 min) ---
 if [[ "$OS" == "macos" ]]; then
-  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-smartclaw.plist"
+  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-smartclaw.plist.template"
   AO7GREEN_LAUNCHD_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.launchd.sh"
   AO7GREEN_MONITOR_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.sh"
   AO7GREEN_REPLACED_CRON_ID="64f2399d-33f4-4451-be87-05350d2b2590"

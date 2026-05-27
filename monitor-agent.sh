@@ -16,8 +16,8 @@ export PATH="$HOME/.nvm/versions/node/v22.22.0/bin:$HOME/.nvm/versions/node/curr
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
 ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
-# On failures, send the full monitor report to the monitoring channel (${SLACK_CHANNEL_ID}).
-# The all-jleechan-ai channel (${SLACK_CHANNEL_ID}) should not receive monitor reports.
+# On failures, send the full monitor report to the monitoring channel (${SLACK_CHANNEL_ID:-}).
+# The all-jleechan-ai channel (${SLACK_CHANNEL_ID:-}) should not receive monitor reports.
 FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}"
 PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"

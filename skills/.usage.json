@@ -1,0 +1,41 @@
+{
+  "cmux": {
+    "archived_at": null,
+    "created_at": "2026-05-24T15:00:51.310200+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-05-24T15:00:51.311838+00:00",
+    "last_viewed_at": "2026-05-24T15:00:51.310215+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 1,
+    "view_count": 1
+  },
+  "dispatch-task": {
+    "archived_at": null,
+    "created_at": "2026-05-15T06:12:56.989824+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-05-19T15:49:54.303666+00:00",
+    "last_viewed_at": "2026-05-19T15:49:54.300281+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 4,
+    "view_count": 4
+  },
+  "pr-clean-worktree": {
+    "archived_at": null,
+    "created_at": "2026-05-15T01:21:21.127514+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-05-15T18:02:47.241054+00:00",
+    "last_viewed_at": "2026-05-15T18:02:47.240490+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 3,
+    "view_count": 3
+  }
+}

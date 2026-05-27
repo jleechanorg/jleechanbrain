@@ -87,7 +87,7 @@ if [[ "$CHANGED" -eq 1 ]]; then
     if git add "$BACKUP_JSON" "$BACKUP_MD" 2>/dev/null; then
       if ! git diff --cached --quiet; then
         if git commit -m "chore: refresh cron backup" 2>/dev/null; then
-          COMMIT_SHA="$(git rev-parse HEAD)"
+          COMMIT_SHA=$(git rev-parse HEAD)
           log "Committed: $COMMIT_SHA"
           git push 2>/dev/null || true
         fi

@@ -138,6 +138,7 @@ printf 'Installing OpenClaw launchd scheduled jobs\n'
 printf 'Repo: %s\n\n' "$REPO_ROOT"
 
 mkdir -p "$LAUNCHD_DIR" "$LIVE_DIR" "$LIVE_DIR/cron" "$LIVE_DIR/scripts" "$SCHEDULED_LOG_DIR"
+mkdir -p "$HOME/.hermes/scripts" "$HOME/.hermes/logs/scheduled-jobs"
 
 # Install job scripts (morning-log-review, weekly-error-trends, etc.)
 echo "Installing job scripts..."
@@ -175,6 +176,23 @@ for script in "${JOB_SCRIPTS[@]}"; do
   fi
   echo "  - installed $(basename "$script")"
 done
+
+# Install Hermes-specific scripts to ~/.hermes/scripts
+echo "Installing Hermes-specific scripts..."
+HERMES_SCRIPT="$REPO_ROOT/scripts/auto-push-to-main.sh"
+if [[ ! -f "$HERMES_SCRIPT" ]]; then
+  echo "ERROR: required Hermes script missing: $HERMES_SCRIPT" >&2
+  exit 1
+fi
+if [[ ! -x "$HERMES_SCRIPT" ]]; then
+  echo "ERROR: Hermes script is not executable: $HERMES_SCRIPT" >&2
+  exit 1
+fi
+hermes_dst="$HOME/.hermes/scripts/$(basename "$HERMES_SCRIPT")"
+if [[ "$(realpath "$HERMES_SCRIPT" 2>/dev/null)" != "$(realpath "$hermes_dst" 2>/dev/null)" ]]; then
+  install -m 755 "$HERMES_SCRIPT" "$hermes_dst"
+fi
+echo "  - installed $(basename "$HERMES_SCRIPT") to ~/.hermes/scripts/"
 
 # Render and load each scheduled plist template (or standalone .plist without .template)
 _install_plist() {
@@ -216,14 +234,20 @@ _install_plist() {
 }
 
 echo "Installing launchd scheduled job plists..."
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
+for plist in \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template \
+  "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
   [[ -f "$plist" ]] || continue
   _install_plist "$plist"
 done
 
 # Standalone schedule plists (no .template suffix), e.g. stability-report.
 # Skip when a .plist.template exists for the same label (avoid double bootstrap).
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist; do
+for plist in \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist \
+  "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist \
+  "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist; do
   [[ -f "$plist" ]] || continue
   [[ "$plist" == *.plist.template ]] && continue
   _base="${plist%.plist}"
@@ -279,7 +303,7 @@ else
 fi
 
 printf '\nVerifying loaded labels...\n'
-for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template; do
+for plist in "$LAUNCHD_TEMPLATES_DIR"/ai.smartclaw.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/ai.hermes.schedule.*.plist.template "$LAUNCHD_TEMPLATES_DIR"/smartclaw.schedule.*.plist.template; do
   [[ -f "$plist" ]] || continue
   label="$(basename "$plist" .plist.template)"
   if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then

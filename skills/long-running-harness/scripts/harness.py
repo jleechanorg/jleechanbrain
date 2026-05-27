@@ -29,10 +29,10 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = SKILL_DIR / "templates"
 
 
-def run_cmd(cmd: list[str], cwd: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
-    """Run a command and return the result."""
+def run_cmd(cmd: str, cwd: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
+    """Run a shell command and return the result."""
     return subprocess.run(
-        cmd, cwd=cwd, capture_output=True, text=True, check=check
+        cmd, shell=True, cwd=cwd, capture_output=True, text=True, check=check
     )
 
 
@@ -73,7 +73,7 @@ def spawn_ao_agent(
 
     try:
         # Spawn session
-        spawn_cmd = ["ao", "spawn", bead_id or "harness-task", "-p", project_id]
+        spawn_cmd = f"ao spawn {bead_id or 'harness-task'} -p {project_id}"
         result = run_cmd(spawn_cmd)
         if result.returncode != 0:
             print(f"ERROR: ao spawn failed: {result.stderr}", file=sys.stderr)
@@ -86,7 +86,7 @@ def spawn_ao_agent(
             sys.exit(1)
 
         # Send task
-        send_cmd = ["ao", "send", session_name, "--file", task_file.name]
+        send_cmd = f"ao send {session_name} --file {task_file.name}"
         run_cmd(send_cmd)
 
         return session_name
@@ -252,9 +252,9 @@ def phase_evaluate(repo: str, plan_file: str) -> None:
     template = load_template("evaluator-prompt.md")
 
     # Get git diff: working-tree changes first, then committed diff as fallback
-    result = run_cmd(["git", "diff"], cwd=repo, check=False)
+    result = run_cmd("git diff", cwd=repo, check=False)
     if not result.stdout.strip():
-        result = run_cmd(["git", "diff", "HEAD~1"], cwd=repo, check=False)
+        result = run_cmd("git diff HEAD~1", cwd=repo, check=False)
     diff = result.stdout if result.returncode == 0 and result.stdout.strip() else "No changes detected."
 
     prompt = f"""{template}
