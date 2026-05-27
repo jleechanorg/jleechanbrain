@@ -763,6 +763,7 @@ fi
 install_startup_check_script
 if [[ "$OS" == "macos" ]]; then
   # install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist" (missing in repo)
+  true
 else
   install_systemd_service "openclaw-startup-check" \
     "/bin/bash $OPENCLAW_HOME/startup-check.sh" \

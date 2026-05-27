@@ -131,7 +131,7 @@ analyze_thread() {
   local channel_id=$1 thread_ts=$2 user_msgs=$3 agent_msgs=$4 last_reply_ts=$5 messages_json=$6 agent_user_id=$7
 
   local hours_old
-  hours_old="$(echo "$user_msgs $agent_msgs" | python3 - "$channel_id" "$thread_ts" "$last_reply_ts" "${LOOKBACK_HOURS}" "${agent_user_id}" <<'PYEOF'
+  hours_old="$(python3 - "$channel_id" "$thread_ts" "$last_reply_ts" "${LOOKBACK_HOURS}" "${agent_user_id}" <<'PYEOF'
 import sys, json
 channel_id = sys.argv[1]
 thread_ts  = sys.argv[2]

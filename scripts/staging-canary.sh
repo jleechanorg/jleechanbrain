@@ -62,8 +62,8 @@ echo ""
 
 # ── Check 1: Gateway listening on port ──
 echo "[1/9] Gateway health endpoint..."
-HEALTH_OUTPUT=$(curl -sf --max-time 8 "http://127.0.0.1:${PORT}/health" 2>&1)
-HEALTH_RC=$?
+HEALTH_RC=0
+curl -sf --max-time 8 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 || HEALTH_RC=$?
 if [[ $HEALTH_RC -eq 0 ]]; then
     check "Gateway health endpoint" 0 "HTTP 200 on port $PORT"
 else
@@ -144,7 +144,7 @@ fi
 
 # ── Check 3: Native modules load (mem0 better-sqlite3) ──
 echo "[3/9] Native module ABI check..."
-NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print gui/$(id -u)/ai.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo "${HOME}/.nvm/versions/node/v22.22.0/bin/node")}"
+NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print "gui/$(id -u)/ai.smartclaw.gateway" 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || echo "${HOME}/.nvm/versions/node/v22.22.0/bin/node")}"
 BETTER_SQLITE_PATH="$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3"
 if [[ ! -d "$BETTER_SQLITE_PATH" ]]; then
     check "Native module ABI" 1 "better-sqlite3 not found at $BETTER_SQLITE_PATH"
@@ -200,12 +200,10 @@ fi
 
 # ── Check 5: SDK protocol version compatibility ──
 echo "[5/9] SDK protocol version check..."
-OPENCLAW_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
 SDK_VERSION=$(npm ls @agentclientprotocol/sdk --prefix "$HOME/.smartclaw" 2>/dev/null | grep agentclientprotocol | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
 if [[ -z "$SDK_VERSION" ]]; then
     # Try reading from installed openclaw package (homebrew and local installs)
-    # Note: use $(echo ~) to expand ~ inside single-quoted node -e string
-    SDK_VERSION=$(node -e "try { const p = require(require.resolve('@agentclientprotocol/sdk/package.json', {paths:['/opt/homebrew/lib/node_modules/openclaw','$(echo ~)/.smartclaw']})); console.log(p.version); } catch(e) { console.log(''); }" 2>/dev/null || echo "")
+    SDK_VERSION=$(node -e "try { const p = require(require.resolve('@agentclientprotocol/sdk/package.json', {paths:['/opt/homebrew/lib/node_modules/openclaw','$HOME/.smartclaw']})); console.log(p.version); } catch(e) { console.log(''); }" 2>/dev/null || echo "")
 fi
 if [[ -z "$SDK_VERSION" ]]; then
     check "SDK protocol version" 1 "Could not detect SDK version — fail-closed (install @agentclientprotocol/sdk or check PATH)"
