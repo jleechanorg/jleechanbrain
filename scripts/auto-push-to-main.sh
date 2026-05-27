@@ -150,7 +150,7 @@ do_push() {
   fi
 
   local changed_files untracked_count
-  changed_files="$(tracked_changes | sort -u | grep -v '^')" || true
+  changed_files="$(tracked_changes | sort -u | grep -v '^$')" || true
   untracked_count="$(untracked_files | wc -l | tr -d ' ' 2>/dev/null || echo '0')"
 
   if [[ -z "$changed_files" && "$untracked_count" == "0" ]]; then
