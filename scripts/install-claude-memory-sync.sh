@@ -15,8 +15,8 @@ LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 UNINSTALL_FLAG="${1:-}"
 
 # Use inherited environment only — no dotfile sourcing for determinism.
-# Export OPENCLAW_EXTRA_PATH before invoking this script if a custom path is needed.
-: "${OPENCLAW_EXTRA_PATH:=}"
+# Export HERMES_EXTRA_PATH before invoking this script if a custom path is needed.
+: "${HERMES_EXTRA_PATH:=}"
 
 install_plist() {
   local src="$1"
@@ -34,17 +34,17 @@ install_plist() {
   mkdir -p "$LAUNCHD_DIR"
   mkdir -p "$HOME/.smartclaw/logs"
 
-  # Normalize OPENCLAW_EXTRA_PATH: ensure trailing colon if non-empty
+  # Normalize HERMES_EXTRA_PATH: ensure trailing colon if non-empty
   local extra_path_prefix=""
-  if [[ -n "${OPENCLAW_EXTRA_PATH:-}" ]]; then
-    extra_path_prefix="${OPENCLAW_EXTRA_PATH%:}:"
+  if [[ -n "${HERMES_EXTRA_PATH:-}" ]]; then
+    extra_path_prefix="${HERMES_EXTRA_PATH%:}:"
   fi
 
   # Substitute placeholders
   sed \
     -e "s|@HOME@|$HOME|g" \
     -e "s|@REPO_ROOT@|$REPO_ROOT|g" \
-    -e "s|@OPENCLAW_EXTRA_PATH@|$extra_path_prefix|g" \
+    -e "s|@HERMES_EXTRA_PATH@|$extra_path_prefix|g" \
     "$src" > "$dst"
 
   # Reload if already running

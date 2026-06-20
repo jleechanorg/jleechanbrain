@@ -6,6 +6,12 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# Source shared Slack post helper (thread anchor + dedupe + channel resolution).
+# shellcheck source=../lib/slack_thread_lib.sh
+IS_SOURCED=1 source "$LIB_DIR/slack_thread_lib.sh"
+
 # Cost constants (Linux self-hosted platform fee per minute)
 COST_PER_MINUTE=0.002
 DAILY_THRESHOLD=5.00
@@ -77,21 +83,9 @@ send_slack_alert() {
         return 0  # don't abort under set -e; continue to GH issue
     }
 
-    local payload
-    payload=$(jq -n --arg channel "$SLACK_CHANNEL" --arg text "$message" \
-        '{channel: $channel, text: $text}')
-
-    local response
-    response=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
-        -H "Authorization: Bearer $slack_token" \
-        -H "Content-Type: application/json" \
-        -d "$payload")
-
-    echo "$response" | jq -e '.ok == true' >/dev/null 2>&1 || {
-        local err
-        err=$(echo "$response" | jq -r '.error // "unknown"')
-        log_warn "Slack API error: $err"
-    }
+    # Delegated to shared lib: handles thread anchor + dedupe + channel resolution.
+    SLACK_BOT_TOKEN="$slack_token" slack_post "gh-actions-cost-monitor" "$message" \
+        --channel "$SLACK_CHANNEL" 2>&1 | log_warn || true
 }
 
 # Create GitHub issue for cost alert

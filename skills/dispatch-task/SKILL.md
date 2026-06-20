@@ -13,12 +13,26 @@ Use this skill when jleechan asks you to work on a task and you decide to dispat
 - jleechan asks you to implement, fix, or investigate something that warrants spawning an agent
 - You have decided the task merits a full agent run (not a quick inline answer)
 - This applies regardless of how the request arrived: Slack, HTTP gateway, cron, or inline prompt
+- The request is an imperative dispatch trigger (any of "make a PR", "create a PR", "open a PR", "/green", "bring to green", "and merge", "drive to merge") — dispatch even for one-line changes, because /green loops are multi-hour and inline sessions have no recovery mechanism
 
 ## NEVER use `sessions_spawn` for coding tasks
 
-`sessions_spawn` is openclaw's internal nested-agent tool. It does NOT create a git worktree, does NOT handle PR lifecycle, pastes prompts without auto-submitting Enter, and allows silent task rewriting. **It is banned for any task involving code, files, or PRs.**
+`sessions_spawn` is hermes's internal nested-agent tool. It does NOT create a git worktree, does NOT handle PR lifecycle, pastes prompts without auto-submitting Enter, and allows silent task rewriting. **It is banned for any task involving code, files, or PRs.**
 
-Always use this skill and the `ao` CLI (agent-orchestrator), not OpenClaw's nested `sessions_spawn`.
+Always use this skill and the `ao` CLI (agent-orchestrator), not Hermes's nested `sessions_spawn`.
+
+## NEVER dispatch inline (always use ao spawn) for these triggers
+
+If the user's message is an **imperative** request (not a read-only question) containing ANY of these patterns, ao spawn is mandatory — do not continue inline:
+- "and /green" / "bring to green" / "make it green"
+- "create a PR" / "open a PR" / "make a PR"
+- "and merge" / "drive to merge" / "drive this to merge"
+- "change X and /green" (scope pivot mid-conversation)
+- A standalone "/green" follow-up in an existing thread
+
+Scope pivots count too. If an inline conversation that started as Q&A/investigation receives a follow-up with any of the above patterns, post "Spawning AO worker — this needs worktree isolation" and dispatch. Do NOT continue inline past the pivot.
+
+Read-only questions ("how do I create a PR?", "why did create a PR fail?", "show me the diff") do NOT trigger this rule — answer inline.
 
 ## Task description: preserve + expand, never condense
 
@@ -133,7 +147,7 @@ The mctrl supervisor loop (`ai.mctrl.supervisor` launchd agent) runs every 30s a
 1. Checks if the tmux session is still alive
 2. When session ends: checks `git log start_sha..HEAD` for commits and verifies the branch is reachable on a configured remote
 3. Posts DM to jleechan + thread reply under the original Slack message; during long runs, periodic in-thread progress updates should be emitted at least every 5 minutes
-4. Sends MCP Agent Mail notification to OpenClaw
+4. Sends MCP Agent Mail notification to Hermes
 
 **You do not need to poll.** The supervisor handles completion notification, but it will only classify the task as finished if the review surface exists on remote.
 

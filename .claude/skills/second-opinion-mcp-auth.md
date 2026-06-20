@@ -1,5 +1,5 @@
 ---
-description: How second-opinion MCP authentication works — Firebase JWT lifecycle, auto-refresh, and openclaw-mcp-adapter integration
+description: How second-opinion MCP authentication works — Firebase JWT lifecycle, auto-refresh, and hermes-mcp-adapter integration
 type: reference
 scope: project
 ---
@@ -75,9 +75,9 @@ http POST "${SECOND_OPINION_MCP_URL}" \
   --print=b
 ```
 
-## openclaw-mcp-adapter Integration (ORCH-d5b)
+## hermes-mcp-adapter Integration (ORCH-d5b)
 
-The `openclaw-mcp-adapter` config currently only sets an `Accept` header:
+The `hermes-mcp-adapter` config currently only sets an `Accept` header:
 
 ```json
 "headers": {
@@ -87,7 +87,7 @@ The `openclaw-mcp-adapter` config currently only sets an `Accept` header:
 
 A static `${SECOND_OPINION_MCP_TOKEN}` env var would expire after 1 hour.
 
-**Preferred fix**: if `openclaw-mcp-adapter` supports a `tokenCommand` field, set:
+**Preferred fix**: if `hermes-mcp-adapter` supports a `tokenCommand` field, set:
 
 ```json
 "tokenCommand": "node ~/.claude/scripts/auth-cli.mjs token"
@@ -99,7 +99,7 @@ Until `tokenCommand` support is confirmed, the workaround is to start the gatewa
 
 ```bash
 export SECOND_OPINION_MCP_TOKEN=$(node ~/.claude/scripts/auth-cli.mjs token)
-openclaw gateway run
+hermes gateway run
 ```
 
 …and re-export hourly (e.g. via a cron job calling `auth-cli.mjs token`).
@@ -118,10 +118,10 @@ Keep in sync: `cp ~/projects/ai_universe/scripts/auth-cli.mjs ~/.claude/scripts/
 | Variable | Purpose |
 |----------|---------|
 | `VITE_AI_UNIVERSE_FIREBASE_API_KEY` | Firebase web API key for `ai-universe-b3551` |
-| `SECOND_OPINION_MCP_URL` | MCP server URL (injected into openclaw-mcp-adapter config) |
+| `SECOND_OPINION_MCP_URL` | MCP server URL (injected into hermes-mcp-adapter config) |
 
 ## Related
 
 - `~/.claude/skills/ai-universe-auth.md` — login walkthrough
 - `~/.claude/skills/ai-universe-second-opinion-workflow.md` — full `/secondo` workflow
-- ORCH-d5b — tracking the openclaw-mcp-adapter tokenCommand investigation
+- ORCH-d5b — tracking the hermes-mcp-adapter tokenCommand investigation

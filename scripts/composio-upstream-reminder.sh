@@ -7,7 +7,7 @@ LOG_FILE="${LOG_DIR}/composio-upstream-reminder.log"
 
 mkdir -p "$LOG_DIR"
 
-TITLE="OpenClaw Weekly Reminder"
+TITLE="Hermes Weekly Reminder"
 BODY="Consider pulling Composio upstream commits, then open PRs for most relevant changes."
 
 if command -v osascript >/dev/null 2>&1; then

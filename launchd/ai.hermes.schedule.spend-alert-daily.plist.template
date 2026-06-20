@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.hermes.schedule.spend-alert-daily</string>
+    <string>ai.smartclaw.schedule.spend-alert-daily</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -36,7 +36,7 @@
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>@HOME@/.hermes</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>StandardOutPath</key>
     <string>/tmp/spend-alert-daily.log</string>

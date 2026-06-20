@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Start the openclaw-mem0-qdrant Docker container, waiting for Docker to be ready.
+# Start the hermes-mem0-qdrant Docker container, waiting for Docker to be ready.
 # Called by ai.smartclaw.qdrant launchd agent on login.
 set -euo pipefail
 
-CONTAINER="openclaw-mem0-qdrant"
+CONTAINER="hermes-mem0-qdrant"
 DOCKER_BIN="${DOCKER_BIN:-/usr/local/bin/docker}"
 MAX_WAIT=60
 WAITED=0
@@ -18,8 +18,8 @@ docker_info_ok() {
 }
 
 select_docker_context() {
-  if [[ -n "${OPENCLAW_QDRANT_DOCKER_CONTEXT:-}" ]] && docker_info_ok "${OPENCLAW_QDRANT_DOCKER_CONTEXT}"; then
-    printf '%s' "${OPENCLAW_QDRANT_DOCKER_CONTEXT}"
+  if [[ -n "${HERMES_QDRANT_DOCKER_CONTEXT:-}" ]] && docker_info_ok "${HERMES_QDRANT_DOCKER_CONTEXT}"; then
+    printf '%s' "${HERMES_QDRANT_DOCKER_CONTEXT}"
     return 0
   fi
   if docker_info_ok ""; then

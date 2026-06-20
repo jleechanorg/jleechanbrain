@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-claude-memory.sh — Aggregate Claude Code memory files into OpenClaw context
+# sync-claude-memory.sh — Aggregate Claude Code memory files into Hermes context
 set -euo pipefail
 
 MEMORY_INDEX="$HOME/.smartclaw/workspace/claude-memory-context.md"

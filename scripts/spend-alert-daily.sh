@@ -24,6 +24,12 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# Source shared Slack post helper (thread anchor + dedupe + channel resolution).
+# shellcheck source=../lib/slack_thread_lib.sh
+IS_SOURCED=1 source "$LIB_DIR/slack_thread_lib.sh"
+
 GITHUB_ORG="${GITHUB_ORG:-jleechanorg}"
 
 SPEND_ALERT_GH_DAILY_USD="${SPEND_ALERT_GH_DAILY_USD:-10}"
@@ -72,23 +78,17 @@ resolve_slack_token() {
 }
 
 send_slack_alert() {
+    # Thin wrapper around slack_post: resolves the token (env or ~/.bashrc),
+    # then delegates to the shared library. The library handles thread anchor,
+    # dedupe, and HERMES_OPS_SLACK_CHANNEL env override automatically.
     local message="$1"
     local slack_token
     slack_token=$(resolve_slack_token) || {
         log_warn "Cannot send Slack alert: SLACK_BOT_TOKEN not available"
         return 0
     }
-    local payload
-    payload=$(jq -n --arg channel "$SLACK_CHANNEL" --arg text "$message" \
-        '{channel: $channel, text: $text}')
-    local response
-    response=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
-        -H "Authorization: Bearer $slack_token" \
-        -H "Content-Type: application/json" \
-        -d "$payload")
-    echo "$response" | jq -e '.ok == true' >/dev/null 2>&1 || {
-        log_warn "Slack API error: $(echo "$response" | jq -r '.error // "unknown"')"
-    }
+    SLACK_BOT_TOKEN="$slack_token" slack_post "spend-alert-daily" "$message" \
+        --channel "$SLACK_CHANNEL" 2>&1 | log_warn || true
 }
 
 # Sum Actions netAmount for the current UTC month bucket (matches GitHub billing usage API).

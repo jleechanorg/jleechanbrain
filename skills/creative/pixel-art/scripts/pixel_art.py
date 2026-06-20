@@ -104,13 +104,6 @@ def pixel_art(input_path, output_path, preset="arcade", **overrides):
             f"Unknown preset {preset!r}. Choose from: {sorted(PRESETS)}"
         )
     cfg = {**PRESETS[preset], **overrides}
-    block = cfg.get("block")
-    if not isinstance(block, int) or block <= 0:
-        raise ValueError(f"block must be a positive integer, got {block!r}")
-
-    pal = cfg.get("palette")
-    if isinstance(pal, int) and not (1 <= pal <= 256):
-        raise ValueError(f"palette color count must be in [1, 256], got {pal!r}")
 
     img = Image.open(input_path).convert("RGB")
 

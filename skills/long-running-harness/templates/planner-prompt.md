@@ -13,7 +13,7 @@ You will receive:
 
 Write two files:
 
-### 1. `.hermes/plans/plan.md`
+### 1. `.smartclaw/plans/plan.md`
 
 ```markdown
 # Plan: [Task Title]
@@ -36,7 +36,7 @@ Write two files:
 [Things that must happen before/after other things]
 ```
 
-### 2. `.hermes/plans/todo.md`
+### 2. `.smartclaw/plans/todo.md`
 
 ```markdown
 # Todo: [Task Title]

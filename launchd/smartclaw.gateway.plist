@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Comment</key>
+	<string>Hermes Gateway (tokens live in hermes.json, not plist env)</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>GOOGLE_CLOUD_PROJECT</key>
+		<string>infinite-zephyr-487405-d0</string>
+		<key>HOME</key>
+		<string>/Users/jleechan</string>
+		<key>HERMES_STATE_DIR</key>
+		<string>${HOME}/.smartclaw_prod</string>
+		<key>HERMES_CONFIG_PATH</key>
+		<string>${HOME}/.smartclaw_prod/hermes.json</string>
+		<key>MISSION_CONTROL_BASE_URL</key>
+		<string>http://localhost:9010</string>
+		<key>MISSION_CONTROL_BOARD_ID</key>
+		<string>aa68f729-d5e0-4d44-8c99-51bcebc0b8bc</string>
+		<key>NODE_EXTRA_CA_CERTS</key>
+		<string>/etc/ssl/cert.pem</string>
+		<key>NODE_USE_SYSTEM_CA</key>
+		<string>1</string>
+		<key>HERMES_GATEWAY_PORT</key>
+		<string>18789</string>
+		<key>HERMES_LAUNCHD_LABEL</key>
+		<string>ai.smartclaw.gateway</string>
+		<key>HERMES_RAW_STREAM</key>
+		<string>0</string>
+		<key>HERMES_RAW_STREAM_PATH</key>
+		<string>/tmp/hermes/raw-stream.jsonl</string>
+		<key>HERMES_SERVICE_KIND</key>
+		<string>gateway</string>
+		<key>HERMES_SERVICE_MARKER</key>
+		<string>hermes</string>
+		<key>HERMES_SERVICE_VERSION</key>
+		<string>2026.3.8</string>
+		<key>HERMES_SYSTEMD_UNIT</key>
+		<string>hermes-gateway.service</string>
+		<key>HERMES_WINDOWS_TASK_NAME</key>
+		<string>Hermes Gateway</string>
+		<key>PATH</key>
+		<string>${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/.bun/bin:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>SHELL</key>
+		<string>/opt/homebrew/bin/bash</string>
+		<key>TMPDIR</key>
+		<string>/var/folders/j0/byd1z6px50v88lf679bgt0h00000gn/T/</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.smartclaw.gateway</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>${HOME}/.nvm/versions/node/v22.22.0/bin/node</string>
+		<string>${HOME}/.nvm/versions/node/v22.22.0/lib/node_modules/hermes/dist/index.js</string>
+		<string>gateway</string>
+		<string>--port</string>
+		<string>18789</string>
+		<string>--allow-unconfigured</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>${HOME}/.smartclaw_prod/logs/gateway.err.log</string>
+	<key>StandardOutPath</key>
+	<string>${HOME}/.smartclaw_prod/logs/gateway.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>Umask</key>
+	<integer>63</integer>
+</dict>
+</plist>

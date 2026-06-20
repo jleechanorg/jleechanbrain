@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync Slack conversation history into OpenClaw memory markdown files.
+"""Sync Slack conversation history into Hermes memory markdown files.
 
 Workflow:
 1) Fetch channel history (and thread replies) via Slack Web API.
@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
-DEFAULT_CONFIG = Path("~/.smartclaw/openclaw.json").expanduser()
-DEFAULT_STAGE_ROOT = Path("/tmp/openclaw-slack-memory-staging")
+DEFAULT_CONFIG = Path("~/.smartclaw/config.yaml").expanduser()
+DEFAULT_STAGE_ROOT = Path("/tmp/hermes-slack-memory-staging")
 DEFAULT_PROMOTE_DIR = Path("~/.smartclaw/memory/slack-history").expanduser()
 DEFAULT_STATE_FILE = Path("~/.smartclaw/memory/slack-sync-state.json").expanduser()
 
@@ -275,9 +275,9 @@ def resolve_token(explicit: str | None) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sync Slack history into OpenClaw memory markdown files")
+    parser = argparse.ArgumentParser(description="Sync Slack history into Hermes memory markdown files")
     parser.add_argument("--channels", help="Comma-separated channel IDs; defaults to channels in config")
-    parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="Path to openclaw.json")
+    parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="Path to config.yaml")
     parser.add_argument("--token", help="Slack token (otherwise read from env)")
     parser.add_argument("--state-file", default=str(DEFAULT_STATE_FILE), help="Incremental sync state file")
     parser.add_argument("--stage-dir", default=str(DEFAULT_STAGE_ROOT), help="Staging output directory")

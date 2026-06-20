@@ -16,7 +16,7 @@ export PATH="$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:
 trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
-LOCK_DIR="${AOPR_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-ao-progress.lock}"
+LOCK_DIR="${AOPR_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-ao-progress.lock}"
 LOG_DIR="${AOPR_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${AOPR_STATE_FILE:-$HOME/.smartclaw/logs/ao-progress-state.json}"
 REPORT_INTERVAL_SECS="${AOPR_INTERVAL_SECS:-1800}"   # 30 min
@@ -86,8 +86,8 @@ with urllib.request.urlopen(req) as resp:
 # ── GH token ─────────────────────────────────────────────────────────────────
 resolve_token() {
   local tok=""
-  # Try openclaw config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
-  for cfg in "$HOME/.smartclaw/openclaw.json" "$HOME/.smartclaw_prod/openclaw.prod.json"; do
+  # Try hermes config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
+  for cfg in "$HOME/.smartclaw/config.yaml" "$HOME/.smartclaw_prod/config.yaml"; do
     [[ -f "$cfg" ]] || continue
     tok="$(jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' "$cfg" 2>/dev/null)" || tok=""
     [[ -n "$tok" && "$tok" != "null" ]] && break
@@ -123,66 +123,122 @@ save_state() {
 }
 
 # ── Thread-per-day: resolve or create today's thread ─────────────────────────
+# Persistence file: scoped to configured log dir and channel to prevent cross-channel/staging issues
+THREAD_TS_FILE="${LOG_DIR}/ao-progress-reporter-thread-${SLACK_CHANNEL}-${TODAY_KEY}.ts"
+REPORTER_LOG="${LOG_DIR}/ao-progress-reporter.log"
+
+_log_reporter() {
+  local msg="[$(date '+%Y-%m-%dT%H:%M:%S')] $*"
+  echo "$msg" >&2
+  mkdir -p "$(dirname "$REPORTER_LOG")" 2>/dev/null || true
+  echo "$msg" >> "$REPORTER_LOG" 2>/dev/null || true
+}
+
 resolve_thread_ts() {
   local state_json=$1
   local today_ts
 
-  # Check if we already have a thread for today in state
+  # 1. Check the dedicated TS file first (survives process restarts and state JSON resets)
+  if [[ -f "$THREAD_TS_FILE" ]]; then
+    today_ts="$(<"$THREAD_TS_FILE")"
+    today_ts="${today_ts//[$'\t\r\n ']}"  # strip whitespace
+    if [[ -n "$today_ts" && "$today_ts" != "null" && "$today_ts" != "dry_run_thread_ts" ]]; then
+      log "Using persisted thread for $TODAY_KEY: $today_ts"
+      echo "$today_ts"
+      return
+    fi
+  fi
+
+  # 2. Fall back to in-memory state JSON (backward compat with older runs)
   today_ts="$(echo "$state_json" | jq -r ".daily_threads[\"$TODAY_KEY\"] // empty" 2>/dev/null)" || today_ts=""
-  if [[ -n "$today_ts" && "$today_ts" != "null" && "$today_ts" != "null" ]]; then
-    log "Using cached thread for $TODAY_KEY: $today_ts"
+  if [[ -n "$today_ts" && "$today_ts" != "null" && "$today_ts" != "dry_run_thread_ts" ]]; then
+    log "Using cached thread (state) for $TODAY_KEY: $today_ts"
+    # Persist to file so future calls skip the JSON parse
+    mkdir -p "$(dirname "$THREAD_TS_FILE")" 2>/dev/null || true
+    printf '%s' "$today_ts" > "$THREAD_TS_FILE" 2>/dev/null || true
     echo "$today_ts"
     return
   fi
 
-  # DRY_RUN: skip actual Slack post, return empty so main posts to channel
+  # DRY_RUN: skip actual Slack post; return placeholder to allow dry-run flow
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
     log "[DRY_RUN] Would create new thread for $TODAY_KEY in #agent-orchestrator"
-    echo ""
+    echo "dry_run_thread_ts"
     return
   fi
 
-  # No cached thread for today — post a new header to #agent-orchestrator,
-  # capture the returned ts, store it in state, and use it as thread root.
-  log "Creating new thread for $TODAY_KEY"
-  local response
-  response="$(python3 -c "
+  # 3. No cached thread for today — check Slack channel history first to prevent duplication,
+  #    and if not found, post a new daily thread header with retry logic.
+  log "Resolving or creating daily thread for $TODAY_KEY"
+  local response attempt
+  for attempt in 1 2 3; do
+    response="$(python3 -c "
 import urllib.request, json, os, sys
 
-payload = json.dumps({
-  'channel': '${SLACK_CHANNEL}',
-  'text': '*AO Progress Report* | $TODAY_KEY — new daily thread',
-  'unfurl_links': False
-})
-req = urllib.request.Request(
-  'https://slack.com/api/chat.postMessage',
-  data=payload.encode(),
-  headers={'Authorization': 'Bearer ${SLACK_BOT_TOKEN}', 'Content-Type': 'application/json'},
-  method='POST'
-)
-with urllib.request.urlopen(req) as resp:
-  result = json.load(resp)
+token = os.environ.get('SLACK_BOT_TOKEN', '')
+channel = '${SLACK_CHANNEL}'
+today_key = '${TODAY_KEY}'
+
+def call_slack(endpoint, payload):
+  req = urllib.request.Request(
+    'https://slack.com/api/' + endpoint,
+    data=json.dumps(payload).encode(),
+    headers={
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    method='POST'
+  )
+  with urllib.request.urlopen(req, timeout=15) as resp:
+    return json.load(resp)
+
+try:
+  # 1. Check history first to prevent duplicate creation (e.g. if previous attempt timed out on response but posted successfully)
+  history = call_slack('conversations.history', {'channel': channel, 'limit': 50})
+  if history.get('ok'):
+    for msg in history.get('messages', []):
+      if '*AO Progress Report* | ' + today_key + ' — new daily thread' in msg.get('text', ''):
+        ts = msg.get('ts')
+        if ts:
+          print(ts)
+          sys.exit(0)
+
+  # 2. Create the thread if not found
+  payload = {
+    'channel': channel,
+    'text': '*AO Progress Report* | ' + today_key + ' — new daily thread',
+    'unfurl_links': False
+  }
+  result = call_slack('chat.postMessage', payload)
   if result.get('ok'):
     print(result.get('ts', ''))
   else:
     print('ERROR:' + str(result))
-")" || response=""
+except Exception as e:
+  print('ERROR:' + str(e))
+  sys.exit(1)
+" 2>/dev/null)" || response=""
 
-  if [[ "$response" == ERROR:* ]]; then
-    log "Failed to create new thread: $response"
-    # Fallback: use empty (post to channel)
-    echo ""
-    return
-  fi
+    if [[ "$response" == ERROR:* || -z "$response" || "$response" == "null" ]]; then
+      _log_reporter "Attempt $attempt/3 failed to resolve or create thread: '${response:-empty}'"
+      if [[ $attempt -lt 3 ]]; then
+        log "Retrying in 5s..."
+        sleep 5
+      fi
+    else
+      # Success — persist to file and return
+      log "Daily thread resolved/created (attempt $attempt): $response"
+      mkdir -p "$(dirname "$THREAD_TS_FILE")" 2>/dev/null || true
+      printf '%s' "$response" > "$THREAD_TS_FILE" 2>/dev/null || true
+      echo "$response"
+      return
+    fi
+  done
 
-  if [[ -z "$response" || "$response" == "null" ]]; then
-    log "Empty ts returned when creating new thread"
-    echo ""
-    return
-  fi
-
-  log "New thread created: $response"
-  echo "$response"
+  # All retries exhausted — log prominently and return failure (empty string)
+  _log_reporter "ERROR: resolve_thread_ts() exhausted 3 retries on $TODAY_KEY — skipping this reporter run to avoid channel-root spam"
+  echo ""
+  return 1
 }
 
 # ── Get AO sessions JSON (all projects) ───────────────────────────────────────
@@ -237,7 +293,67 @@ get_session_info() {
   echo "$info"
 }
 
+# ── Terminal-state classification ────────────────────────────────────────────
+# A terminal session has finished its lifecycle (PR merged/closed, worker killed).
+# Terminal sessions are reported at most once after going terminal; once they
+# leave the active set their state entry is pruned so the file stays bounded.
+#
+# Single source of truth for terminal statuses (sessions that are definitively
+# finished and safe to prune from state once they leave the active set).
+TERMINAL_STATUSES=(killed merged closed done)
+TERMINAL_STATUSES_JSON="$(printf '%s\n' "${TERMINAL_STATUSES[@]}" | jq -R . | jq -sc .)"
+
+is_terminal_status() {
+  local s=$1 t
+  for t in "${TERMINAL_STATUSES[@]}"; do
+    [[ "$s" == "$t" ]] && return 0
+  done
+  return 1
+}
+
+# Prune state entries for TERMINAL sessions that are no longer in the active set
+# (orphans), so ao-progress-state.json stays bounded. A terminal session that is
+# STILL in the active set is kept on purpose: session_should_report already
+# suppresses it every tick, whereas deleting it would make it a "first sighting"
+# again and re-report forever (the exact noise this script must avoid). The
+# reserved "daily_threads" key is always preserved. Fail-open: any jq error
+# returns the state unchanged so a transient parse failure never drops state.
+#   $1 = state JSON   $2 = JSON array of session names seen this tick
+prune_terminal_orphans() {
+  local state_json=$1 seen_json=$2
+  echo "$state_json" | jq \
+    --argjson seen "$seen_json" \
+    --argjson terminal "$TERMINAL_STATUSES_JSON" \
+    'with_entries(
+       select(
+         .key as $k | (.value.last_status // "") as $st
+         | $k == "daily_threads"                  # reserved key — always keep
+         or (($seen | index($k)) != null)         # still in the active set
+         or (($terminal | index($st)) == null)    # non-terminal → keep
+       )
+     )' 2>/dev/null || echo "$state_json"
+}
+
+# ── Should this session be reported on this tick? ────────────────────────────
+# Suppress no-op posts: only emit a per-session block when the session actually
+# moved since the last recorded state. "Moved" = new commits OR a status change.
+# Conservative: an empty/unknown prior status (first sighting) counts as changed,
+# so a genuinely-new session is never silently dropped.
+#   $1 has_new_commits ("yes"/"no")   $2 current status   $3 last recorded status
+session_should_report() {
+  local has_new_commits=$1 current_status=$2 last_status=$3
+  [[ "$has_new_commits" == "yes" ]] && return 0
+  [[ -z "$last_status" ]] && return 0          # first sighting → report
+  [[ "$current_status" != "$last_status" ]] && return 0  # status/phase changed
+  return 1                                      # nothing moved → suppress
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
+# IS_SOURCED=1 lets tests source the helpers above without running main.
+if [[ "${IS_SOURCED:-0}" == "1" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 {
   log "Starting AO progress reporter"
 
@@ -246,16 +362,21 @@ get_session_info() {
 
   # Resolve or create today's thread — store in state
   thread_ts="$(resolve_thread_ts "$current_state")" || thread_ts=""
-  if [[ -n "$thread_ts" && "$thread_ts" != "null" ]]; then
-    # Persist today's thread_ts in state so next run reuses it
+  if [[ -z "$thread_ts" || "$thread_ts" == "null" ]]; then
+    # resolve_thread_ts() failed after all retries — skip this run entirely.
+    # Never post to channel root: that creates noise outside the daily thread and
+    # cannot be threaded after the fact.
+    _log_reporter "SKIP: no thread_ts available for $TODAY_KEY — aborting run to avoid channel-root post"
+    save_state "$current_state"
+    exit 0
+  fi
+
+  # Persist real thread_ts (but not dry-run placeholder) in state so next run reuses it
+  if [[ "$thread_ts" != "dry_run_thread_ts" ]]; then
     current_state="$(echo "$current_state" | jq --arg key "$TODAY_KEY" --arg ts "$thread_ts" \
       'setpath(["daily_threads"]; (if .daily_threads == null then {} else .daily_threads end) | .[$key] = $ts)')" || true
-    log "Thread for $TODAY_KEY resolved: $thread_ts"
-  else
-    # Could not resolve thread — post without thread (channel root)
-    thread_ts=""
-    log "No thread_ts available, posting to channel"
   fi
+  log "Thread for $TODAY_KEY resolved: $thread_ts"
   # Export thread_ts so post_slack uses it without needing explicit arg
   SLACK_THREAD_TS="$thread_ts"
 
@@ -264,6 +385,8 @@ get_session_info() {
   if [[ "$ao_sessions_json" == "[]" ]] || [[ -z "$ao_sessions_json" ]]; then
     log "No AO sessions found or AO unavailable"
     post_slack ":zzz: *AO Progress Report* — no active sessions detected"
+    current_state="$(prune_terminal_orphans "$current_state" "[]")"
+    save_state "$current_state"
     exit 0
   fi
 
@@ -275,6 +398,7 @@ get_session_info() {
   healthy=0
   stalled=0
   no_pr=0
+  seen_sessions=()   # session names present in THIS tick (drives orphan pruning)
 
   # Iterate over sessions
   while IFS= read -r session_json; do
@@ -288,6 +412,7 @@ get_session_info() {
     pr_number="$(echo "$session_json" | jq -r '.prNumber // empty' 2>/dev/null)" || pr_number=""
 
     [[ -z "$session_name" ]] && continue
+    seen_sessions+=("$session_name")
 
     # Get repo from project
     repo=""
@@ -303,8 +428,9 @@ get_session_info() {
       *)                  repo="" ;;
     esac
 
-    # Get last known SHA from state
+    # Get last known SHA + status from state (used for no-op suppression below)
     last_sha="$(echo "$current_state" | jq -r ".\"$session_name\".last_sha // \"\" " 2>/dev/null)" || last_sha=""
+    last_status="$(echo "$current_state" | jq -r ".\"$session_name\".last_status // \"\" " 2>/dev/null)" || last_status=""
 
     # Fetch current head SHA (if branch known)
     current_sha=""
@@ -319,18 +445,35 @@ get_session_info() {
       has_new_commits="yes"
       # Get 3 most recent commit URLs
       commit_urls="$(get_commit_urls "$repo" "$branch" 3)"
-      # Update state
+      # Update state (record status too, for next tick's change detection)
       current_state="$(echo "$current_state" | jq \
         --arg name "$session_name" \
         --arg sha "$current_sha" \
+        --arg status "$status" \
         --argjson now "$(date +%s)" \
-        'setpath([$name]; {last_sha: $sha, last_report: $now})')" || true
+        'setpath([$name]; {last_sha: $sha, last_status: $status, last_report: $now})')" || true
     elif [[ -n "$current_sha" ]]; then
-      # Same HEAD as last report — refresh last_report only, preserve last_sha
+      # Same HEAD as last report — refresh last_report + last_status, preserve last_sha
       current_state="$(echo "$current_state" | jq \
         --arg name "$session_name" \
+        --arg status "$status" \
         --argjson now "$(date +%s)" \
-        '.[$name] |= (. // {}) + {last_report: $now}' 2>/dev/null)" || true
+        '.[$name] |= (. // {}) + {last_report: $now, last_status: $status}' 2>/dev/null)" || true
+    else
+      # No SHA available (no branch/repo) — still track status so a phase change
+      # (e.g. spawning → working) is detected and reported next tick.
+      current_state="$(echo "$current_state" | jq \
+        --arg name "$session_name" \
+        --arg status "$status" \
+        --argjson now "$(date +%s)" \
+        '.[$name] |= (. // {}) + {last_report: $now, last_status: $status}' 2>/dev/null)" || true
+    fi
+
+    # Suppress no-op posts: skip building/appending a block when nothing moved.
+    # (State above is already refreshed; we just don't emit a Slack line.)
+    if ! session_should_report "$has_new_commits" "$status" "$last_status"; then
+      log "skip unchanged session: $session_name (status=$status sha=${current_sha:0:7})"
+      continue
     fi
 
     # Classify session health
@@ -404,6 +547,14 @@ get_session_info() {
 
   done <<< "$(echo "$ao_sessions_json" | jq -c '.[]' 2>/dev/null)"
 
+  # Prune terminal sessions that have left the active set (bounds state growth;
+  # still-active terminals are intentionally kept — see prune_terminal_orphans).
+  seen_json='[]'
+  if [[ ${#seen_sessions[@]} -gt 0 ]]; then
+    seen_json="$(printf '%s\n' "${seen_sessions[@]}" | jq -R . | jq -sc .)"
+  fi
+  current_state="$(prune_terminal_orphans "$current_state" "$seen_json")"
+
   # Save updated state
   save_state "$current_state"
 
@@ -420,13 +571,16 @@ get_session_info() {
   fi
 
   if [[ ${#report_blocks[@]} -eq 0 ]]; then
-    post_slack "$header — no active sessions"
+    # Sessions exist but none moved since the last tick — suppress the post
+    # entirely. Posting an empty/"no changes" block every 30 min for a long-lived
+    # PR is exactly the forever-repeat noise this script must avoid. State is
+    # already saved above (last_report refreshed, terminal sessions pruned).
+    log "AO progress reporter done — no session changes this tick, suppressing post (sessions:$session_count)"
   else
     body="$(printf '%s\n' "${report_blocks[@]}")"
     post_slack "$header
 $body"
+    log "AO progress reporter done — healthy:$healthy stalled:$stalled no_pr:$no_pr"
   fi
-
-  log "AO progress reporter done — healthy:$healthy stalled:$stalled no_pr:$no_pr"
 
 } 2>&1 | tee -a "$LOG_DIR/ao-progress-reporter.log"

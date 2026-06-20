@@ -120,7 +120,7 @@ start_lifecycle_worker() {
 
   mkdir -p "$LOG_DIR"
   # Use bash -lc so ~/.bashrc is sourced before ao runs.
-  # This ensures GITHUB_TOKEN, OPENCLAW_AO_HOOK_TOKEN, etc. are set.
+  # This ensures GITHUB_TOKEN, HERMES_AO_HOOK_TOKEN, etc. are set.
   nohup bash -lc "exec $AO_BIN lifecycle-worker '$project'" \
     >> "$LOG_DIR/ao-lifecycle-$project.log" 2>&1 &
   local pid=$!
@@ -151,7 +151,7 @@ start_orchestrator() {
 
   # Start orchestrator via ao start (ao handles config-hash + naming).
   # Use bash -lc so ~/.bashrc is sourced before ao starts — this ensures
-  # GITHUB_TOKEN, OPENCLAW_AO_HOOK_TOKEN, and other shell-defined env vars
+  # GITHUB_TOKEN, HERMES_AO_HOOK_TOKEN, and other shell-defined env vars
   # are inherited by the orchestrator subprocesses (reactions require these).
   if [[ "$project" == "$FIRST_PROJECT" ]]; then
     logn "starting orchestrator + dashboard for $project..."

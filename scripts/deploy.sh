@@ -1,708 +1,359 @@
 #!/usr/bin/env bash
-# deploy.sh — Deploy openclaw changes to production via staging canary gate.
+# deploy.sh — Deploy Hermes changes to production.
 #
 # Architecture:
-#   ~/.smartclaw/      = STAGING (the repo checkout, port 18810)
-#   ~/.smartclaw_prod/ = PRODUCTION (separate dir, port 18789, symlinks to shared resources)
+#   ~/.smartclaw/      = staging repo (git checkout)
+#   ~/.smartclaw_prod/ = production runtime dir (port 8643)
 #
 # Flow:
-#   1. Validate staging gateway (port 18810) with canary + monitor-agent (OPENCLAW_STATE_DIR
-#      from ai.smartclaw.staging.plist via OPENCLAW_MONITOR_GATEWAY_PLIST_PATH)
-#   2. Push current branch to origin/main (if needed) — BLOCKED if monitor fails
-#   3. Sync validated config from staging → prod dir (openclaw.json, cron/, scripts/,
-#      lib/, run-scheduled-job.sh, workspace/, memory/, launchd/, symlinks)
-#   4. Restart prod gateway (port 18789) and run canary + monitor-agent (plist:
-#      ai.smartclaw.gateway.plist → ~/.smartclaw_prod/)
-#
-# Blocking: If monitor-agent exits non-zero at any stage, deploy halts before
-# pushing to origin/main, and alerts are sent to Slack + email.
+#   1. Print banner (timestamp, branch, remote)
+#   2. Git pull on ~/.smartclaw/ (fail if uncommitted changes)
+#   3. Pre-deploy health check (warn, don't block)
+#   4. Restart prod Hermes gateway via launchd (ai.smartclaw.prod)
+#   4.5. Sync policy files (CLAUDE.md/SOUL.md/TOOLS.md/HEARTBEAT.md) from
+#        staging to prod so the running gateway reads the latest rules.
+#        Skipped with --no-sync. Drift is the jleechan-pcah class of
+#        silent policy degradation.
+#   5. Run canary — fail deploy if canary fails
+#   6. Print success with HEAD SHA
 #
 # Usage:
-#   ./scripts/deploy.sh              # full deploy
-#   ./scripts/deploy.sh --skip-push  # skip git push (already pushed)
-#   ./scripts/deploy.sh --prod-only  # skip staging, deploy to prod only
+#   ./scripts/deploy.sh                # full deploy
+#   ./scripts/deploy.sh --skip-pull    # skip git pull
+#   ./scripts/deploy.sh --skip-restart # skip gateway restart, run canary only
+#   ./scripts/deploy.sh --no-sync      # skip Stage 4.5 policy-file sync
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-STAGING_DIR="$HOME/.smartclaw"
+# Live prod gateway binds 8643 (PR #619 corrected the port mapping 2026-06-13);
+# override via PROD_PORT env variable. Matches hermes-canary.sh / hermes-health.sh.
+PROD_PORT="${PROD_PORT:-8643}"
+LAUNCHD_LABEL="ai.smartclaw.prod"
+RESTART_TIMEOUT=30
+SKIP_PULL=0
+SKIP_RESTART=0
+SKIP_SYNC=0
+
+# Policy files that the gateway reads at startup; must match between staging
+# and prod so the agent sees the latest rules on the very next restart.
+POLICY_FILES=(CLAUDE.md SOUL.md TOOLS.md HEARTBEAT.md)
 PROD_DIR="$HOME/.smartclaw_prod"
-STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
-PROD_PORT="${OPENCLAW_PROD_PORT:-18789}"
-MONITOR_FAILURE_SLACK_TARGET="${OPENCLAW_DEPLOY_MONITOR_FAILURE_SLACK_TARGET:-${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}}"
-GATEWAY_START_TIMEOUT_SECONDS="${OPENCLAW_DEPLOY_GATEWAY_START_TIMEOUT_SECONDS:-150}"
-GATEWAY_START_POLL_SECONDS="${OPENCLAW_DEPLOY_GATEWAY_START_POLL_SECONDS:-5}"
-CANARY_MAX_ATTEMPTS="${OPENCLAW_DEPLOY_CANARY_MAX_ATTEMPTS:-3}"
-CANARY_RETRY_COOLDOWN_SECONDS="${OPENCLAW_DEPLOY_CANARY_RETRY_COOLDOWN_SECONDS:-15}"
-DEPLOY_RUN_ID="$(date +%Y%m%d%H%M%S)-$$"
-STAGING_CANARY_LOG="/tmp/staging-canary-${DEPLOY_RUN_ID}.log"
-PROD_CANARY_LOG="/tmp/prod-canary-${DEPLOY_RUN_ID}.log"
-STAGING_MONITOR_LOG="/tmp/staging-monitor-${DEPLOY_RUN_ID}.log"
-STAGING_MONITOR_STDOUT="/tmp/staging-monitor-${DEPLOY_RUN_ID}.stdout"
-STAGING_MONITOR_LOCK="/tmp/staging-monitor-${DEPLOY_RUN_ID}.lock"
-PROD_MONITOR_LOG="/tmp/prod-monitor-${DEPLOY_RUN_ID}.log"
-PROD_MONITOR_STDOUT="/tmp/prod-monitor-${DEPLOY_RUN_ID}.stdout"
-PROD_MONITOR_LOCK="/tmp/prod-monitor-${DEPLOY_RUN_ID}.lock"
-SKIP_PUSH=0
-PROD_ONLY=0
 
 for arg in "$@"; do
   case "$arg" in
-    --skip-push) SKIP_PUSH=1 ;;
-    --prod-only) PROD_ONLY=1 ;;
-    -h|--help) echo "Usage: $0 [--skip-push] [--prod-only]"; exit 0 ;;
-    *) echo "Unknown arg: $arg"; exit 1 ;;
+    --skip-pull)    SKIP_PULL=1 ;;
+    --skip-restart) SKIP_RESTART=1 ;;
+    --no-sync)      SKIP_SYNC=1 ;;
+    -h|--help)
+      echo "Usage: $0 [--skip-pull] [--skip-restart] [--no-sync]"
+      echo "  --skip-pull     skip git pull on ~/.smartclaw/"
+      echo "  --skip-restart  skip gateway restart, run canary only"
+      echo "  --no-sync       skip Stage 4.5 policy-file sync"
+      exit 0
+      ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
 
-ts() { date '+%Y-%m-%d %H:%M:%S'; }
-die() {
-  local msg="$1"
-  local stage="${2:-}"
-  echo "DEPLOY FAILED: $msg" >&2
-
-  # Send alerts before exiting — capture stage context for recommendation
-  local alert_subject="[OpenClaw Deploy] Stage failed: $msg"
-  local alert_body="Deploy aborted at stage: $stage
-
-Reason: $msg
-
-Time: $(ts)
-Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')
-Commit: $(git log --oneline -1 2>/dev/null || echo 'unknown')
-
-Monitor-agent recommendations:
-Check ~/.smartclaw/logs/monitor-agent.log for full probe details.
-Review recent canary output at /tmp/staging-canary.log and /tmp/prod-canary.log if available.
-Run 'bash ~/.smartclaw/monitor-agent.sh' manually to re-probe and get actionable fixes.
-
-Next steps:
-1. Fix the reported issue
-2. Re-run deploy.sh
-3. If the issue persists, check staging gateway health: curl http://127.0.0.1:${STAGING_PORT}/health"
-
-  # Alert to Slack (primary failure channel via monitor-agent env, or use default)
-  # Default: #all-jleechan-ai (${SLACK_CHANNEL_ID}) — all-hands channel.
-  local slack_target="${MONITOR_FAILURE_SLACK_TARGET}"
-  local slack_msg="[DEPLOY FAILED] Stage: $stage | Reason: $msg | Branch: $(git branch --show-current 2>/dev/null || echo 'unknown') | Time: $(ts)"
-  if command -v openclaw >/dev/null 2>&1; then
-    env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-      OPENCLAW_STATE_DIR="$PROD_DIR" \
-      OPENCLAW_CONFIG_PATH="$PROD_DIR/openclaw.json" \
-      openclaw message send --channel slack --target "$slack_target" --message "$slack_msg" 2>/dev/null || true
-  fi
-
-  # Alert to email
-  "$SCRIPT_DIR/send-alert-email.sh" "$alert_subject" "$alert_body" 2>/dev/null || true
-
-  exit 1
-}
-
-send_deploy_success_alert() {
-  local stage="$1"
-  local port="$2"
-  local alert_subject="[OpenClaw Deploy] Success: $stage passed"
-  local alert_body="Deploy $stage validation passed.
-
-Time: $(ts)
-Stage: $stage (port $port)
-Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')
-Commit: $(git log --oneline -1 2>/dev/null || echo 'unknown')
-Gateway health: $(curl -sf --max-time 5 "http://127.0.0.1:${port}/health" 2>/dev/null || echo 'unreachable')"
-
-  local slack_target="${OPENCLAW_MONITOR_SLACK_TARGET:-C0AP8LRKM9N}"
-  if command -v openclaw >/dev/null 2>&1; then
-    env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-      OPENCLAW_STATE_DIR="$PROD_DIR" \
-      OPENCLAW_CONFIG_PATH="$PROD_DIR/openclaw.json" \
-      openclaw message send --channel slack --target "$slack_target" --message "$alert_subject" 2>/dev/null || true
-  fi
-  "$SCRIPT_DIR/send-alert-email.sh" "$alert_subject" "$alert_body" 2>/dev/null || true
-}
-
-extract_monitor_status() {
-  local log_path="$1"
-  [[ -f "$log_path" ]] || return 1
-  awk '/^STATUS=/{status=$0} END{if (status!="") print status}' "$log_path" \
-    | sed 's/^STATUS=//'
-}
-
-assert_monitor_status_good() {
-  local stage="$1"
-  local log_path="$2"
-  local status=""
-  local detail=""
-
-  status="$(extract_monitor_status "$log_path" || true)"
-  if [[ "$status" == "GOOD" ]]; then
-    echo "Monitor status gate passed: STATUS=GOOD"
-    return 0
-  fi
-
-  if [[ -f "$log_path" ]]; then
-    detail="$(
-      { grep -E '^STATUS=|^ACTIVE PROBLEMS:|^[[:space:]]*• ' "$log_path" 2>/dev/null || true; } \
-      | tail -n 20 \
-      | tr '\n' ' ' \
-      | sed 's/[[:space:]]\+/ /g' \
-      | cut -c1-280
-    )"
-  fi
-  die "Monitor reported STATUS=${status:-unknown}${detail:+ ($detail)} — see $log_path" "$stage"
-}
-
+ts()      { date '+%Y-%m-%d %H:%M:%S'; }
 section() { echo ""; echo "=== $1 ==="; echo "$(ts)"; echo ""; }
+die()     { echo "DEPLOY FAILED: $1" >&2; exit 1; }
 
-is_stub_main_config() {
-  python3 - "$1" <<'PY'
-import json
-import sys
+# ── Stage 1: Banner ────────────────────────────────────────────────────────────
+section "Hermes Deploy"
+BRANCH="$(git -C "$REPO_DIR" branch --show-current 2>/dev/null || echo 'unknown')"
+REMOTE="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || echo 'unknown')"
+echo "  Repo   : $REPO_DIR"
+echo "  Branch : $BRANCH"
+echo "  Remote : $REMOTE"
+echo "  Prod   : $HOME/.smartclaw_prod  (port $PROD_PORT)"
+echo "  Label  : $LAUNCHD_LABEL"
 
-with open(sys.argv[1]) as fh:
-    cfg = json.load(fh)
+# ── Stage 2: Git pull ──────────────────────────────────────────────────────────
+if [[ "$SKIP_PULL" -eq 1 ]]; then
+  echo ""
+  echo "[skip-pull] Skipping git pull."
+else
+  section "Stage 2: Git Pull"
 
-slack = cfg.get("channels", {}).get("slack", {}) or {}
-required = [
-    cfg.get("gateway", {}).get("auth", {}).get("token"),
-    cfg.get("meta", {}).get("lastTouchedVersion"),
-    cfg.get("agents", {}).get("defaults", {}).get("workspace"),
-    cfg.get("plugins", {}).get("entries"),
-]
+  if ! git -C "$REPO_DIR" diff --quiet || ! git -C "$REPO_DIR" diff --cached --quiet; then
+    die "Uncommitted changes in $REPO_DIR — stash or commit before deploying."
+  fi
 
-missing = any(not item for item in required)
-if slack.get("enabled") is True and not (slack.get("botToken") and slack.get("appToken")):
-    missing = True
+  echo "Pulling latest from origin/$BRANCH ..."
+  git -C "$REPO_DIR" pull --ff-only origin "$BRANCH" \
+    || die "git pull failed — resolve conflicts or use --skip-pull."
+  echo "Pull complete."
+fi
 
-sys.exit(0 if missing else 1)
+# ── Stage 3: Pre-deploy health check ──────────────────────────────────────────
+section "Stage 3: Pre-deploy Health Check"
+if HERMES_HEALTH_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-health.sh"; then
+  echo "Health check passed."
+else
+  echo "WARNING: Health check reported issues — proceeding anyway." >&2
+fi
+
+# ── Stage 4: Restart prod gateway ─────────────────────────────────────────────
+if [[ "$SKIP_RESTART" -eq 1 ]]; then
+  section "Stage 4: Gateway Restart (skipped)"
+  echo "[skip-restart] Skipping gateway restart."
+else
+  section "Stage 4: Restart Prod Gateway ($LAUNCHD_LABEL)"
+
+  DOMAIN="gui/$(id -u)"
+
+  # Multi-source pid detection: cross-check lsof (port-bound), launchctl (managed),
+  # and pgrep (process-running). The old `grep '^ *pid' | awk '{print $3}'` silently
+  # failed because launchctl's `pid = NNNN` line is tab-indented (not space) and the
+  # PID is field 4 (after `pid = `), not field 3. See jleechan-dc17.
+  LSOF_PID="$(lsof -nP -iTCP:"$PROD_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+  LAUNCHCTL_PID="$(launchctl print "${DOMAIN}/${LAUNCHD_LABEL}" 2>/dev/null \
+    | awk '/^[[:space:]]+pid[[:space:]]+= / {print $NF; exit}' || true)"
+  # Scoped pgrep fallback: a bare `pgrep -f "hermes gateway"` would match the
+  # staging gateway (ai.smartclaw.staging on 8644) when prod is down — see
+  # jleechan-dc17 review. Filter candidates by requiring the candidate to be
+  # bound to PROD_PORT, which is the only authoritative prod signal.
+  PGREP_PID="$(pgrep -f "hermes gateway" 2>/dev/null | while read -r candidate_pid; do
+    if lsof -nP -p "$candidate_pid" -iTCP:"$PROD_PORT" -sTCP:LISTEN 2>/dev/null \
+        | grep -q "(LISTEN)"; then
+      echo "$candidate_pid"
+      break
+    fi
+  done || true)"
+
+  # Prefer lsof (most authoritative: process bound to prod port). Fall back to
+  # launchctl then pgrep so a gateway bound but untracked, or untracked but
+  # running, is still found.
+  GATEWAY_PID="${LSOF_PID:-${LAUNCHCTL_PID:-${PGREP_PID:-}}}"
+
+  # Test hook: allow tests to stub liveness so a synthetic pid can simulate
+  # "process exists" without a real process. Production callers leave this
+  # unset, so `kill -0` runs as usual.
+  if [[ -n "${FAKE_PID_ALIVE:-}" ]]; then
+    pid_alive() { [[ "$1" == "$FAKE_PID_ALIVE" ]]; }
+  else
+    pid_alive() { kill -0 "$1" 2>/dev/null; }
+  fi
+
+  if [[ -n "$GATEWAY_PID" ]] && pid_alive "$GATEWAY_PID"; then
+    echo "Sending SIGTERM to pid $GATEWAY_PID (lsof=${LSOF_PID:-?} launchctl=${LAUNCHCTL_PID:-?} pgrep=${PGREP_PID:-?}) ..."
+    kill -TERM "$GATEWAY_PID" 2>/dev/null || true
+  else
+    echo "No running pid found — launchd will start a fresh instance."
+  fi
+
+  echo "Waiting up to ${RESTART_TIMEOUT}s for gateway to come back on port $PROD_PORT ..."
+  DEADLINE=$(( $(date +%s) + RESTART_TIMEOUT ))
+  READY=0
+  while [[ $(date +%s) -lt $DEADLINE ]]; do
+    if curl -sf --max-time 3 "http://127.0.0.1:${PROD_PORT}/health" >/dev/null 2>&1; then
+      READY=1
+      break
+    fi
+    sleep 2
+  done
+
+  if [[ "$READY" -eq 0 ]]; then
+    die "Gateway did not come up on port $PROD_PORT within ${RESTART_TIMEOUT}s."
+  fi
+  echo "Gateway is up on port $PROD_PORT."
+fi
+
+# ── Stage 4.5: Policy-file sync (staging → prod) ─────────────────────────────
+# Auto-syncs CLAUDE.md/SOUL.md/TOOLS.md/HEARTBEAT.md from staging
+# (~/.smartclaw/<file>) to prod (~/.smartclaw_prod/<file>) when they differ.
+# Solves jleechan-pcah class: rule lands in main → deploys to staging → but
+# the running prod gateway keeps reading the old prod copy. Skipped with
+# --no-sync. Runs after Stage 4 restart so the canary in Stage 5 validates
+# the post-sync state — i.e. tests what the gateway will read on next read.
+if [[ "$SKIP_SYNC" -eq 1 ]]; then
+  section "Stage 4.5: Policy Sync (skipped)"
+  echo "[no-sync] Skipping policy-file sync to ~/.smartclaw_prod/."
+else
+  section "Stage 4.5: Policy Sync → $PROD_DIR"
+  SYNCED=0
+  SKIPPED=0
+  FAILED=0
+  for f in "${POLICY_FILES[@]}"; do
+    src="$REPO_DIR/$f"
+    dst="$PROD_DIR/$f"
+    if [[ ! -f "$src" ]]; then
+      echo "  [skip] $f (not in staging)"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+    if [[ ! -f "$dst" ]]; then
+      echo "  [skip] $f (not in prod — first deploy?)"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+    if diff -q "$src" "$dst" >/dev/null 2>&1; then
+      echo "  [ok]   $f (in sync)"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+    src_size=$(wc -c < "$src" 2>/dev/null || echo 0)
+    dst_size=$(wc -c < "$dst" 2>/dev/null || echo 0)
+    if cp "$src" "$dst"; then
+      echo "  [sync] $f (staging ${src_size}B → prod ${dst_size}B)"
+      SYNCED=$((SYNCED + 1))
+    else
+      echo "  [FAIL] $f cp failed" >&2
+      FAILED=$((FAILED + 1))
+    fi
+  done
+  echo ""
+  echo "  Summary: synced=$SYNCED  unchanged=$SKIPPED  failed=$FAILED"
+  if [[ "$FAILED" -gt 0 ]]; then
+    die "Stage 4.5 policy sync had $FAILED failure(s) — aborting deploy."
+  fi
+fi
+
+# ── Stage 5: Canary ────────────────────────────────────────────────────────────
+# Canary races documented (all transient, LLM pipeline healthy on retry):
+#   - hermes-canary.sh cron posts its daily-thread anchor simultaneously,
+#     competing for the bot's first response slot. Manual retry at 2026-06-17
+#     18:41:19Z returned the exact nonce in 7.3s.
+#   - SlackSocket event-loop saturation under gateway restart.
+# One retry with 30s backoff absorbs these without false-positive deploy
+# failures. If the second attempt also fails, the gateway is genuinely
+# unhealthy and the deploy must halt.
+section "Stage 5: Canary Check"
+if HERMES_CANARY_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-canary.sh"; then
+  echo "Canary passed."
+else
+  echo "Canary failed on first attempt — waiting 30s before retry (race recovery)."
+  sleep 30
+  if HERMES_CANARY_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-canary.sh"; then
+    echo "Canary passed on retry."
+  else
+    die "Canary failed twice — production gateway may be unhealthy. Check logs."
+  fi
+fi
+
+# ── Stage 5.5: Policy-file drift warning (non-blocking) ──────────────────────
+# The 5th-misroute sub-class 5b leak (2026-06-14) was caused by prod CLAUDE.md
+# drifting 29 days behind staging. Emit a visible WARN if any policy file
+# (CLAUDE.md, SOUL.md, TOOLS.md, HEARTBEAT.md) differs between staging
+# ~/.smartclaw and prod ~/.smartclaw_prod. Do NOT auto-cp — drift must be visible.
+section "Stage 5.5: Policy-File Drift Warning"
+STAGING_DIR="$REPO_DIR"
+PROD_DIR="$HOME/.smartclaw_prod"
+DRIFT_FOUND=0
+for POLICY_FILE in CLAUDE.md SOUL.md TOOLS.md HEARTBEAT.md; do
+  STAGING_FILE="$STAGING_DIR/$POLICY_FILE"
+  PROD_FILE="$PROD_DIR/$POLICY_FILE"
+  if [[ -f "$STAGING_FILE" && -f "$PROD_FILE" ]]; then
+    if ! diff -q "$STAGING_FILE" "$PROD_FILE" >/dev/null 2>&1; then
+      echo "WARN: $POLICY_FILE differs between staging and prod." >&2
+      echo "  staging: $STAGING_FILE" >&2
+      echo "  prod   : $PROD_FILE" >&2
+      echo "  -> run: cp $STAGING_FILE $PROD_FILE  (then restart prod gateway)" >&2
+      DRIFT_FOUND=1
+    fi
+  fi
+done
+if [[ "$DRIFT_FOUND" -eq 0 ]]; then
+  echo "Policy files in sync between staging and prod."
+fi
+# Non-blocking — deploy continues. Drift is a WARN, not a die.
+
+# ── Stage 5.6: Cron jobs + launchd plist drift warning (non-blocking) ──────────
+# 3rd drift class (project_2026-06-18_investigation_5b_detector_log_missing):
+# staging cron/jobs.json had slack-5b-leak-detector but prod didn't, AND the
+# matching launchd plist was never rendered+installed on prod. Extend the
+# drift detector to also flag missing staging→prod cron entries and missing
+# launchd plists (template exists in repo but no rendered file in
+# ~/Library/LaunchAgents/).
+section "Stage 5.6: Cron + launchd drift warning"
+STAGING_CRON_JOBS="$STAGING_DIR/cron/jobs.json"
+PROD_CRON_JOBS="$PROD_DIR/cron/jobs.json"
+CRON_DRIFT_FOUND=0
+CRON_CHECK_UNCERTAIN=0
+# Drift emits two signal classes:
+#   - missing IDs in prod (jobs added to staging but not prod)
+#   - changed definitions (same id, different schedule/command/payload) — catch by stable hash
+#   Filesystem or parse failures fall through as WARN, NOT as silent "in sync".
+if [[ -f "$STAGING_CRON_JOBS" && -f "$PROD_CRON_JOBS" ]]; then
+  CRON_DIFF="$(python3 - "$STAGING_CRON_JOBS" "$PROD_CRON_JOBS" <<'PY'
+import hashlib, json, sys
+try:
+    s = json.load(open(sys.argv[1]))
+    p = json.load(open(sys.argv[2]))
+except Exception as e:
+    print("PARSE_ERROR\t" + str(e), file=sys.stderr)
+    sys.exit(2)
+
+def _stable(job):
+    # Compare the operator-visible fields only. Drop volatile noise
+    # (lastRun, history, ephemeral metadata) so deployment timestamps
+    # do not produce false drift.
+    keep = ('id', 'name', 'schedule', 'command', 'payload', 'enabled',
+            'timezone', 'description', 'tags')
+    return {k: job.get(k) for k in keep if k in job}
+
+def _hash(job):
+    return hashlib.sha256(json.dumps(_stable(job), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+sj = {j.get('id') or j.get('name'): j for j in s.get('jobs', [])}
+pj = {j.get('id') or j.get('name'): j for j in p.get('jobs', [])}
+
+missing = sorted(set(sj) - set(pj))
+changed = sorted(
+    k for k in set(sj) & set(pj)
+    if _hash(sj[k]) != _hash(pj[k])
+)
+
+print('\n'.join(['MISSING\t' + k for k in missing] +
+               ['CHANGED\t' + k for k in changed]))
 PY
-}
-
-# Canary can occasionally flake with heartbeat curl timeout (e.g. exit 28) while the
-# gateway is still busy. Retry with recovery + cooldown using bounded attempts.
-post_monitor_canary_with_retry() {
-  local port="$1"
-  local log="$2"
-  local prod_config="${3:-0}"
-  local attempt=1
-  local max_attempts="${CANARY_MAX_ATTEMPTS}"
-  local cooldown="${CANARY_RETRY_COOLDOWN_SECONDS}"
-  local run_canary
-  run_canary() {
-    if [[ "$prod_config" -eq 1 ]]; then
-      OPENCLAW_STAGING_CONFIG="$PROD_DIR/openclaw.json" \
-        bash "$SCRIPT_DIR/staging-canary.sh" --port "$port" >> "$log" 2>&1
-    else
-      bash "$SCRIPT_DIR/staging-canary.sh" --port "$port" >> "$log" 2>&1
-    fi
-  }
-  while (( attempt <= max_attempts )); do
-    if run_canary; then
-      return 0
-    fi
-    if (( attempt == max_attempts )); then
-      break
-    fi
-    echo "  Canary attempt ${attempt}/${max_attempts} failed — attempting gateway recovery..."
-    ensure_gateway_up_for_port "$port" 1 || true
-    echo "  Retrying canary after ${cooldown}s cooldown..."
-    sleep "$cooldown"
-    attempt=$(( attempt + 1 ))
-  done
-  return 1
-}
-
-ensure_gateway_up_for_port() {
-  local port="$1"
-  local require_label="${2:-0}"
-  local label=""
-  local plist=""
-  local domain="gui/$(id -u)"
-  local started_at="$(date +%s)"
-  local now elapsed
-  local listener_pids=""
-  local parent_pid=""
-  local parent_comm=""
-  if [[ "$port" == "$STAGING_PORT" ]]; then
-    label="ai.smartclaw.staging"
-    plist="$HOME/Library/LaunchAgents/ai.smartclaw.staging.plist"
-  elif [[ "$port" == "$PROD_PORT" ]]; then
-    label="ai.smartclaw.gateway"
-    plist="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
-  else
-    return 1
-  fi
-  if curl -sf --max-time 8 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
-    if [[ "$require_label" -eq 0 ]] || launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-      return 0
-    fi
-  fi
-
-  if [[ "$require_label" -eq 1 ]] && ! launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-    listener_pids="$(lsof -nP -iTCP:${port} -sTCP:LISTEN -t 2>/dev/null | sort -u || true)"
-    if [[ -n "$listener_pids" ]]; then
-      while read -r pid; do
-        [[ -n "$pid" ]] || continue
-        kill -TERM "$pid" 2>/dev/null || true
-        parent_pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-        if [[ "$parent_pid" =~ ^[0-9]+$ ]]; then
-          parent_comm="$(ps -o comm= -p "$parent_pid" 2>/dev/null | tr -d ' ' || true)"
-          if [[ "$parent_comm" == "openclaw" ]]; then
-            kill -TERM "$parent_pid" 2>/dev/null || true
-          fi
-        fi
-      done <<< "$listener_pids"
-      sleep 2
-    fi
-  fi
-
-  launchctl enable "${domain}/${label}" >/dev/null 2>&1 || true
-  if launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-    launchctl kickstart -k "${domain}/${label}" >/dev/null 2>&1 || true
-  else
-    launchctl bootstrap "$domain" "$plist" >/dev/null 2>&1 || \
-      launchctl kickstart -k "${domain}/${label}" >/dev/null 2>&1 || true
-  fi
-
-  while true; do
-    if curl -sf --max-time 8 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
-      if [[ "$require_label" -eq 0 ]] || launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-        return 0
+)" || CRON_RC=$?
+  if [[ ${CRON_RC:-0} -ne 0 ]]; then
+    echo "WARN: unable to compare cron drift (parse error or non-zero exit rc=$CRON_RC)" >&2
+    CRON_CHECK_UNCERTAIN=1
+  elif [[ -n "$CRON_DIFF" ]]; then
+    while IFS=$'\t' read -r kind mid; do
+      [[ -z "$mid" ]] && continue
+      if [[ "$kind" == "CHANGED" ]]; then
+        echo "WARN: cron entry '$mid' definition differs between staging and prod (schedule/command/payload)" >&2
+        echo "  -> reconcile via install-launchagents.sh re-render, or mirror the JSON edit" >&2
+      else
+        echo "WARN: cron entry '$mid' present in staging $STAGING_CRON_JOBS but missing from prod $PROD_CRON_JOBS" >&2
+        echo "  -> install-launchagents.sh will auto-propagate on next run; or manually mirror the entry" >&2
       fi
-    fi
-    now="$(date +%s)"
-    elapsed=$(( now - started_at ))
-    if (( elapsed >= GATEWAY_START_TIMEOUT_SECONDS )); then
-      break
-    fi
-    sleep "$GATEWAY_START_POLL_SECONDS"
-  done
-
-  # One last nudge before declaring hard failure (handles rare launchd races).
-  launchctl kickstart -k "${domain}/${label}" >/dev/null 2>&1 || true
-  started_at="$(date +%s)"
-  while true; do
-    if curl -sf --max-time 8 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
-      if [[ "$require_label" -eq 0 ]] || launchctl print "${domain}/${label}" >/dev/null 2>&1; then
-        return 0
-      fi
-    fi
-    now="$(date +%s)"
-    elapsed=$(( now - started_at ))
-    if (( elapsed >= 45 )); then
-      break
-    fi
-    sleep "$GATEWAY_START_POLL_SECONDS"
-  done
-  return 1
-}
-
-# ── Preflight ──────────────────────────────────────────────────────────────
-
-section "Preflight"
-
-cd "$REPO_DIR"
-BRANCH="$(git branch --show-current)"
-REMOTE="$(git remote get-url origin)"
-echo "Branch:      $BRANCH"
-echo "Remote:      $REMOTE"
-echo "Staging dir: $STAGING_DIR"
-echo "Prod dir:    $PROD_DIR"
-
-if [[ "$REMOTE" != *"smartclaw"* ]]; then
-  die "origin does not point to smartclaw: $REMOTE" "Preflight"
-fi
-
-if [[ ! -d "$PROD_DIR" ]]; then
-  die "Prod directory does not exist: $PROD_DIR (run scripts/install.sh first)" "Preflight"
-fi
-
-echo ""
-echo "Running gateway preflight..."
-bash "$SCRIPT_DIR/gateway-preflight.sh" || die "gateway-preflight.sh failed" "Preflight"
-
-# ── Stage 1: Staging validation ────────────────────────────────────────────
-
-if [[ "$PROD_ONLY" -eq 0 ]]; then
-  section "Stage 1: Staging Gateway Validation (port $STAGING_PORT)"
-
-  STAGING_HEALTH=$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>&1 || echo "")
-  if [[ -z "$STAGING_HEALTH" ]]; then
-    echo "Staging gateway not responding — recovering launchd job..."
-    ensure_gateway_up_for_port "$STAGING_PORT" 1 || true
-    STAGING_HEALTH=$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>&1 || echo "")
-    [[ -n "$STAGING_HEALTH" ]] || die "Staging gateway failed to start on port $STAGING_PORT" "Stage 1: Gateway Start"
-  fi
-  echo "Staging gateway healthy: $STAGING_HEALTH"
-
-  echo ""
-  echo "Running staging canary..."
-  post_monitor_canary_with_retry "$STAGING_PORT" "$STAGING_CANARY_LOG" 0 \
-    || die "Staging canary FAILED — see $STAGING_CANARY_LOG" "Stage 1: Canary"
-
-  echo ""
-  echo "Running monitor-agent against staging..."
-  # Run monitor against staging while overriding its gateway health target.
-  # Stage 4 performs the production monitor gate separately.
-  env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-    OPENCLAW_MONITOR_HTTP_GATEWAY_URL="http://127.0.0.1:${STAGING_PORT}/health" \
-    OPENCLAW_STATE_DIR="$PROD_DIR" \
-    OPENCLAW_CONFIG_PATH="$PROD_DIR/openclaw.json" \
-    OPENCLAW_MONITOR_GATEWAY_PLIST_PATH="$HOME/Library/LaunchAgents/ai.smartclaw.staging.plist" \
-    OPENCLAW_MONITOR_LOG_FILE="$STAGING_MONITOR_LOG" \
-    OPENCLAW_MONITOR_LOCK_DIR="$STAGING_MONITOR_LOCK" \
-    OPENCLAW_MONITOR_SLACK_TARGET="" \
-    OPENCLAW_MONITOR_FAILURE_SLACK_TARGET="$MONITOR_FAILURE_SLACK_TARGET" \
-    OPENCLAW_MONITOR_SLACK_READ_PROBE_ENABLE=0 \
-    OPENCLAW_MONITOR_SLACK_E2E_MATRIX_ENABLE=0 \
-    OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0 \
-    OPENCLAW_MONITOR_THREAD_REPLY_CHECK=0 \
-    OPENCLAW_MONITOR_FAIL_CLOSED_CONFIG_SIGNATURES_ENABLE=0 \
-    OPENCLAW_MONITOR_TOKEN_PROBES_ENABLE=0 \
-    OPENCLAW_MONITOR_MEMORY_LOOKUP_ENABLE=0 \
-    OPENCLAW_MONITOR_DOCTOR_SH_ENABLE=0 \
-    OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE=0 \
-    OPENCLAW_MONITOR_PHASE2_ENABLE=0 \
-    OPENCLAW_MONITOR_RUN_CANARY=0 \
-    bash "$HOME/.smartclaw/monitor-agent.sh" > "$STAGING_MONITOR_STDOUT" 2>&1 \
-    || die "Monitor-agent FAILED on staging — see $STAGING_MONITOR_LOG and $STAGING_MONITOR_STDOUT" "Stage 1: Monitor"
-  assert_monitor_status_good "Stage 1: Monitor" "$STAGING_MONITOR_LOG"
-
-  # Re-run canary as E2E confirmation post-monitor
-  post_monitor_canary_with_retry "$STAGING_PORT" "$STAGING_CANARY_LOG" 0 \
-    || die "Post-monitor canary FAILED — see $STAGING_CANARY_LOG" "Stage 1: Canary (re-check)"
-
-  echo ""
-  echo "STAGING PASSED — all checks green on port $STAGING_PORT"
-fi
-
-# ── Stage 2: Push to origin/main ──────────────────────────────────────────
-
-section "Stage 2: Push to Origin"
-
-if [[ "$SKIP_PUSH" -eq 0 ]]; then
-  if [[ "$BRANCH" != "main" ]]; then
-    echo "Merging $BRANCH into main..."
-    git checkout main
-    git pull origin main
-    git merge "$BRANCH" --no-edit || die "Merge conflict — resolve manually" "Stage 2: Merge"
-    git push origin main || die "Push to origin/main failed" "Stage 2: Push"
-    echo "Pushed to origin/main"
-  else
-    echo "Already on main — pulling latest..."
-    git pull origin main || die "Pull failed" "Stage 2: Pull"
-    AHEAD=$(git rev-list origin/main..HEAD --count 2>/dev/null || echo "0")
-    if [[ "$AHEAD" -gt 0 ]]; then
-      echo "Pushing $AHEAD commit(s) to origin/main..."
-      git push origin main || die "Push to origin/main failed" "Stage 2: Push"
-    else
-      echo "Already up to date with origin/main"
-    fi
+      CRON_DRIFT_FOUND=1
+    done <<< "$CRON_DIFF"
   fi
 else
-  echo "Skipping push (--skip-push)"
+  echo "WARN: cron drift check skipped; missing $STAGING_CRON_JOBS or $PROD_CRON_JOBS" >&2
+  CRON_CHECK_UNCERTAIN=1
 fi
 
-# ── Stage 3: Sync config to prod ─────────────────────────────────────────
-
-section "Stage 3: Sync Config to Production"
-
-echo "Syncing validated config from staging → prod..."
-
-# Copy the main config only when staging has a full runtime config.
-# The repo checkout may intentionally hold a redacted stub while production keeps
-# the secretful live config in ~/.smartclaw_prod/openclaw.json.
-if is_stub_main_config "$STAGING_DIR/openclaw.json"; then
-  if [[ -f "$PROD_DIR/openclaw.json" ]]; then
-    echo "  WARN: staging openclaw.json is an incomplete repo stub; preserving existing prod openclaw.json"
-  else
-    die "Staging openclaw.json is incomplete and prod openclaw.json is missing" "Stage 3: Config Sync"
-  fi
-else
-  cp "$STAGING_DIR/openclaw.json" "$PROD_DIR/openclaw.json"
-  echo "  openclaw.json synced"
-fi
-
-# Copy cron jobs — these are the gateway's scheduled job definitions
-if [[ -f "$STAGING_DIR/cron/jobs.json" ]]; then
-  mkdir -p "$PROD_DIR/cron"
-  cp "$STAGING_DIR/cron/jobs.json" "$PROD_DIR/cron/jobs.json"
-  echo "  cron/jobs.json synced"
-fi
-
-# Sync scripts/ — entire directory of operational scripts
-if [[ -d "$STAGING_DIR/scripts" ]]; then
-  rsync -av --delete \
-    --exclude '__pycache__' \
-    --exclude '*.pyc' \
-    --exclude '*.pyo' \
-    --exclude '.git' \
-    "$STAGING_DIR/scripts/" "$PROD_DIR/scripts/"
-  echo "  scripts/ synced"
-fi
-
-# Sync lib/ — shared shell libraries (token-probes.sh, core-md-probe.sh, etc.).
-# doctor.sh sources $LIVE_OPENCLAW/lib/token-probes.sh when LIVE_OPENCLAW is prod
-# (~/.smartclaw_prod via OPENCLAW_STATE_DIR); deploy does not mirror the full repo,
-# so prod must receive lib/ explicitly.
-if [[ -d "$STAGING_DIR/lib" ]]; then
-  mkdir -p "$PROD_DIR/lib"
-  rsync -av --delete \
-    --exclude '.git' \
-    "$STAGING_DIR/lib/" "$PROD_DIR/lib/"
-  echo "  lib/ synced"
-fi
-
-# Repo-root gateway cron helper — doctor.sh require_file(run-scheduled-job.sh) on the live tree.
-if [[ -f "$STAGING_DIR/run-scheduled-job.sh" ]]; then
-  cp -p "$STAGING_DIR/run-scheduled-job.sh" "$PROD_DIR/run-scheduled-job.sh"
-  chmod +x "$PROD_DIR/run-scheduled-job.sh"
-  echo "  run-scheduled-job.sh synced"
-fi
-
-# Monitor agent — runs health checks and canary probes against the live gateway.
-if [[ -f "$STAGING_DIR/monitor-agent.sh" ]]; then
-  cp -p "$STAGING_DIR/monitor-agent.sh" "$PROD_DIR/monitor-agent.sh"
-  chmod +x "$PROD_DIR/monitor-agent.sh"
-  echo "  monitor-agent.sh synced"
-fi
-
-# Sync workspace/ — all workspace content except runtime artifacts
-# (excludes __pycache__, tmp, temp, sqlite dbs, claude-memory-context)
-if [[ -d "$STAGING_DIR/workspace" ]]; then
-  rsync -av --delete \
-    --exclude '__pycache__' \
-    --exclude '*.pyc' \
-    --exclude 'tmp*' \
-    --exclude 'temp*' \
-    --exclude '*.sqlite' \
-    --exclude '*.sqlite.backup-*' \
-    --exclude '*.sqlite.tmp-*' \
-    --exclude 'claude-memory-context.md' \
-    --exclude '.git' \
-    "$STAGING_DIR/workspace/" "$PROD_DIR/workspace/"
-  echo "  workspace/ synced"
-fi
-
-# Sync memory/ — daily notes (not sqlite runtime state)
-if [[ -d "$STAGING_DIR/memory" ]]; then
-  rsync -av --delete \
-    --exclude '*.sqlite' \
-    --exclude '*.sqlite.backup-*' \
-    --exclude '*.sqlite.tmp-*' \
-    --exclude 'extraction-state.lock' \
-    "$STAGING_DIR/memory/" "$PROD_DIR/memory/"
-  echo "  memory/ synced"
-fi
-
-# Ensure symlinks are current for shared resources
-for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db skills; do
-  src="$STAGING_DIR/$target"
-  dst="$PROD_DIR/$target"
-  if [[ -e "$src" ]] && [[ ! -L "$dst" ]]; then
-    ln -sf "$src" "$dst"
-    echo "  symlinked $target"
+# Launchd plist drift: template in repo but no rendered file under ~/Library/LaunchAgents/
+PLIST_DRIFT_FOUND=0
+for tmpl in "$STAGING_DIR"/launchd/ai.smartclaw.schedule.*.plist.template; do
+  [[ -f "$tmpl" ]] || continue
+  base="$(basename "$tmpl" .plist.template)"
+  rendered="$HOME/Library/LaunchAgents/$base.plist"
+  if [[ ! -f "$rendered" ]]; then
+    echo "WARN: plist template present but no rendered plist: $rendered" >&2
+    echo "  -> run: scripts/install-launchagents.sh (will render + bootstrap)" >&2
+    PLIST_DRIFT_FOUND=1
   fi
 done
 
-echo "Config sync complete"
-
-# Seed auth-profiles.json — required for agent to authenticate with LLM providers.
-# This file is NOT synced by rsync (agents/ is symlinked, not copied).
-# Missing auth-profiles in prod causes silent Slack failure: HTTP 200 liveness
-# but every message fails with "No API key found for provider anthropic".
-PROD_AUTH="$PROD_DIR/agents/main/agent/auth-profiles.json"
-STAGING_AUTH="$STAGING_DIR/agents/main/agent/auth-profiles.json"
-if [[ ! -f "$PROD_AUTH" ]]; then
-  if [[ -f "$STAGING_AUTH" ]]; then
-    mkdir -p "$(dirname "$PROD_AUTH")"
-    cp "$STAGING_AUTH" "$PROD_AUTH"
-    echo "  Seeded auth-profiles.json into prod state dir (was missing)"
-  else
-    die "auth-profiles.json missing from both staging ($STAGING_AUTH) and prod ($PROD_AUTH) — agent cannot authenticate" "Stage 3: Auth Profiles"
-  fi
-else
-  echo "  auth-profiles.json present in prod"
+if [[ "$CRON_DRIFT_FOUND" -eq 0 && "$PLIST_DRIFT_FOUND" -eq 0 && "$CRON_CHECK_UNCERTAIN" -eq 0 ]]; then
+  echo "Cron + launchd plists in sync between staging and prod."
 fi
+# Non-blocking — deploy continues. Drift is a WARN, not a die.
 
-# ── Stage 3.5: Sync launchd plist templates + run gateway migration ────────
-# This handles the critical plist-label migration (ai.smartclaw.gateway → com.smartclaw.gateway).
-# install-launchagents.sh reads plist templates from REPO_DIR/launchd/, so we pass REPO_DIR=STAGING_DIR
-# to ensure templates are resolved from the staging repo (which has the canonical plist files),
-# while the script itself runs from the prod scripts/ dir (where deploy.sh placed it).
-section "Stage 3.5: Sync launchd plists + run install-launchagents.sh"
-
-if [[ -d "$STAGING_DIR/launchd" ]]; then
-  mkdir -p "$PROD_DIR/launchd"
-  rsync -av \
-    --exclude '*.pyc' \
-    --exclude '.git' \
-    "$STAGING_DIR/launchd/" "$PROD_DIR/launchd/"
-  echo "  launchd/ synced"
-else
-  echo "  WARNING: no launchd/ directory in staging — skipping plist sync"
-fi
-
-# Run install-launchagents.sh from staging so REPO_DIR resolves correctly.
-# (install-launchagents.sh computes REPO_DIR=$(dirname $0)/.. at runtime;
-# running from staging ensures it points to the staging repo which has canonical plist templates.)
-# The script's install_plist function launches services via launchctl bootstrap using the
-# absolute paths we've already synced to PROD_DIR, so the services start correctly on prod.
-# This step is idempotent — safe to re-run on every deploy.
-bash "$STAGING_DIR/scripts/install-launchagents.sh" > /tmp/install-launchagents.log 2>&1 \
-  || echo "  install-launchagents.sh exited $? — see /tmp/install-launchagents.log"
-echo "  install-launchagents.sh complete"
-
-# ── Stage 4: Production gateway restart + validation ──────────────────────
-
-section "Stage 4: Production Gateway Validation (port $PROD_PORT)"
-
-echo "Restarting production gateway..."
-launchctl stop "gui/$(id -u)/ai.smartclaw.gateway" 2>/dev/null || true
-launchctl bootout "gui/$(id -u)/ai.smartclaw.gateway" 2>/dev/null || true
-sleep 3
-
-# Kill orphaned openclaw-gateway processes that are NOT part of the staging or prod gateways.
-# IMPORTANT: the LISTEN pid from lsof is not always the same as the `openclaw-gateway`
-# worker pid (parent may be `node` / wrapper). Comparing pgrep to listener PIDs alone
-# could kill the worker for port $STAGING_PORT while leaving the parent — SIGTERM/SIGKILL
-# to the gateway and failed deploys. Protect any PID in the ancestor chain of a process
-# that has TCP state on $STAGING_PORT or $PROD_PORT.
-_gateway_port_protected_pids() {
-  {
-    lsof -nP -iTCP:"${STAGING_PORT}" -t 2>/dev/null || true
-    lsof -nP -iTCP:"${PROD_PORT}" -t 2>/dev/null || true
-  } | sort -u
-}
-_pid_has_protected_ancestor() {
-  local pid="$1"
-  local prot_file="$2"
-  local walk="$pid"
-  local pp
-  [[ -s "$prot_file" ]] || return 1
-  for _ in $(seq 1 64); do
-    if grep -qx "$walk" "$prot_file" 2>/dev/null; then
-      return 0
-    fi
-    pp=$(ps -o ppid= -p "$walk" 2>/dev/null | tr -d ' ')
-    [[ "$pp" =~ ^[0-9]+$ ]] || break
-    [[ "$pp" -le 1 ]] && break
-    walk="$pp"
-  done
-  return 1
-}
-_deploy_prot_file="$(mktemp "${TMPDIR:-/tmp}/deploy-prot.XXXXXX")"
-_gateway_port_protected_pids >"$_deploy_prot_file"
-_orphan_pids=""
-while read -r _gwpid; do
-  [[ -n "$_gwpid" ]] || continue
-  if _pid_has_protected_ancestor "$_gwpid" "$_deploy_prot_file"; then
-    continue
-  fi
-  _orphan_pids="${_orphan_pids}${_gwpid}"$'\n'
-done < <(pgrep -x openclaw-gateway 2>/dev/null)
-rm -f "$_deploy_prot_file"
-if [[ -n "$(echo "$_orphan_pids" | tr -d '[:space:]')" ]]; then
-  echo "  Killing orphaned openclaw-gateway process(es) (not on ports ${STAGING_PORT}/${PROD_PORT} trees):"
-  printf '%s\n' "$_orphan_pids" | while read -r pid; do
-      [[ -z "$pid" ]] && continue
-      port=$(lsof -i -P -n -a -p "$pid" 2>/dev/null | awk 'NR>1 {print $9}' | head -1 || true)
-      echo "    Killing PID $pid${port:+ on $port}"
-      kill -9 "$pid" 2>/dev/null || true
-    done
-  sleep 2
-fi
-
-# Clear stale session lock files before bringing up the new instance
-_clear_stale_locks() {
-  local sessions_dir="$1"
-  find "$sessions_dir" -name "*.lock" 2>/dev/null | while read -r f; do
-    local raw pid
-    raw=$(cat "$f" 2>/dev/null)
-    pid=$(echo "$raw" | python3 -c "import sys,json; print(json.load(sys.stdin)['pid'])" 2>/dev/null \
-          || echo "$raw" | tr -d '[:space:]')
-    if [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null; then
-      rm -f "$f" && echo "  Removed stale lock: $f (dead pid=$pid)"
-    fi
-  done
-}
-_clear_stale_locks "$PROD_DIR/agents/main/sessions"
-# Also clear staging-dir locks in case of shared inode (symlinked sessions dirs)
-_clear_stale_locks "$STAGING_DIR/agents/main/sessions"
-
-ensure_gateway_up_for_port "$PROD_PORT" 1 \
-  || die "Production gateway failed to start on port $PROD_PORT under label ai.smartclaw.gateway" "Stage 4: Gateway Start"
-PROD_HEALTH=""
-for _health_attempt in 1 2 3; do
-  PROD_HEALTH="$(curl -sf --max-time 8 "http://127.0.0.1:${PROD_PORT}/health" 2>&1 || true)"
-  [[ -n "$PROD_HEALTH" ]] && break
-  sleep 3
-done
-[[ -n "$PROD_HEALTH" ]] \
-  || die "Production gateway /health unavailable after startup on port $PROD_PORT" "Stage 4: Gateway Health"
-echo "Production gateway healthy: $PROD_HEALTH"
-
-# Assert exactly 1 gateway process listening on the prod port.
-# Count unique PIDs (lsof shows IPv4+IPv6 as separate lines for same PID).
-_running_gw="$(
-  { lsof -i ":${PROD_PORT}" -sTCP:LISTEN -t 2>/dev/null || true; } \
-    | sort -u | wc -l | tr -d ' '
-)"
-if [[ "$_running_gw" -ne 1 ]]; then
-  die "Post-restart gateway instance count=$_running_gw on port $PROD_PORT (expected 1) — possible orphan conflict" "Stage 4: Single-instance check"
-fi
-echo "  Single-instance check: 1 openclaw-gateway process confirmed on port $PROD_PORT"
-
-# Assert canonical label is loaded and legacy label is NOT loaded.
-if ! launchctl print "gui/$(id -u)/ai.smartclaw.gateway" >/dev/null 2>&1; then
-  die "Canonical label ai.smartclaw.gateway not loaded after restart" "Stage 4: Label assertion"
-fi
-if launchctl print "gui/$(id -u)/com.smartclaw.gateway" >/dev/null 2>&1; then
-  die "Legacy label com.smartclaw.gateway is still loaded — remove duplicate plist" "Stage 4: Label assertion"
-fi
-echo "  Label assertion: ai.smartclaw.gateway loaded, com.smartclaw.gateway absent"
-
-echo ""
-echo "Running production canary..."
-post_monitor_canary_with_retry "$PROD_PORT" "$PROD_CANARY_LOG" 1 \
-  || die "Production canary FAILED — see $PROD_CANARY_LOG" "Stage 4: Canary"
-
-echo ""
-echo "Running monitor-agent against production (~/.smartclaw_prod via gateway plist)..."
-env -u OPENCLAW_GATEWAY_TOKEN -u OPENCLAW_GATEWAY_REMOTE_TOKEN \
-  OPENCLAW_MONITOR_HTTP_GATEWAY_URL="http://127.0.0.1:${PROD_PORT}/health" \
-  OPENCLAW_STATE_DIR="$PROD_DIR" \
-  OPENCLAW_CONFIG_PATH="$PROD_DIR/openclaw.json" \
-  OPENCLAW_MONITOR_GATEWAY_PLIST_PATH="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" \
-  OPENCLAW_MONITOR_LOG_FILE="$PROD_MONITOR_LOG" \
-  OPENCLAW_MONITOR_LOCK_DIR="$PROD_MONITOR_LOCK" \
-  OPENCLAW_MONITOR_SLACK_TARGET="" \
-  OPENCLAW_MONITOR_FAILURE_SLACK_TARGET="$MONITOR_FAILURE_SLACK_TARGET" \
-  OPENCLAW_MONITOR_SLACK_E2E_MATRIX_ENABLE=0 \
-  OPENCLAW_MONITOR_RUN_CANARY=0 \
-  bash "$HOME/.smartclaw/monitor-agent.sh" > "$PROD_MONITOR_STDOUT" 2>&1 \
-  || die "Monitor-agent FAILED on production — see $PROD_MONITOR_LOG and $PROD_MONITOR_STDOUT" "Stage 4: Monitor"
-assert_monitor_status_good "Stage 4: Monitor" "$PROD_MONITOR_LOG"
-
-# Re-run canary as E2E confirmation post-monitor
-post_monitor_canary_with_retry "$PROD_PORT" "$PROD_CANARY_LOG" 1 \
-  || die "Post-monitor canary FAILED — see $PROD_CANARY_LOG" "Stage 4: Canary (re-check)"
-
-# ── Done ──────────────────────────────────────────────────────────────────
-
+# ── Stage 6: Success ───────────────────────────────────────────────────────────
 section "Deploy Complete"
-echo "Branch:  $BRANCH"
-if [[ "$PROD_ONLY" -eq 0 ]]; then
-  echo "Staging: PASS (port $STAGING_PORT, dir: $STAGING_DIR)"
-else
-  echo "Staging: SKIPPED (--prod-only)"
-fi
-echo "Prod:    PASS (port $PROD_PORT, dir: $PROD_DIR)"
-echo "Commit:  $(git log --oneline -1)"
+HEAD_SHA="$(git -C "$REPO_DIR" rev-parse HEAD)"
+echo "  SHA    : $HEAD_SHA"
+echo "  Branch : $BRANCH"
+echo "  Time   : $(ts)"
 echo ""
-echo "$(ts) — deploy finished successfully"
-
-# Send success notifications
-if [[ "$PROD_ONLY" -eq 0 ]]; then
-  send_deploy_success_alert "Staging" "$STAGING_PORT" 2>/dev/null || true
-fi
-send_deploy_success_alert "Production" "$PROD_PORT" 2>/dev/null || true
+echo "Hermes deploy succeeded."

@@ -23,7 +23,7 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"
-openclaw_workspace="${HOME}/.smartclaw/workspace"
+hermes_workspace="${HOME}/.smartclaw/workspace"
 tmp_text="$(mktemp)"
 tmp_json="$(mktemp)"
 trap 'rm -f "$tmp_text" "$tmp_json"' EXIT
@@ -51,7 +51,7 @@ while IFS= read -r p; do
   p="${p%%#*}"
   [[ -z "$p" ]] && continue
   if [[ "$p" == workspace/* ]]; then
-    mapped="${openclaw_workspace}/${p#workspace/}"
+    mapped="${hermes_workspace}/${p#workspace/}"
     [[ -e "$mapped" ]] || missing_files+=("$p")
   elif [[ "$p" == /* ]]; then
     [[ -e "$p" ]] || missing_files+=("$p")

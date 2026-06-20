@@ -2,7 +2,7 @@
 
 > Why each file in the orchestration layer exists and why we didn't use an existing tool.
 
-Current architecture: `OpenClaw -> mctrl -> ai_orch`.
+Current architecture: `Hermes -> mctrl -> ai_orch`.
 
 ## Core Question: Why not just use `gh` CLI directly?
 
@@ -32,17 +32,17 @@ Current architecture: `OpenClaw -> mctrl -> ai_orch`.
 
 **Verdict**: `gh` CLI is the transport layer. `gh_integration.py` is the orchestration-safe interface to it.
 
-### Why not openclaw/openclaw code?
+### Why not hermes/hermes code?
 
-OpenClaw's codebase (TypeScript) provides agent runtime, gateway, and session management. It does NOT provide:
+Hermes's codebase (TypeScript) provides agent runtime, gateway, and session management. It does NOT provide:
 - PR merge-readiness aggregation logic
 - Unresolved review thread detection via GraphQL
 - Fail-closed CI status composition
 - Python-native integration for our `src/orchestration/` layer
 
-This repo's orchestration layer (`src/orchestration/`) is Python. OpenClaw is TypeScript. Calling OpenClaw internals from Python would require an IPC bridge with no benefit over calling `gh` directly.
+This repo's orchestration layer (`src/orchestration/`) is Python. Hermes is TypeScript. Calling Hermes internals from Python would require an IPC bridge with no benefit over calling `gh` directly.
 
-### Why not openclaw Mission Control code?
+### Why not hermes Mission Control code?
 
 Mission Control was evaluated as a UI/control-plane application, not as the
 authoritative execution path for this repo. The current direction is documented

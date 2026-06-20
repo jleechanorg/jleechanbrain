@@ -5,20 +5,20 @@
 # worktrees, workspace parity, backups, launchd services, sessions, and evidence.
 #
 # Output: structured report written to:
-#   ${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}/YYYY-WW.md
+#   ${HERMES_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}/YYYY-WW.md
 #
 # Slack notification (optional):
-#   Set OPENCLAW_WORKSPACE_REPORT_CHANNEL to a channel ID to post exec summary.
+#   Set HERMES_WORKSPACE_REPORT_CHANNEL to a channel ID to post exec summary.
 #
 # Rerunnable: writes dated snapshots; never overwrites the latest report.
 # Versioned: script is in git; config is in ~/.smartclaw/config/workspace-report.json.
 #
 set -euo pipefail
 
-REPO_DIR="${OPENCLAW_WORKSPACE_REPORT_REPO_DIR:-$HOME/.smartclaw}"
-WORK_DIR="${OPENCLAW_WORKSPACE_REPORT_WORK_DIR:-/tmp/workspace-report-$$}"
-OUT_DIR="${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}"
-SLACK_CHANNEL="${OPENCLAW_WORKSPACE_REPORT_CHANNEL:-}"
+REPO_DIR="${HERMES_WORKSPACE_REPORT_REPO_DIR:-$HOME/.smartclaw}"
+WORK_DIR="${HERMES_WORKSPACE_REPORT_WORK_DIR:-/tmp/workspace-report-$$}"
+OUT_DIR="${HERMES_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}"
+SLACK_CHANNEL="${HERMES_WORKSPACE_REPORT_CHANNEL:-}"
 GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN:-$HOME/.github_token}"
 TZ="${TZ:-America/Los_Angeles}"; export TZ
 NOW="$(date '+%Y-%m-%dT%H:%M:%S%z')"
@@ -233,7 +233,7 @@ else
 fi
 
 # Also check workspace backup consolidation
-WORKSPACE_BACKUP="$HOME/.smartclaw/workspace/openclaw/.smartclaw-backups"
+WORKSPACE_BACKUP="$HOME/.smartclaw/workspace/hermes/.smartclaw-backups"
 if [[ -d "$WORKSPACE_BACKUP" ]]; then
   WS_SNAP_COUNT="$(ls -1d "$WORKSPACE_BACKUP"/[0-9]* 2>/dev/null | wc -l | tr -d ' ')"
   if [[ "$WS_SNAP_COUNT" -gt 0 ]]; then
@@ -266,7 +266,7 @@ else
     "ai.smartclaw.schedule.workspace-report-weekly"
   )
   LAUNCHD_RUNNING_LABELS=(
-    "com.smartclaw.gateway"
+    "ai.smartclaw.prod"
     "ai.agento.dashboard"
   )
 
@@ -348,7 +348,7 @@ fi
 # ---------------------------------------------------------------------------
 section "6. Gateway & Health Probe"
 
-GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+GATEWAY_PORT="${HERMES_GATEWAY_PORT:-8643}"
 health_body="$WORK_DIR/health-probe.json"
 health_code=$(curl -sS --max-time 5 -o "$health_body" -w '%{http_code}' "http://127.0.0.1:${GATEWAY_PORT}/health" 2>/dev/null || echo "000")
 
@@ -360,12 +360,12 @@ else
   count_issue; ISSUES+=("Gateway health probe failed (HTTP $health_code)")
 fi
 
-gateway_status=$(OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}" openclaw gateway status 2>&1 || true)
+gateway_status=$(HERMES_GATEWAY_TOKEN="${HERMES_GATEWAY_TOKEN:-}" hermes gateway status 2>&1 || true)
 if echo "$gateway_status" | grep -qE 'Runtime: running|Slack: ok|^Agents:'; then
-  echo ":white_check_mark: \`openclaw gateway status\` reports running" >> "$SECTIONS_FILE"
+  echo ":white_check_mark: \`hermes gateway status\` reports running" >> "$SECTIONS_FILE"
   count_pass
 else
-  echo ":x: \`openclaw gateway status\` does not confirm runtime running" >> "$SECTIONS_FILE"
+  echo ":x: \`hermes gateway status\` does not confirm runtime running" >> "$SECTIONS_FILE"
   count_warn; ISSUES+=("Gateway status does not confirm runtime running")
 fi
 

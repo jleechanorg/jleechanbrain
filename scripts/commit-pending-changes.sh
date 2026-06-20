@@ -22,8 +22,25 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PAT
 # Suppress SIGPIPE
 trap '' PIPE
 
+# ── Shared Slack lib ──────────────────────────────────────────────────────────
+# Source slack_thread_lib.sh so cronjob posts thread under a daily anchor instead
+# of channel root. bead jleechan-ry3y follow-up to PR #615.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/lib"
+# shellcheck source=lib/slack_thread_lib.sh
+source "$LIB_DIR/slack_thread_lib.sh"
+# Save the lib's slack_post under lib_slack_post so the local wrapper below
+# (which preserves the [AI Terminal: commit-pending] prefix and CPC_DISABLE_SLACK
+# semantics) can call it without recursion. Bash resolves function names at
+# call time, so a wrapper that simply re-calls `slack_post` would recurse
+# into the local definition we declare further down (chatgpt-codex-connector
+# P1 review on PR #630). We physically copy the lib's slack_post body to a
+# new name via `declare -f` + `sed` so the local definition below shadows
+# `slack_post` without affecting `lib_slack_post`.
+eval "$(declare -f slack_post | sed '1s/^slack_post()/lib_slack_post()/')"
+
 # ── Config ────────────────────────────────────────────────────────────────────
-LOCK_DIR="${CPC_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-commit-pending.lock}"
+LOCK_DIR="${CPC_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-commit-pending.lock}"
 LOG_DIR="${CPC_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${CPC_STATE_FILE:-$HOME/.smartclaw/logs/commit-pending-state.json}"
 COMMIT_LOG="${CPC_COMMIT_LOG:-$HOME/.smartclaw/logs/commit-pending.log}"
@@ -33,8 +50,8 @@ RUN_INTERVAL_SECS="${CPC_RUN_INTERVAL_SECS:-1800}"
 
 REPO="${CPC_REPO:-${HOME}/.smartclaw}"
 # Respect existing git config first; override via CPC_GIT_EMAIL / CPC_GIT_NAME if needed
-GIT_EMAIL="${CPC_GIT_EMAIL:-$(git config user.email 2>/dev/null || echo jeffrey@openclaw.ai)}"
-GIT_NAME="${CPC_GIT_NAME:-$(git config user.name 2>/dev/null || echo 'OpenClaw Auto-Commit')}"
+GIT_EMAIL="${CPC_GIT_EMAIL:-$(git config user.email 2>/dev/null || echo ${GITHUB_USER}@users.noreply.github.com)}"
+GIT_NAME="${CPC_GIT_NAME:-$(git config user.name 2>/dev/null || echo 'Hermes Auto-Commit')}"
 PR_BRANCH="${CPC_PR_BRANCH:-auto/commit-pending}"
 PR_TITLE_PREFIX="${CPC_PR_TITLE_PREFIX:-[Auto]}"   # PR title = "$PR_TITLE_PREFIX Changes"}
 
@@ -171,39 +188,31 @@ PYEOF
 MCP_MAIL_BOT_TOKEN="$(resolve_mcp_mail_token)"
 
 slack_post() {
+  # Posts go through slack_post() from lib/slack_thread_lib.sh. The lib threads
+  # them under a per-job daily anchor (channel root on first post of the day,
+  # reply-thread on subsequent posts) and dedupes identical text within 60s.
   local text="$1"
-  local token as_user
 
-  if [[ "$SLACK_AS_USER" == "0" ]]; then
-    token="${SLACK_USER_TOKEN:-}"
-  else
-    token="${SLACK_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}"
-  fi
-
-  if [[ -z "$token" ]]; then
-    log "WARN: no Slack token — skipping notification (set SLACK_BOT_TOKEN to enable)"
+  # CPC_DISABLE_SLACK=1 skips the Slack API call entirely (used by tests).
+  if [[ "${CPC_DISABLE_SLACK:-0}" == "1" ]]; then
+    log "WARN: CPC_DISABLE_SLACK=1 — skipping Slack notification"
     return 0
   fi
 
-  local payload
+  # The lib posts as the configured bot via SLACK_BOT_TOKEN. SLACK_AS_USER=0
+  # (post as user) was the prior behavior, but the shared lib does not support
+  # xoxp tokens yet; preserve bot-posting default which matches the upstream AO
+  # notification path. The lib logs its own token-missing warnings.
+  local channel_args=()
   if [[ -n "$SLACK_CHANNEL" ]]; then
-    payload="$(jq -n \
-      --arg ch "$SLACK_CHANNEL" \
-      --arg txt "[AI Terminal: commit-pending] $text" \
-      '{channel: $ch, text: $txt, unfold_multiple_attachments: false}')"
-  else
-    payload="$(jq -n \
-      --arg txt "[AI Terminal: commit-pending] $text" \
-      '{text: $txt}')"
+    channel_args=(--channel "$SLACK_CHANNEL")
   fi
-
-  curl --silent --show-error --fail \
-    --connect-timeout 10 --max-time 30 \
-    -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    -d "$payload" | jq -e '.ok == true' > /dev/null 2>&1
+  lib_slack_post "commit-pending" "[AI Terminal: commit-pending] $text" "${channel_args[@]}" || \
+    log "WARN: Slack notification failed"
 }
+
+# lib_slack_post is defined right after sourcing the lib (above) so our wrapper
+# here can call the lib's slack_post without recursing into itself.
 
 slack_upload() {
   # Upload a text file as a Slack snippet
@@ -522,7 +531,8 @@ fi
 
 # Execute commit + PR
 # Return codes: 0=success with tracked work, 1=failure, 2=no-work (skip/idempotent)
-do_commit_and_pr && result=0 || result=$?
+do_commit_and_pr
+result=$?
 
 if [[ "$result" == "1" ]]; then
   log "ERROR: do_commit_and_pr failed — running AO fallback"

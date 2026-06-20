@@ -1,6 +1,6 @@
 ---
 name: smartclaw-eloop
-description: Custom evolve loop for smartclaw orchestrator — drains dropped Slack thread backlog via /claw, fixes openclaw issues, proposes new work items. Max 50 items, newest-first.
+description: Custom evolve loop for smartclaw orchestrator — drains dropped Slack thread backlog via /claw, fixes hermes issues, proposes new work items. Max 50 items, newest-first.
 type: skill
 ---
 

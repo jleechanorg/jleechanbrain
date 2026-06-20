@@ -33,7 +33,7 @@ import pytest
 # Constants
 # ---------------------------------------------------------------------------
 
-TEST_COLLECTION = "openclaw_mem0_e2e_test"
+TEST_COLLECTION = "hermes_mem0_e2e_test"
 SAMPLE_CAP = 50       # max sessions to process (keeps test under ~15 min)
 SAMPLE_PCT = 0.01     # 1% of corpus
 MIN_SESSIONS = 5      # fail if fewer than this many sessions found
@@ -136,10 +136,10 @@ def _point_count() -> int:
 @pytest.fixture(scope="module", autouse=True)
 def patch_collection(monkeypatch_module):
     """Redirect all mem0 writes to TEST_COLLECTION for the duration of this module."""
-    # We patch _load_openclaw_mem0_config to return test collection name
+    # We patch _load_hermes_mem0_config to return test collection name
     import scripts.mem0_shared_client as client_mod
 
-    original_loader = client_mod._load_openclaw_mem0_config
+    original_loader = client_mod._load_hermes_mem0_config
     _cache = {}
 
     def patched_loader():
@@ -152,7 +152,7 @@ def patch_collection(monkeypatch_module):
         _cache.update(cfg)
         return _cache
 
-    monkeypatch_module.setattr(client_mod, "_load_openclaw_mem0_config", patched_loader)
+    monkeypatch_module.setattr(client_mod, "_load_hermes_mem0_config", patched_loader)
     monkeypatch_module.setattr(client_mod, "_MEM0_CONFIG_CACHE", None)
     yield
     client_mod._MEM0_CONFIG_CACHE = None

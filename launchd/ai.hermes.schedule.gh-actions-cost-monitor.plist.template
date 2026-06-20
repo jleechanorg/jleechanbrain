@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.hermes.schedule.gh-actions-cost-monitor</string>
+    <string>ai.smartclaw.schedule.gh-actions-cost-monitor</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -36,7 +36,7 @@
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>@HOME@/.hermes</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>StandardOutPath</key>
     <string>/tmp/gh-actions-cost-monitor.log</string>

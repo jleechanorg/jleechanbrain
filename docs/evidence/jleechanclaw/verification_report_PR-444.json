@@ -2,7 +2,7 @@
   "reviewer_timestamp": "2026-03-30T13:42:18Z",
   "bundle_path": null,
   "overall_verdict": "FAIL",
-  "reason": "No evidence bundle exists for PR #444 at any canonical location (docs/evidence/, evidence/, /tmp/worldarchitect.ai/jleechanclaw/fix/dropped-thread-followup-errors/, or docs/pr-validation/)",
+  "reason": "No evidence bundle exists for PR #444 at any canonical location (docs/evidence/, evidence/, /tmp/worldarchitect.ai/smartclaw/fix/dropped-thread-followup-errors/, or docs/pr-validation/)",
   "phases": {
     "structure": {
       "verdict": "FAIL",

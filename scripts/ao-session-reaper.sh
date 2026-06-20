@@ -1,6 +1,6 @@
 #!/bin/bash
 # ao-session-reaper.sh - Nightly reaper for stale tmux sessions
-# Runs as cron job (via openclaw cron) at 03:00 daily
+# Runs as cron job (via hermes cron) at 03:00 daily
 # Also callable manually
 
 set -uo pipefail

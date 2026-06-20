@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OPENCLAW_CONFIG = REPO_ROOT / "openclaw.json"
+HERMES_CONFIG = REPO_ROOT / "config.yaml"
 LAUNCHD_DIR = Path.home() / "Library" / "LaunchAgents"
 BEADS_BACKUP_DIR = REPO_ROOT / ".beads" / "backup"
 
@@ -20,10 +20,10 @@ SENSITIVE_PATTERNS = [
 
 
 def test_mem0_history_db_path_uses_home_placeholder() -> None:
-    if not OPENCLAW_CONFIG.exists():
+    if not HERMES_CONFIG.exists():
         import pytest
-        pytest.skip("openclaw.json not present (gitignored — run from ~/.smartclaw/)")
-    cfg = json.loads(OPENCLAW_CONFIG.read_text(encoding="utf-8"))
+        pytest.skip("config.yaml not present (gitignored — run from ~/.smartclaw/)")
+    cfg = json.loads(HERMES_CONFIG.read_text(encoding="utf-8"))
     found: list[str] = []
 
     def walk(node: object) -> None:
@@ -37,7 +37,7 @@ def test_mem0_history_db_path_uses_home_placeholder() -> None:
                 walk(item)
 
     walk(cfg)
-    # openclaw does not expand ${HOME} at runtime; accept the absolute path
+    # hermes does not expand ${HOME} at runtime; accept the absolute path
     acceptable = {
         "${HOME}/.smartclaw/mem0-history.db",
         str(Path.home() / ".smartclaw" / "mem0-history.db"),
@@ -66,7 +66,7 @@ def test_no_runtime_db_or_progress_artifacts_tracked() -> None:
 
 def test_no_literal_tokens_in_backup_configs() -> None:
     # Scan committed config artefacts only: launchd templates checked in under
-    # launchd/. The live openclaw.json and
+    # launchd/. The live config.yaml and
     # ~/Library/LaunchAgents/*.plist are gitignored runtime files that must
     # contain real tokens to work — scanning them here would always fail.
     LAUNCHD_TEMPLATES_DIR = REPO_ROOT / "launchd"

@@ -2,14 +2,30 @@
 #
 # Morning Log Review — 8:00 AM PT Mon–Fri
 # Parses last night's gateway + agent logs, extracts errors, and posts
-# an actionable fixes summary to Slack.
+# an actionable fixes summary to Slack via the shared slack_thread_lib
+# (PR #615) so it shares the same thread-anchor + dedupe + channel-resolver
+# as the other 3 fixed cron scripts.
 #
 # Do NOT post as reminder relay text — post real findings only.
 # If no errors found, post a brief "all clear" confirmation.
+#
+# NOTE: this is the launchd-installed copy (see
+# scripts/install-hermes-scheduled-jobs.sh:144-145). The top-level
+# morning-log-review.sh is identical in behaviour; the launchd templates
+# at launchd/ai.smartclaw.schedule.morning-log-review.plist.template execute
+# @HOME@/.smartclaw/scripts/morning-log-review.sh, so this file must also
+# use slack_post — leaving the curl+hardcoded C0AJQ5M0A0Y path here
+# would re-introduce the channel-bleed bug the top-level migration
+# closed. (PR #616 chatgpt-codex-connector P1 follow-up.)
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# shellcheck source=lib/slack_thread_lib.sh
+IS_SOURCED=1 source "$LIB_DIR/slack_thread_lib.sh"
+
+ROOT="${HERMES_HOME:-$HOME/.smartclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/morning-log-review"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"
@@ -71,41 +87,17 @@ TOTAL_ERRORS=$((ERROR_LINES + WARN_LINES))
     | awk '{print "- ["$1" occurrences] "$2" — review related module"}' || echo "(none)"
 } > "$REPORT"
 
-# ── Slack notification ───────────────────────────────────────────────────────
-
-post_slack() {
-  local msg="$1"
-
-  if command -v openclaw >/dev/null 2>&1 && [[ -n "${OPENCLAW_ALERT_SLACK_TARGET:-}" ]]; then
-    openclaw message send \
-      --channel slack \
-      --target "$OPENCLAW_ALERT_SLACK_TARGET" \
-      --message "$msg" 2>/dev/null && return 0
-  fi
-
-  # Fallback: direct curl as jleechan (triggers OpenClaw gateway)
-  if [[ -f "$HOME/.profile" ]]; then source "$HOME/.profile" 2>/dev/null || true; fi
-  if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
-    log "SLACK_USER_TOKEN not set — skipping Slack notification"
-    return 0
-  fi
-
-  local channel_id
-  channel_id="${SLACK_REVIEW_CHANNEL_ID:-C0AJQ5M0A0Y}"  # default #openclaw
-
-  curl -s -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer $SLACK_USER_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$(python3 -c "import json,sys; print(json.dumps({'channel': '$channel_id', 'text': sys.stdin.read().strip()}))" <<< "$msg")" \
-    >> "$OUT_DIR/slack-$(date +%Y%m%d).log" 2>&1 || true
-}
+# ── Slack notification via consolidated slack_thread_lib (PR #615) ────────────
+# Channel resolution: HERMES_OPS_SLACK_CHANNEL env → SLACK_CHANNEL → empty
+# (skip). Empty default = "caller didn't set the plist env"; do not silently
+# bleed into a wrong channel. slack_post handles thread-anchor + dedupe.
 
 if [[ "$TOTAL_ERRORS" -eq 0 ]]; then
   SUMMARY="Morning Log Review ✅ — No errors in last night's gateway/agent logs."
-  post_slack "$SUMMARY"
-  log "All clear. Posted: $SUMMARY"
+  slack_post "morning-log-review" "$SUMMARY" --channel "${SLACK_CHANNEL:-}" 2>/dev/null || \
+    log "slack_post failed (see slack_thread_lib) — summary not delivered"
+  log "All clear. Summary: $SUMMARY"
 else
-  SUMMARY="Morning Log Review ⚠️ — $ERROR_LINES error(s), $WARN_LINES warning(s). See $REPORT"
   # Post just the top 5 actionable items to Slack (don't dump full log)
   TOP_ITEMS=$(grep -E '(ERROR|FATAL|CRITICAL)' "$OUT_DIR/raw-$(date +%Y%m%d).log" 2>/dev/null | head -5)
   SLACK_MSG="Morning Log Review ⚠️ — $ERROR_LINES error(s), $WARN_LINES warning(s) in last night's logs.
@@ -115,8 +107,9 @@ $(echo "$TOP_ITEMS" | sed 's/.*ERROR.*/**ERROR**/; s/.*FATAL.*/**FATAL**/; s/.*C
 
 Full report: $REPORT"
 
-  post_slack "$SLACK_MSG"
-  log "Errors found. Posted summary. Report: $REPORT"
+  slack_post "morning-log-review" "$SLACK_MSG" --channel "${SLACK_CHANNEL:-}" 2>/dev/null || \
+    log "slack_post failed (see slack_thread_lib) — summary not delivered"
+  log "Errors found. Report: $REPORT"
 fi
 
 log "Done. Total issues: $TOTAL_ERRORS"

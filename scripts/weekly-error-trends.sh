@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
 #
 # Weekly Error Trends -- 9:00 AM PT Mondays
-# Analyzes the last 7 days of OpenClaw logs, summarizes recurring errors,
+# Analyzes the last 7 days of Hermes logs, summarizes recurring errors,
 # identifies root causes, suggests fastest fixes, and provides a prevention checklist.
+#
+# Posts to Slack via the shared slack_thread_lib (PR #615) so it shares
+# the same thread-anchor + dedupe + channel-resolver as the other 3 fixed
+# cron scripts. This is the launchd-installed copy (see
+# scripts/install-hermes-scheduled-jobs.sh:144-146); the launchd template
+# at launchd/ai.smartclaw.schedule.weekly-error-trends.plist.template executes
+# @HOME@/.smartclaw/scripts/weekly-error-trends.sh, so leaving the
+# curl+hardcoded C0AJQ5M0A0Y path here would re-introduce the channel-bleed
+# bug the top-level migration closed. (PR #616 chatgpt-codex-connector P1
+# follow-up.)
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# shellcheck source=lib/slack_thread_lib.sh
+IS_SOURCED=1 source "$LIB_DIR/slack_thread_lib.sh"
+
+ROOT="${HERMES_HOME:-$HOME/.smartclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/weekly-error-trends"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"
@@ -59,7 +74,7 @@ if [[ "$CAT_NETWORK" -gt 3 ]]; then
 fi
 if [[ "$CAT_AUTH" -gt 2 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
-- Auth/token errors -- token expired or scope missing; fix: openclaw agents auth <agent-id>"
+- Auth/token errors -- token expired or scope missing; fix: hermes agents auth <agent-id>"
 fi
 if [[ "$CAT_MEMORY" -gt 2 ]]; then
   ROOT_CAUSES="${ROOT_CAUSES}
@@ -76,9 +91,9 @@ FASTEST_FIXES=""
 [[ "$CAT_LAUNCHD" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 1. launchd failures: launchctl bootout gui/$(id -u)/<label> && launchctl bootstrap gui/$(id -u) <plist>"
 [[ "$CAT_NETWORK" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
-2. Services unreachable: openclaw gateway probe && openclaw channels status"
+2. Services unreachable: hermes gateway probe && hermes channels status"
 [[ "$CAT_AUTH" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
-3. Auth errors: re-authenticate with openclaw agents auth <agent-id>"
+3. Auth errors: re-authenticate with hermes agents auth <agent-id>"
 [[ "$CAT_SCRIPT" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 4. Script errors: run the script manually with the same PATH to reproduce"
 [[ "$CAT_MEMORY" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
@@ -87,7 +102,7 @@ FASTEST_FIXES=""
 # -- 5. Prevention checklist ----------------------------------------------
 
 PREVENTION_CHECKLIST="
-- Run openclaw doctor weekly -- catches config drift early
+- Run hermes doctor weekly -- catches config drift early
 - Verify launchd PATH before installing new plists
 - Keep log directory under 5 GB; prune monthly: find ~/.smartclaw/logs -name '*.log' -mtime +30 -delete
 - Test scripts in a launchd-like environment (stripped PATH) before deploying
@@ -128,23 +143,10 @@ PREVENTION_CHECKLIST="
 
 log "Report written: $REPORT"
 
-# -- 7. Slack notification ----------------------------------------------
-
-post_slack() {
-  local msg="$1"
-  if [[ -f "$HOME/.profile" ]]; then source "$HOME/.profile" 2>/dev/null || true; fi
-  if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
-    log "SLACK_USER_TOKEN not set -- skipping Slack"
-    return 0
-  fi
-  local cid="${SLACK_REVIEW_CHANNEL_ID:-C0AJQ5M0A0Y}"
-  local payload
-  payload=$(python3 -c "import json,sys; print(json.dumps({'channel': '$cid', 'text': sys.stdin.read().strip()}))" <<< "$msg")
-  curl -s -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer $SLACK_USER_TOKEN" \
-    -H "Content-Type: application/json" -d "$payload" \
-    >> "$OUT_DIR/slack-$(date +%Y%m%d).log" 2>&1 || true
-}
+# -- 7. Slack notification via consolidated slack_thread_lib (PR #615) ----
+# Channel resolution: HERMES_OPS_SLACK_CHANNEL env → SLACK_CHANNEL → empty.
+# Empty default = "caller didn't set the plist env"; do not silently bleed.
+# slack_post handles thread-anchor + dedupe.
 
 TOP_CAT="None"
 TOP_COUNT=0
@@ -164,6 +166,7 @@ ${ROOT_CAUSES:+Top root causes:${ROOT_CAUSES}}
 
 Full report: $REPORT"
 
-post_slack "$SLACK_MSG"
-log "Done. Posted Slack summary. Report: $REPORT"
+slack_post "weekly-error-trends" "$SLACK_MSG" --channel "${SLACK_CHANNEL:-}" 2>/dev/null || \
+  log "slack_post failed (see slack_thread_lib) — summary not delivered"
+log "Done. Report: $REPORT"
 exit 0

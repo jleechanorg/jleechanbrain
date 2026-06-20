@@ -82,7 +82,7 @@ cd ~/.smartclaw
 - `worldai-pr5933` — WorldArchitect PR #5933 (jleechanorg/worldarchitect.ai, branch: fix/statusline-context-front)
 - `worldai-pr5938` — WorldArchitect PR #5938 (jleechanorg/worldarchitect.ai, branch: codex/3dc97cbc)
 - `worldai-pr5942` — WorldArchitect PR #5942 (jleechanorg/worldarchitect.ai)
-- `worldai-pr5955` — WorldArchitect PR #5955 (jleechanorg/worldarchitect.ai, branch: feat/claw-native-openclaw-dispatch)
+- `worldai-pr5955` — WorldArchitect PR #5955 (jleechanorg/worldarchitect.ai, branch: feat/claw-native-hermes-dispatch)
 - `worldai-claw-pr57` — worldai_claw PR #57
 - `worldai-claw-agento` — worldai_claw agento clone
 - `smartclaw-main` — jleechanorg/smartclaw main (also used for PR work)
@@ -184,7 +184,7 @@ Both steps are mandatory. Do not create an agento PR without spawning a session.
 4. After the exec call returns, reply with a one-line confirmation: "Spawned `<session-id>` for PR #N."
 5. Do NOT wait for the spawn to complete — it runs async in tmux.
 
-<## PR Hardening Loop (Default for OpenClaw -> agento PRs)
+<## PR Hardening Loop (Default for Hermes -> agento PRs)
 
 When the request is PR remediation (`fix comments`, `fix CI`, `make PR good`), run AO as an iterative loop using AO-native commands, not custom orchestration logic.
 
@@ -199,11 +199,11 @@ When the request is PR remediation (`fix comments`, `fix CI`, `make PR good`), r
 5. Use `gh pr view` / `gh pr checks` only as verification or evidence if AO status is ambiguous.
 6. Repeat until merge-ready (no unresolved blockers + required CI green), or escalate after bounded retries with concrete blocker evidence.
 
-Default rule: if PR was created via OpenClaw -> agento handoff, stay in AO lane unless Jeffrey explicitly says `mctrl`.
+Default rule: if PR was created via Hermes -> agento handoff, stay in AO lane unless Jeffrey explicitly says `mctrl`.
 
 ## Notes
 
-- AO dashboard: `http://localhost:3011` - managed by launchd (ai.agento.dashboard)
+- AO dashboard: `http://localhost:3020` - managed by launchd (`ai.agento.dashboard` plist at `~/.smartclaw/launchd/ai.agento.dashboard.plist`, symlinked to `~/Library/LaunchAgents/ai.agento.dashboard.plist`)
 - Config: `~/.smartclaw/agent-orchestrator.yaml`
 - Sessions live in `~/.agent-orchestrator/` and `~/.worktrees/`
 - Notifications: AO posts to #ai-slack-test via the agento-notifier webhook handler

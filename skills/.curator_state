@@ -1,9 +1,9 @@
 {
-  "last_report_path": null,
-  "last_run_at": "2026-05-23T20:37:26.046901+00:00",
-  "last_run_duration_seconds": null,
-  "last_run_summary": "deferred first run — curator seeded, will run after one interval; use `hermes curator run --dry-run` to preview now",
+  "last_report_path": "/Users/jleechan/.hermes/logs/curator/20260620-012334",
+  "last_run_at": "2026-06-20T01:23:34.756968+00:00",
+  "last_run_duration_seconds": 98.058346,
+  "last_run_summary": "auto: no changes; llm: The .md files in the skills root aren't registered as skills (they're docs/references for the AO/CLI infrastructure), and the `usage.json` is the authoritative source for skill state. My investigation is complete.\n\n## Summary\n\n**Candidate l…",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 0
+  "run_count": 1
 }

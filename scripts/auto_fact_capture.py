@@ -6,9 +6,9 @@ Reads the last N messages from a session JSONL, calls the configured mem0 OSS
 LLM (**Ollama** by default in this repo; optional **Groq** if `oss.llm.provider`
 is `groq`) to extract 1-3 atomic facts, writes them to Qdrant via
 mem0_shared_client.add_memory(). Embeddings are not generated here — they follow
-`oss.embedder` in openclaw.json (often OpenAI @ 768).
+`oss.embedder` in config.yaml (often OpenAI @ 768).
 
-Usage (called by openclaw hook):
+Usage (called by hermes hook):
     python3 scripts/auto_fact_capture.py --session-file /path/to/session.jsonl
 
 Usage (manual test):
@@ -148,25 +148,25 @@ def _extract_facts_groq(conversation: str, groq_api_key: str, groq_model: str) -
         return []
 
 
-def _openclaw_config_path() -> Path:
-    env = os.environ.get("OPENCLAW_CONFIG_PATH")
+def _hermes_config_path() -> Path:
+    env = os.environ.get("HERMES_CONFIG_PATH")
     if env:
         return Path(os.path.expanduser(env))
-    return Path.home() / ".smartclaw" / "openclaw.json"
+    return Path.home() / ".smartclaw" / "config.yaml"
 
 
 def capture(session_file: str, user_id: str = "jleechan", dry_run: bool = False) -> int:
     """Main entry point. Returns number of facts stored."""
-    cfg_path = _openclaw_config_path()
+    cfg_path = _hermes_config_path()
     try:
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         print(f"[auto_fact_capture] cannot read config {cfg_path}: {e}", file=sys.stderr)
         return 0
     try:
-        oss = cfg["plugins"]["entries"]["openclaw-mem0"]["config"].get("oss", {})
+        oss = cfg["plugins"]["entries"]["hermes-mem0"]["config"].get("oss", {})
     except (KeyError, TypeError, AttributeError) as e:
-        print(f"[auto_fact_capture] missing openclaw-mem0 oss block in {cfg_path}: {e}", file=sys.stderr)
+        print(f"[auto_fact_capture] missing hermes-mem0 oss block in {cfg_path}: {e}", file=sys.stderr)
         return 0
     llm_block = oss.get("llm", {})
     provider = (llm_block.get("provider") or "ollama").lower()

@@ -12,20 +12,28 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PAT
 
 trap '' PIPE
 
+# ── Shared Slack lib ──────────────────────────────────────────────────────────
+# Source slack_thread_lib.sh so cronjob posts thread under a daily anchor instead
+# of channel root. bead jleechan-ry3y follow-up to PR #615.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/lib"
+# shellcheck source=lib/slack_thread_lib.sh
+source "$LIB_DIR/slack_thread_lib.sh"
+
 # ── Config ────────────────────────────────────────────────────────────────────
 REPO="${1:-}"
 REPO_NAME="${2:-unknown}"
 
 LOCK_DIR="${TMPDIR:-/tmp}/auto-push-${REPO_NAME//[^a-zA-Z0-9_-]/}.lock"
-LOG_DIR="${HOME}/.hermes/logs/scheduled-jobs"
+LOG_DIR="${HOME}/.smartclaw/logs/scheduled-jobs"
 COMMIT_LOG="${LOG_DIR}/auto-push-${REPO_NAME}.log"
 STATE_FILE="${LOG_DIR}/auto-push-${REPO_NAME}-state.json"
 RUN_INTERVAL_SECS="${RUN_INTERVAL_SECS:-1800}"
 
-GIT_EMAIL="${GIT_EMAIL:-$(git config user.email 2>/dev/null || echo jeffrey@openclaw.ai)}"
+GIT_EMAIL="${GIT_EMAIL:-$(git config user.email 2>/dev/null || echo ${GITHUB_USER}@users.noreply.github.com)}"
 GIT_NAME="${GIT_NAME:-$(git config user.name 2>/dev/null || echo 'Auto-Push')}"
 
-SLACK_TOKEN="${HERMES_SLACK_BOT_TOKEN:-}"
+SLACK_TOKEN="${SLACK_BOT_TOKEN:-}"
 SLACK_CHANNEL="${SLACK_CHANNEL:-${SLACK_CHANNEL_ID}}"  # #antigravity
 
 CODEX_FALLBACK="${CODEX_FALLBACK:-1}"
@@ -73,22 +81,13 @@ record_run() {
 }
 
 # ── Slack ─────────────────────────────────────────────────────────────────────
-slack_post() {
+# Posts go through slack_post() from lib/slack_thread_lib.sh. The lib threads
+# them under a per-job daily anchor (channel root on first post of the day,
+# reply-thread on subsequent posts) and dedupes identical text within 60s.
+notify() {
   local text="$1"
-  [[ -z "$SLACK_TOKEN" ]] && { log "WARN: no Slack token — skipping notification"; return 0; }
-
-  local payload
-  payload="$(jq -n \
-    --arg ch "$SLACK_CHANNEL" \
-    --arg txt "[auto-push:${REPO_NAME}] $text" \
-    '{channel: $ch, text: $txt, unfold_multiple_attachments: false}')"
-
-  curl --silent --show-error --fail \
-    --connect-timeout 10 --max-time 30 \
-    -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer $SLACK_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$payload" | jq -e '.ok == true' > /dev/null 2>&1 || log "WARN: Slack notification failed"
+  slack_post "auto-push-to-main" "[auto-push:${REPO_NAME}] $text" --channel "$SLACK_CHANNEL" || \
+    log "WARN: Slack notification failed"
 }
 
 # ── Codex fallback ────────────────────────────────────────────────────────────
@@ -116,10 +115,10 @@ Tasks:
   local codex_output
   codex_output="$(codex exec --yolo --project "${REPO_NAME}-auto-push-fix" "$codex_task" 2>&1)" && {
     log "CODEX FALLBACK: codex exec succeeded"
-    slack_post "codex --yolo fixed push in ${REPO_NAME}" || true
+    notify "codex --yolo fixed push in ${REPO_NAME}" || true
   } || {
     log "CODEX FALLBACK: codex exec failed or unavailable: $(echo "$codex_output" | tail -3)"
-    slack_post "Push failed in ${REPO_NAME} AND codex fallback also failed — manual intervention needed" || true
+    notify "Push failed in ${REPO_NAME} AND codex fallback also failed — manual intervention needed" || true
   }
 }
 
@@ -150,7 +149,7 @@ do_push() {
   fi
 
   local changed_files untracked_count
-  changed_files="$(tracked_changes | sort -u | grep -v '^$')" || true
+  changed_files="$(tracked_changes | sort -u | grep -v '^')" || true
   untracked_count="$(untracked_files | wc -l | tr -d ' ' 2>/dev/null || echo '0')"
 
   if [[ -z "$changed_files" && "$untracked_count" == "0" ]]; then
@@ -160,7 +159,7 @@ do_push() {
 
   if [[ -z "$changed_files" && "$untracked_count" != "0" ]]; then
     log "Only untracked files present — NOT auto-committing"
-    slack_post "⚠️ ${REPO_NAME} has untracked files — not auto-pushing. Add manually if needed." || true
+    notify "⚠️ ${REPO_NAME} has untracked files — not auto-pushing. Add manually if needed." || true
     return 0
   fi
 
@@ -198,7 +197,7 @@ do_push() {
   local push_output
   push_output="$(git push origin main 2>&1)" && {
     log "Push successful"
-    slack_post "✅ Auto-pushed ${REPO_NAME}: $file_count file(s) — $(git log -1 --format='%s')" || true
+    notify "✅ Auto-pushed ${REPO_NAME}: $file_count file(s) — $(git log -1 --format='%s')" || true
     return 0
   } || {
     log "ERROR: git push failed: $(echo "$push_output" | tail -5)"

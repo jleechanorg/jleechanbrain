@@ -35,7 +35,7 @@ INCLUDE_FILES=(
 )
 
 # Anything matching this regex is treated as non-portable/private/runtime-specific.
-EXCLUDE_REGEX='^(\.beads/|\.cursor/|\.smartclaw/|\.pytest_cache/|agents/|artifacts/|browser/|canvas/|credentials/|cron/|delivery-queue/|devices/|identity/|locks/|logs/|media/|memory/|qdrant_storage/|specs/|state/|workspace/memory/|docs/context/|docs/superpowers/|docker/data/|\.smartclaw-audit/|openclaw\.json($|\.)|lcm\.db|lcm\.db-shm|lcm\.db-wal|mem0-history\.db|sessions\.db|.*\.bak(\..*)?$|.*\.sqlite$|.*\.db$)'
+EXCLUDE_REGEX='^(\.beads/|\.cursor/|\.smartclaw/|\.pytest_cache/|agents/|artifacts/|browser/|canvas/|credentials/|cron/|delivery-queue/|devices/|identity/|locks/|logs/|media/|memory/|qdrant_storage/|specs/|state/|workspace/memory/|docs/context/|docs/superpowers/|docker/data/|\.smartclaw-audit/|hermes\.json($|\.)|lcm\.db|lcm\.db-shm|lcm\.db-wal|mem0-history\.db|sessions\.db|.*\.bak(\..*)?$|.*\.sqlite$|.*\.db$)'
 
 # Additional targeted exclusions for internal-only or generated artifacts.
 EXCLUDE_PATHS=(
@@ -45,7 +45,7 @@ EXCLUDE_PATHS=(
   "launchd/ai.smartclaw.config-sync.plist.template"
   "scripts/generate_redacted_config.py"
   "scripts/install-config-sync.sh"
-  "scripts/sync-openclaw-config.sh"
+  "scripts/sync-hermes-config.sh"
   "scripts/verify-config-from-redacted.sh"
 )
 
@@ -145,7 +145,7 @@ mkdir -p "$(dirname "$REPORT_FILE")"
   echo
   echo "Non-portable paths are excluded when they contain:"
   echo "- Secrets, credentials, personal runtime state, local DB/log/cache artifacts"
-  echo "- OpenClaw live config files and backups (\`openclaw.json*\`)"
+  echo "- Hermes live config files and backups (\`config.yaml*\`)"
   echo "- Internal-only context snapshots and generated local audit artifacts"
   echo
   echo "## Included Files (sample)"

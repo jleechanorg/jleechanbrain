@@ -1,8 +1,8 @@
-# OpenClaw Cron → Launchd Migration
+# Hermes Cron → Launchd Migration
 
 ## Live vs Tracked Distinction
 
-This is the canonical reference for how OpenClaw's scheduled/recurring jobs are managed.
+This is the canonical reference for how Hermes's scheduled/recurring jobs are managed.
 
 ### Tracked in Git (here, in `launchd/`)
 
@@ -12,14 +12,14 @@ and what it should do — and are reproduced on any machine via the install scri
 
 | Plist | Label | Schedule | Script | Purpose |
 |-------|-------|----------|--------|---------|
-| `ai.smartclaw.gateway.plist` | `ai.smartclaw.gateway` | KeepAlive | `openclaw` CLI | OpenClaw gateway daemon (port 18789) |
+| `ai.smartclaw.prod.plist` | `ai.smartclaw.prod` | KeepAlive | `hermes` CLI | Hermes gateway daemon (port 8643) |
 | `ai.smartclaw.health-check.plist` | `ai.smartclaw.health-check` | 5 min | `health-check.sh` | Gateway health probe + self-heal |
 | `ai.smartclaw.monitor-agent.plist` | `ai.smartclaw.monitor-agent` | 30 min | `monitor-agent.sh` | Agent process monitoring |
 | `ai.smartclaw.schedule.morning-log-review.plist` | `ai.smartclaw.schedule.morning-log-review` | 8:00 AM PT daily | `morning-log-review.sh` | Gateway log error review |
 | `ai.smartclaw.schedule.weekly-error-trends.plist` | `ai.smartclaw.schedule.weekly-error-trends` | Mon 9:00 AM PT | `weekly-error-trends.sh` | 7-day error trend analysis |
 | `ai.smartclaw.schedule.docs-drift-review.plist` | `ai.smartclaw.schedule.docs-drift-review` | 8:15 AM PT daily | `docs-drift-review.sh` | Docs audit + drift fill |
 | `ai.smartclaw.schedule.cron-backup-sync.plist` | `ai.smartclaw.schedule.cron-backup-sync` | 8:25 AM PT daily | `cron-backup-sync.sh` | Cron backup + git commit |
-| `ai.smartclaw.schedule.daily-research.plist` | `ai.smartclaw.schedule.daily-research` | 6:00 PM PT M–F | `daily-openclaw-research.sh` | OpenClaw tips + state check |
+| `ai.smartclaw.schedule.daily-research.plist` | `ai.smartclaw.schedule.daily-research` | 6:00 PM PT M–F | `daily-hermes-research.sh` | Hermes tips + state check |
 | `ai.smartclaw.schedule.living-blog-status.plist` | `ai.smartclaw.schedule.living-blog-status` | Hourly | `living-blog-status.sh` | Living blog + novel status → #novel |
 | `ai.smartclaw.schedule.bug-hunt-9am.plist` | `ai.smartclaw.schedule.bug-hunt-9am` | 9:00 AM PT M–F | `scripts/bug-hunt-daily.sh` | Bug hunt across repos |
 | `ai.smartclaw.schedule.harness-analyzer-9am.plist` | `ai.smartclaw.schedule.harness-analyzer-9am` | 9:00 AM PT M–F | `scripts/harness-analyzer.sh` | Harness engineering analysis |
@@ -28,14 +28,14 @@ and what it should do — and are reproduced on any machine via the install scri
 | `ai.smartclaw.schedule.github-intake.plist` | `ai.smartclaw.schedule.github-intake` | 9:00 AM PT daily | `scripts/github-intake.sh` | GitHub notification intake |
 | `ai.agento.dashboard.plist` | `ai.agento.dashboard` | KeepAlive | `npx next start` | AO web dashboard (port 3020) |
 | `ai.smartclaw.lifecycle-manager.plist` | `ai.smartclaw.lifecycle-manager` | KeepAlive | inline bash | AO lifecycle workers |
-| `ai.smartclaw.config-sync.plist` | `ai.smartclaw.config-sync` | 1 hr | `scripts/sync-openclaw-config.sh` | Config sync to live dir |
+| `ai.smartclaw.config-sync.plist` | `ai.smartclaw.config-sync` | 1 hr | `scripts/sync-hermes-config.sh` | Config sync to live dir |
 | `ai.smartclaw.qdrant.plist` | `ai.smartclaw.qdrant` | KeepAlive | `scripts/start-qdrant-container.sh` | Qdrant vector DB (Docker) |
 | `ai.smartclaw.webhook.plist` | `ai.smartclaw.webhook` | KeepAlive | webhook daemon | GitHub webhook ingress |
-| `com.smartclaw.backup.plist` | `com.smartclaw.backup` | 4h20m | `scripts/run-openclaw-backup.sh` | Redacted backup snapshots |
+| `com.smartclaw.backup.plist` | `com.smartclaw.backup` | 4h20m | `scripts/run-hermes-backup.sh` | Redacted backup snapshots |
 
 ### Live Only (gitignored: `~/.smartclaw/cron/jobs.json`)
 
-These jobs are **managed by the OpenClaw gateway** and live in `~/.smartclaw/cron/jobs.json`.
+These jobs are **managed by the Hermes gateway** and live in `~/.smartclaw/cron/jobs.json`.
 That file is **gitignored** — it is never committed. These are short-lived, ad-hoc, or
 PR-automation jobs where gateway ownership of lifecycle is appropriate.
 
@@ -50,9 +50,9 @@ PR-automation jobs where gateway ownership of lifecycle is appropriate.
 ### Canonical Install Path
 
 ```bash
-# Single entrypoint — installs ALL openclaw launchd services
+# Single entrypoint — installs ALL hermes launchd services
 cd ~/.smartclaw  # or any worktree
-./scripts/install-openclaw-launchd.sh
+./scripts/install-hermes-launchd.sh
 
 # Bootstrap also calls this automatically after git clone
 bash ~/.smartclaw/scripts/bootstrap.sh
@@ -64,7 +64,7 @@ To verify all labels are loaded:
 
 ```bash
 for label in \
-  ai.smartclaw.gateway \
+  ai.smartclaw.prod \
   ai.smartclaw.health-check \
   ai.smartclaw.monitor-agent \
   ai.smartclaw.schedule.morning-log-review \
@@ -100,12 +100,12 @@ done
 | `4ec2aa58-5c97-4c46-8775-a7f030d1dec6` | `healthcheck:weekly-error-trends` | `ai.smartclaw.schedule.weekly-error-trends` | `ai.smartclaw.schedule.weekly-error-trends.plist.template` | `weekly-error-trends.sh` |
 | `95f858df-0fe8-4434-90c9-c5c89f61889e` | `healthcheck:docs-drift-review` | `ai.smartclaw.schedule.docs-drift-review` | `ai.smartclaw.schedule.docs-drift-review.plist.template` | `docs-drift-review.sh` |
 | `d6bb3693-9f5c-4a4e-99ed-bc56eb33e35c` | `healthcheck:cron-backup-sync` | `ai.smartclaw.schedule.cron-backup-sync` | `ai.smartclaw.schedule.cron-backup-sync.plist.template` | `cron-backup-sync.sh` |
-| `abf80788-7bb0-4ce7-9e09-6c1a97faa5cd` | `tips:daily-openclaw-research` | `ai.smartclaw.schedule.daily-research` | `ai.smartclaw.schedule.daily-research.plist.template` | `daily-openclaw-research.sh` |
+| `abf80788-7bb0-4ce7-9e09-6c1a97faa5cd` | `tips:daily-hermes-research` | `ai.smartclaw.schedule.daily-research` | `ai.smartclaw.schedule.daily-research.plist.template` | `daily-hermes-research.sh` |
 | `e2f1a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b` | `living-blog:novel-hourly-status` | `ai.smartclaw.schedule.living-blog-status` | `ai.smartclaw.schedule.living-blog-status.plist.template` | `living-blog-status.sh` |
 | `9417b82a-ac58-4d00-b5f3-5103e2f7073a` | `thread-followup-ao263` | **NOT MIGRATED** | — | Remains in `~/.smartclaw/cron/jobs.json` (live) |
 
 **Migration behavior:**
-- When `install-openclaw-scheduled-jobs.sh` runs, it sets `enabled: false` for migrated jobs
+- When `install-hermes-scheduled-jobs.sh` runs, it sets `enabled: false` for migrated jobs
   in `~/.smartclaw/cron/jobs.json` (live file, gitignored — changes stay local).
 - The gateway is signaled to reload `jobs.json` via SIGHUP.
 - If the job was already disabled, no change is made.
@@ -115,8 +115,8 @@ done
 
 These are honest notes about what requires manual intervention:
 
-1. **Token/secrets**: Some plists reference tokens in `~/.smartclaw/openclaw.json`.
-   The `install-openclaw-launchd.sh` does NOT set up tokens — ensure `openclaw.json`
+1. **Token/secrets**: Some plists reference tokens in `~/.smartclaw/config.yaml`.
+   The `install-hermes-launchd.sh` does NOT set up tokens — ensure `config.yaml`
    is configured first (bootstrap.sh handles this for new machines).
 
 2. **Qdrant Docker**: `ai.smartclaw.qdrant` requires Docker to be running.
@@ -145,10 +145,10 @@ Use this checklist when reviewing whether a recurring job belongs in git or stay
 ### Now tracked in git (launchd):
 - [ ] All plist templates in `launchd/*.plist.template`
 - [ ] All job scripts: `morning-log-review.sh`, `weekly-error-trends.sh`,
-      `docs-drift-review.sh`, `cron-backup-sync.sh`, `daily-openclaw-research.sh`,
+      `docs-drift-review.sh`, `cron-backup-sync.sh`, `daily-hermes-research.sh`,
       `living-blog-status.sh`, `composio-upstream-reminder.sh`
-- [ ] `scripts/install-openclaw-launchd.sh` (central entrypoint)
-- [ ] `scripts/install-openclaw-scheduled-jobs.sh` (scheduled job installer)
+- [ ] `scripts/install-hermes-launchd.sh` (central entrypoint)
+- [ ] `scripts/install-hermes-scheduled-jobs.sh` (scheduled job installer)
 - [ ] `scripts/install-launchagents.sh` (updated to fix CONFIG_DIR and add dashboard)
 - [ ] `scripts/bootstrap.sh` (updated to call central installer)
 
@@ -156,7 +156,7 @@ Use this checklist when reviewing whether a recurring job belongs in git or stay
 - [ ] `~/.smartclaw/cron/jobs.json` — gateway cron jobs, gitignored
   - Contains: `thread-followup-ao263`, future PR automation jobs
   - Never commit this file
-- [ ] `~/.smartclaw/openclaw.json` — tokens and secrets, gitignored
+- [ ] `~/.smartclaw/config.yaml` — tokens and secrets, gitignored
   - Never commit this file
 - [ ] `~/.smartclaw/webhook.json` — webhook secrets, gitignored
   - Never commit this file
@@ -167,11 +167,11 @@ To add a new recurring job:
 
 1. Create the script in `~/.smartclaw/scripts/` (or `scripts/` in repo).
 2. Create `launchd/ai.smartclaw.schedule.<name>.plist.template` using `@HOME@`
-   and `@OPENCLAW_EXTRA_PATH@` for paths.
-3. Add the plist to `install-openclaw-scheduled-jobs.sh` if it needs
+   and `@HERMES_EXTRA_PATH@` for paths.
+3. Add the plist to `install-hermes-scheduled-jobs.sh` if it needs
    to be installed as part of the standard install.
 4. Add the job's gateway cron ID (if migrating from `jobs.json`) to the
-   `MIGRATED_JOBS` associative array in `install-openclaw-scheduled-jobs.sh`.
+   `MIGRATED_JOBS` associative array in `install-hermes-scheduled-jobs.sh`.
 5. If the job should NOT be in the standard install, add it to
    `install-launchagents.sh` instead.
 6. Update this document with the new job.

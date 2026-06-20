@@ -6,7 +6,7 @@
   "bundle_timestamp": "2026-03-28T12:30:00.000000+00:00",
   "pr": 417,
   "claim_class": "unit_test_coverage",
-  "repo": "jleechanorg/jleechanclaw",
+  "repo": "jleechanorg/smartclaw",
   "branch": "feat/orch-yj1",
   "head_sha": "999fad73df4c807aef05363944abd84d094255b0",
   "review_iteration": 2,

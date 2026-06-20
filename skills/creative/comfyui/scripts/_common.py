@@ -646,9 +646,10 @@ def is_api_format(workflow: Any) -> bool:
         return False
     if "nodes" in workflow and "links" in workflow:
         return False
-    if not workflow:
-        return False
-    return all(isinstance(v, dict) and "class_type" in v for v in workflow.values())
+    for v in workflow.values():
+        if isinstance(v, dict) and "class_type" in v:
+            return True
+    return False
 
 
 def unwrap_workflow(payload: Any) -> dict:

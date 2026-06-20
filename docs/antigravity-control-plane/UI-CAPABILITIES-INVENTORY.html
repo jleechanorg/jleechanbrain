@@ -397,7 +397,7 @@ peekaboo screenshot --window Manager</code></pre>
     <section id="observed-from-cmux">
       <h2>What Was Observed from cmux Workspace "antig"</h2>
       <p><strong>Finding: No active Antigravity tmux/cmux workspace exists at time of research (2026-03-24).</strong></p>
-      <p>The cmux workspace list shows 13 workspaces (<code>o: primary</code>, <code>ao: primary</code>, <code>ao2: monitor</code>, <code>ao3: misc</code>, <code>o2: misc</code>, <code>ao: cli</code>, <code>w: tails</code>, <code>w: trimcommands</code>, <code>w: export</code>, <code>cmux</code>, <code>openclaw: main</code>, <code>openclaw: memory</code>, <code>g: wc: generators</code>). No Antigravity-named workspace was found.</p>
+      <p>The cmux workspace list shows 13 workspaces (<code>o: primary</code>, <code>ao: primary</code>, <code>ao2: monitor</code>, <code>ao3: misc</code>, <code>o2: misc</code>, <code>ao: cli</code>, <code>w: tails</code>, <code>w: trimcommands</code>, <code>w: export</code>, <code>cmux</code>, <code>hermes: main</code>, <code>hermes: memory</code>, <code>g: wc: generators</code>). No Antigravity-named workspace was found.</p>
       <p>The file <code>~/.smartclaw/workspace/Antigravity_2026-03-24T05:13:57Z.png</code> (22KB, timestamped today) shows:</p>
       <ul>
         <li>Antigravity Manager window screenshot captured this morning</li>
@@ -418,7 +418,7 @@ peekaboo screenshot --window Manager</code></pre>
             <tr><th>Needed Capability</th><th>Currently Supported?</th><th>Implementation Approach</th></tr>
           </thead>
           <tbody>
-            <tr><td>Launch Antigravity from command line</td><td>❓ Not documented</td><td>Investigate <code>openclaw agents</code> or Antigravity CLI; if none, document as blocker</td></tr>
+            <tr><td>Launch Antigravity from command line</td><td>❓ Not documented</td><td>Investigate <code>hermes agents</code> or Antigravity CLI; if none, document as blocker</td></tr>
             <tr><td>Attach to existing Antigravity session</td><td>❓ Not documented</td><td>Investigate if Peekaboo can attach to running Antigravity process</td></tr>
             <tr><td>Detect Antigravity crash/restart</td><td>❓ Not documented</td><td>Periodic <code>peekaboo screenshot</code> + LLM analysis of screenshot for error state</td></tr>
             <tr><td>Kill and restart Antigravity workspace</td><td>❌ Not supported</td><td>Requires Antigravity CLI or AppleScript</td></tr>

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mem0-native-module-watchdog.sh
 # Checks that better-sqlite3 was compiled for the same Node MODULE_VERSION
-# currently in use by the OpenClaw gateway. Runs every 4 hours via launchd.
+# currently in use by the Hermes gateway. Runs every 4 hours via launchd.
 #
 # Usage:
 #   bash mem0-native-module-watchdog.sh          # check only (exits 1 on mismatch)
@@ -16,7 +16,7 @@ set -uo pipefail
 
 GATEWAY_NODE="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
 GATEWAY_NPM="${HOME}/.nvm/versions/node/v22.22.0/bin/npm"
-BETTER_SQLITE3_DIR="$HOME/.smartclaw/extensions/openclaw-mem0"
+BETTER_SQLITE3_DIR="$HOME/.smartclaw/extensions/hermes-mem0"
 BASELINE_FILE="$HOME/.smartclaw/.gateway-node-version"
 LOG_FILE="$HOME/.smartclaw/logs/mem0-watchdog.log"
 FIX_MODE="${1:-}"
@@ -88,7 +88,7 @@ if [ "$CURRENT_MODVER" = "$STORED_MODVER" ]; then
   # Version numbers match — but also verify the module actually loads.
   # Root cause of recurring mismatch: something (npm install, external rebuild) can
   # recompile better-sqlite3 for a different Node while the baseline version stays the
-  # same. Without this load test, the watchdog says OK while openclaw mem0 is broken.
+  # same. Without this load test, the watchdog says OK while hermes mem0 is broken.
   if "$GATEWAY_NODE" -e "require('$BETTER_SQLITE3_DIR/node_modules/better-sqlite3')" 2>/dev/null; then
     _log_only "OK: MODULE_VERSION=$CURRENT_MODVER matches baseline and module loads"
     exit 0
@@ -104,7 +104,7 @@ _log "WARN: better-sqlite3 may be compiled for wrong Node — mem0 recall/captur
 
 if [ "$FIX_MODE" != "--fix" ]; then
   _log "INFO: Run with --fix to auto-rebuild better-sqlite3, or:"
-  _log "INFO:   npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/openclaw-mem0"
+  _log "INFO:   npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/hermes-mem0"
   exit 1
 fi
 
@@ -135,10 +135,10 @@ REBUILD_EXIT=$?
 if [ "$REBUILD_EXIT" -eq 0 ]; then
   echo "$CURRENT_MODVER" > "$BASELINE_FILE"
   _log "FIX: Rebuild OK — baseline updated to MODULE_VERSION=$CURRENT_MODVER"
-  _log "FIX: Restarting openclaw gateway to load rebuilt module..."
-  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >/dev/null 2>&1 \
+  _log "FIX: Restarting hermes gateway to load rebuilt module..."
+  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.prod" >/dev/null 2>&1 \
     && _log "FIX: Gateway restarted via launchctl kickstart" \
-    || _log "WARN: Gateway restart failed — reload manually: launchctl kickstart -k gui/$(id -u)/ai.smartclaw.gateway"
+    || _log "WARN: Gateway restart failed — reload manually: launchctl kickstart -k gui/$(id -u)/ai.smartclaw.prod"
   exit 0
 else
   _log "ERROR: Rebuild failed (exit $REBUILD_EXIT)"

@@ -2,7 +2,7 @@
 """mem0_50q_aggregate.py — Merge batch QA results into a canonical score.
 
 Usage:
-  python3 scripts/mem0_50q_aggregate.py [--root /tmp/openclaw-mem0-fastpath] [--stamp STAMP_PREFIX]
+  python3 scripts/mem0_50q_aggregate.py [--root /tmp/hermes-mem0-fastpath] [--stamp STAMP_PREFIX]
 
 Finds all qa-batch.json files from runs matching the stamp prefix (or all runs
 if no stamp is given), merges them in question order, and writes:
@@ -11,16 +11,16 @@ if no stamp is given), merges them in question order, and writes:
   - failures.json (missed questions)
 
 Agent handoff protocol:
-  Each batch run writes its results to /tmp/openclaw-mem0-fastpath/<RUN_TAG>/qa-batch.json.
+  Each batch run writes its results to /tmp/hermes-mem0-fastpath/<RUN_TAG>/qa-batch.json.
   The STAMP_PREFIX groups runs from the same overall batch job.
   After all N agents complete their batch, run this script to aggregate.
   The canonical score is written to the latest-50q symlink target.
 
 Example multi-agent workflow:
   STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-  export OPENCLAW_50Q_STAMP="$STAMP"
+  export HERMES_50Q_STAMP="$STAMP"
   for i in 1 2 3 4 5; do
-    OPENCLAW_50Q_AGENT=memqa0$i mem0_50q_run.sh --batch-size 10 --batch $i/5 \
+    HERMES_50Q_AGENT=memqa0$i mem0_50q_run.sh --batch-size 10 --batch $i/5 \
       --skip-reindex &
   done
   wait
@@ -36,7 +36,7 @@ import sys
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Aggregate mem0 50Q batch results.')
-    parser.add_argument('--root', default='/tmp/openclaw-mem0-fastpath',
+    parser.add_argument('--root', default='/tmp/hermes-mem0-fastpath',
                         help='Root directory for run artifacts')
     parser.add_argument('--stamp', default='',
                         help='Timestamp prefix to filter runs (e.g. 20260314T). '

@@ -48,7 +48,7 @@ The AO `agent-orchestrator.yaml` adds `session-spawned` and `session-exited` rea
 | `BRIDGE_HEALTH_CHECK_ENABLED` | `true` | Enable/disable MCP mail health check |
 | `HUMAN_CHANNEL_ID` | `C0ANK6HFW66` | Slack channel for human-audience posts |
 | `SLACK_BOT_TOKEN` | (required) | Slack bot token for posting |
-| `MCP_AGENT_MAIL_URL` | `http://127.0.0.1:18789/mcp` | MCP mail server health check URL |
+| `MCP_AGENT_MAIL_URL` | `http://127.0.0.1:8643/mcp` | MCP mail server health check URL |
 | `SLACK_POST_COOLDOWN_SECONDS` | `30` | Cooldown between Slack posts |
 | `BRIDGE_STATE_FILE` | `~/.smartclaw/state/human_channel_bridge.json` | Persistent state file |
 | `AO_DATA_DIR` | `~/.agent-orchestrator` | AO session data directory |
@@ -150,14 +150,14 @@ reactions:
 notifiers:
   mcp-mail:
     plugin: mcp-mail
-    endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:18789/mcp}"
+    endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:8643/mcp}"
     projectId: smartclaw
     agentId: ao-lifecycle
     to: ["jleechan"]
 
 notificationRouting:
-  urgent: [openclaw, orchestrator, slack, mcp-mail]
-  action: [openclaw, orchestrator, slack, mcp-mail]
+  urgent: [hermes, orchestrator, slack, mcp-mail]
+  action: [hermes, orchestrator, slack, mcp-mail]
 ```
 
 ---
@@ -193,7 +193,7 @@ PYTHONPATH=src python -m pytest src/tests/test_human_channel_bridge.py -v
 # Smoke test (no Slack posting)
 BRIDGE_ENABLED=false \
   SLACK_BOT_TOKEN="" \
-  MCP_AGENT_MAIL_URL=http://127.0.0.1:18789/mcp \
+  MCP_AGENT_MAIL_URL=http://127.0.0.1:8643/mcp \
   PYTHONPATH=src \
   python3 -c "from src.orchestration.human_channel_bridge import health_check_main; print(health_check_main())"
 # Expected: "OK — MCP mail listener responding" exit=0

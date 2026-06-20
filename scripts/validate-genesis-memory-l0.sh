@@ -28,23 +28,23 @@ python3 scripts/build_memory.py \
   --dry-run
 
 echo
-echo "[3/3] OpenClaw retrieval smoke check"
-if ! command -v openclaw >/dev/null; then
-  echo "SKIP: openclaw CLI not installed in PATH."
+echo "[3/3] Hermes retrieval smoke check"
+if ! command -v hermes >/dev/null; then
+  echo "SKIP: hermes CLI not installed in PATH."
   exit 0
 fi
 
-if openclaw memory search "what did Jeffrey work on in week 38 of 2025?" >/tmp/openclaw-genesis-l0-check.log 2>/tmp/openclaw-genesis-l0-check.err; then
-  echo "OK: openclaw memory search executed."
-  if [[ -s /tmp/openclaw-genesis-l0-check.log ]]; then
+if hermes memory search "what did Jeffrey work on in week 38 of 2025?" >/tmp/hermes-genesis-l0-check.log 2>/tmp/hermes-genesis-l0-check.err; then
+  echo "OK: hermes memory search executed."
+  if [[ -s /tmp/hermes-genesis-l0-check.log ]]; then
     echo "--- sample output ---"
-    head -n 20 /tmp/openclaw-genesis-l0-check.log
+    head -n 20 /tmp/hermes-genesis-l0-check.log
   else
     echo "WARN: command returned no output; manual follow-up may be needed."
   fi
 else
-  echo "WARN: openclaw memory search command failed. Check logs:"
-  cat /tmp/openclaw-genesis-l0-check.err
+  echo "WARN: hermes memory search command failed. Check logs:"
+  cat /tmp/hermes-genesis-l0-check.err
 fi
 
 echo

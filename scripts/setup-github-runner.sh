@@ -162,6 +162,37 @@ else
     exit 1
 fi
 
+# macOS only: prevent headless keychain-create popups from the runner's launchd
+# session. The inherited git-credential-osxkeychain helper raises "Keychain Not
+# Found" SecurityAgent popups when CI git runs from launchd. CI auth uses the
+# workflow GITHUB_TOKEN extraheader (not the keychain), so we point the runner's
+# git at a dedicated config that clears the credential helper. Interactive git
+# (your normal shell) is unaffected because it still reads ~/.gitconfig.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    print_step "Configuring keychain-free git for the macOS runner..."
+
+    # ci.gitconfig includes the real ~/.gitconfig but resets the credential
+    # helper to empty so git never invokes git-credential-osxkeychain.
+    cat > "$RUNNER_DIR/ci.gitconfig" <<EOF
+[include]
+    path = $HOME/.gitconfig
+[credential]
+    helper =
+EOF
+
+    # Point the runner's git at ci.gitconfig and disable terminal prompts via
+    # the runner .env (loaded into every job's environment).
+    touch "$RUNNER_DIR/.env"
+    if ! grep -q "^GIT_CONFIG_GLOBAL=$RUNNER_DIR/ci.gitconfig$" "$RUNNER_DIR/.env"; then
+        echo "GIT_CONFIG_GLOBAL=$RUNNER_DIR/ci.gitconfig" >> "$RUNNER_DIR/.env"
+    fi
+    if ! grep -q "^GIT_TERMINAL_PROMPT=0$" "$RUNNER_DIR/.env"; then
+        echo "GIT_TERMINAL_PROMPT=0" >> "$RUNNER_DIR/.env"
+    fi
+
+    print_success "Keychain-free git configured (ci.gitconfig + .env)"
+fi
+
 # Install and start service (Linux/macOS only)
 if [[ "$OS" != "win" ]]; then
     print_step "Installing runner as system service..."

@@ -12,7 +12,7 @@ You are the **Research Agent** in a long-running harness. Your ONLY job is to de
 
 ## Output Format
 
-Write your findings to `.hermes/plans/research.md` with these sections:
+Write your findings to `.smartclaw/plans/research.md` with these sections:
 
 ```markdown
 # Research: [Task Title]

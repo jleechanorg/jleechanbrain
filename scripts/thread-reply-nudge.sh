@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCK_DIR="${NUDGE_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-thread-reply-nudge.lock}"
-LOG_DIR="${NUDGE_LOG_DIR:-/tmp/openclaw}"
+LOCK_DIR="${NUDGE_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-thread-reply-nudge.lock}"
+LOG_DIR="${NUDGE_LOG_DIR:-/tmp/hermes}"
 mkdir -p "$LOG_DIR"
 
 # ── Channel resolution ────────────────────────────────────────────────────────
 # resolve_nudge_channels: returns a space-separated list of Slack channel IDs
 # Priority:
 #   1. THREAD_REPLY_CHANNEL env var (comma- or space-separated list)
-#   2. All explicit (non-wildcard) channels from openclaw.json
-#   3. OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL env var (legacy single-channel)
+#   2. All explicit (non-wildcard) channels from config.yaml
+#   3. HERMES_MONITOR_THREAD_REPLY_CHANNEL env var (legacy single-channel)
 #   4. Hardcoded fallback ${SLACK_CHANNEL_ID}
 resolve_nudge_channels() {
   # 1. Explicit env var override
@@ -19,8 +19,8 @@ resolve_nudge_channels() {
     return 0
   fi
 
-  # 2. Parse openclaw.json
-  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}"
+  # 2. Parse config.yaml
+  local config="${HERMES_CONFIG_FILE:-${HOME}/.smartclaw/config.yaml}"
   if [[ -f "$config" ]] && command -v python3 >/dev/null 2>&1; then
     local channels
     channels="$(python3 - "$config" <<'PYEOF' 2>/dev/null
@@ -42,8 +42,8 @@ PYEOF
   fi
 
   # 3. Legacy single-channel env var
-  if [[ -n "${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-}" ]]; then
-    echo "$OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL"
+  if [[ -n "${HERMES_MONITOR_THREAD_REPLY_CHANNEL:-}" ]]; then
+    echo "$HERMES_MONITOR_THREAD_REPLY_CHANNEL"
     return 0
   fi
 
@@ -83,17 +83,17 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
 fi
 
 # Fire-and-return quickly; run the wake ping in background so this script stays fast.
-if command -v openclaw >/dev/null 2>&1; then
+if command -v hermes >/dev/null 2>&1; then
   timeout_bin="$(command -v timeout || command -v gtimeout || true)"
   agent_help_output=""
   if [[ -n "$timeout_bin" ]]; then
-    if agent_help_output="$("$timeout_bin" "${OPENCLAW_HELP_TIMEOUT_SECONDS:-10}" openclaw agent --help 2>&1)"; then
+    if agent_help_output="$("$timeout_bin" "${HERMES_HELP_TIMEOUT_SECONDS:-10}" hermes agent --help 2>&1)"; then
       agent_help_ok=0
     else
       agent_help_ok=$?
     fi
   else
-    if agent_help_output="$(openclaw agent --help 2>&1)"; then
+    if agent_help_output="$(hermes agent --help 2>&1)"; then
       agent_help_ok=0
     else
       agent_help_ok=$?
@@ -107,6 +107,6 @@ if command -v openclaw >/dev/null 2>&1; then
     elif printf '%s\n' "$agent_help_output" | grep -Eq '(^|[[:space:],])-m([,[:space:]]|$)'; then
       agent_message_flag="-m"
     fi
-    nohup openclaw agent --agent main "$agent_message_flag" "$PROMPT" >>"$LOG_DIR/thread-reply-nudge.log" 2>&1 &
+    nohup hermes agent --agent main "$agent_message_flag" "$PROMPT" >>"$LOG_DIR/thread-reply-nudge.log" 2>&1 &
   fi
 fi

@@ -47,7 +47,7 @@ def main() -> int:
             }
         )
 
-    out_dir = Path("/tmp/openclaw-mem0-fastpath/latest-50q")
+    out_dir = Path("/tmp/hermes-mem0-fastpath/latest-50q")
     score = {
         "passed": passed,
         "total": total,

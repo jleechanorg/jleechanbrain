@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/../lib/gog-env.sh"
-load_gog_env_from_openclaw "${HOME}/.smartclaw/openclaw.json"
+load_gog_env_from_hermes "${HOME}/.smartclaw/config.yaml"
 
 EMAIL="${1:-jleechan@gmail.com}"
 BACKUP_FILE="${HOME}/.smartclaw/credentials/gog-refresh-token.json"

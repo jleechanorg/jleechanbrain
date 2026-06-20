@@ -65,14 +65,14 @@ if [[ -z "$GITHUB_TOKEN_VAL" ]]; then
   exit 1
 fi
 
-# Validate OPENCLAW_AO_HOOK_TOKEN (required for webhook notifications to gateway)
-AO_HOOK_TOKEN_VAL="${OPENCLAW_AO_HOOK_TOKEN:-}"
+# Validate HERMES_AO_HOOK_TOKEN (required for webhook notifications to gateway)
+AO_HOOK_TOKEN_VAL="${HERMES_AO_HOOK_TOKEN:-}"
 if [[ -z "$AO_HOOK_TOKEN_VAL" ]]; then
-  AO_HOOK_TOKEN_VAL=$(grep -E '^export OPENCLAW_AO_HOOK_TOKEN=' ~/.bashrc 2>/dev/null | tail -1 | sed "s/^export OPENCLAW_AO_HOOK_TOKEN=[\"']*//;s/[\"']*\$//" || true)
+  AO_HOOK_TOKEN_VAL=$(grep -E '^export HERMES_AO_HOOK_TOKEN=' ~/.bashrc 2>/dev/null | tail -1 | sed "s/^export HERMES_AO_HOOK_TOKEN=[\"']*//;s/[\"']*\$//" || true)
 fi
 if [[ -z "$AO_HOOK_TOKEN_VAL" ]]; then
-  echo "ERROR: OPENCLAW_AO_HOOK_TOKEN not set. Export it or add to ~/.bashrc." >&2
-  echo "  Without it, AO cannot send webhook notifications to the OpenClaw gateway." >&2
+  echo "ERROR: HERMES_AO_HOOK_TOKEN not set. Export it or add to ~/.bashrc." >&2
+  echo "  Without it, AO cannot send webhook notifications to the Hermes gateway." >&2
   exit 1
 fi
 
@@ -133,7 +133,7 @@ cat > "$LAUNCHD_DIR/$LABEL.plist" <<PLIST
         <string>$GITHUB_TOKEN_VAL</string>
         <key>GH_TOKEN</key>
         <string>$GITHUB_TOKEN_VAL</string>
-        <key>OPENCLAW_AO_HOOK_TOKEN</key>
+        <key>HERMES_AO_HOOK_TOKEN</key>
         <string>$AO_HOOK_TOKEN_VAL</string>
     </dict>
     <key>WorkingDirectory</key>

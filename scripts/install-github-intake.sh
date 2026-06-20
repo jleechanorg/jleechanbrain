@@ -48,15 +48,15 @@ if [[ "$(uname)" == "Darwin" ]]; then
 else
   # ── Linux: systemd user units ──
   SYSTEMD_DIR="$HOME/.config/systemd/user"
-  SERVICE_SRC="$REPO_ROOT/systemd/ai-openclaw-github-intake.service"
-  TIMER_SRC="$REPO_ROOT/systemd/ai-openclaw-github-intake.timer"
+  SERVICE_SRC="$REPO_ROOT/systemd/ai-hermes-github-intake.service"
+  TIMER_SRC="$REPO_ROOT/systemd/ai-hermes-github-intake.timer"
 
   if [[ "$UNINSTALL" == "--uninstall" ]]; then
     echo "Uninstalling $LABEL (systemd)..."
-    systemctl --user stop ai-openclaw-github-intake.timer 2>/dev/null || true
-    systemctl --user disable ai-openclaw-github-intake.timer 2>/dev/null || true
-    rm -f "$SYSTEMD_DIR/ai-openclaw-github-intake.service"
-    rm -f "$SYSTEMD_DIR/ai-openclaw-github-intake.timer"
+    systemctl --user stop ai-hermes-github-intake.timer 2>/dev/null || true
+    systemctl --user disable ai-hermes-github-intake.timer 2>/dev/null || true
+    rm -f "$SYSTEMD_DIR/ai-hermes-github-intake.service"
+    rm -f "$SYSTEMD_DIR/ai-hermes-github-intake.timer"
     systemctl --user daemon-reload
     echo "  Removed."
     exit 0
@@ -72,8 +72,8 @@ else
   cp "$SERVICE_SRC" "$SYSTEMD_DIR/"
   cp "$TIMER_SRC" "$SYSTEMD_DIR/"
   systemctl --user daemon-reload
-  systemctl --user enable --now ai-openclaw-github-intake.timer
+  systemctl --user enable --now ai-hermes-github-intake.timer
   echo "  Installed and started."
-  echo "  Status: systemctl --user status ai-openclaw-github-intake.timer"
+  echo "  Status: systemctl --user status ai-hermes-github-intake.timer"
   echo "  NOTE: Starts in DRY_RUN mode. Edit service to set INTAKE_DRY_RUN=0 for live dispatch."
 fi

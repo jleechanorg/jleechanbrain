@@ -1,6 +1,6 @@
-# Full 6/6 staging canary on a machine that runs the staging OpenClaw gateway.
+# Full 6/6 staging canary on a machine that runs the staging hermes gateway.
 #
-# GitHub-hosted runners cannot curl localhost:18810 or load ~/.smartclaw extensions,
+# GitHub-hosted runners cannot curl localhost:8644 or load ~/.smartclaw extensions,
 # so this workflow uses a self-hosted runner (typically your Mac with ai.smartclaw.staging).
 #
 # Setup: .github/SELFHOSTED_TEST.md
@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  find-openclaw-json:
+  find-config-yaml:
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect openclaw.json in PR diff
+      - name: Detect config.yaml in PR diff
         id: find
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
@@ -39,8 +39,8 @@ jobs:
           found=false
           for f in $CHANGED; do
             case "$f" in
-              openclaw.json) found=true ;;
-              */openclaw.json) found=true ;;
+              config.yaml) found=true ;;
+              */config.yaml) found=true ;;
             esac
           done
           echo "found=$found" >> "$GITHUB_OUTPUT"
@@ -48,12 +48,12 @@ jobs:
 
   staging-canary-full:
     name: Full canary (6/6)
-    needs: find-openclaw-json
+    needs: find-config-yaml
     if: |
-      needs.find-openclaw-json.outputs.found == 'true' &&
+      needs.find-config-yaml.outputs.found == 'true' &&
       github.repository == 'jleechanorg/smartclaw' &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
-    runs-on: [self-hosted, openclaw-staging]
+    runs-on: [self-hosted, hermes-staging]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -62,13 +62,13 @@ jobs:
       - name: Run staging-canary.sh
         env:
           STAGING_CANARY_PORT: ${{ vars.STAGING_CANARY_PORT }}
-          OPENCLAW_STAGING_CONFIG: ${{ vars.OPENCLAW_STAGING_CONFIG }}
+          HERMES_STAGING_CONFIG: ${{ vars.HERMES_STAGING_CONFIG }}
         run: |
           set -euo pipefail
-          PORT="${STAGING_CANARY_PORT:-18810}"
-          if [[ -n "${OPENCLAW_STAGING_CONFIG:-}" ]]; then
-            export OPENCLAW_STAGING_CONFIG
-            echo "OPENCLAW_STAGING_CONFIG=$OPENCLAW_STAGING_CONFIG"
+          PORT="${STAGING_CANARY_PORT:-8644}"
+          if [[ -n "${HERMES_STAGING_CONFIG:-}" ]]; then
+            export HERMES_STAGING_CONFIG
+            echo "HERMES_STAGING_CONFIG=$HERMES_STAGING_CONFIG"
           fi
           echo "Staging canary port=$PORT"
           bash scripts/staging-canary.sh --port "$PORT"

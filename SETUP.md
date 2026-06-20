@@ -1,21 +1,21 @@
-# OpenClaw Setup Guide
+# Hermes Setup Guide
 
-Complete setup guide for installing and configuring OpenClaw on a new machine.
+Complete setup guide for installing and configuring Hermes on a new machine.
 
 ## Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+git clone https://github.com/hermes/hermes.git
+cd hermes
 
 # Run the full setup script
-./scripts/setup-openclaw-full.sh
+./scripts/setup-hermes-full.sh
 ```
 
 This will:
 1. ✅ Check prerequisites (python3, rsync, git)
-2. ✅ Install/copy repo to `~/.smartclaw/workspace/openclaw`
+2. ✅ Install/copy repo to `~/.smartclaw/workspace/hermes`
 3. ✅ Set up automated backups (launchd only)
 4. ✅ Configure backup jobs to run every 4 hours
 
@@ -58,54 +58,54 @@ git --version
 ```bash
 mkdir -p ~/.smartclaw/workspace
 cd ~/.smartclaw/workspace
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+git clone https://github.com/hermes/hermes.git
+cd hermes
 ```
 
 ### 3. Install Backup Jobs
 
 ```bash
-./scripts/install-openclaw-backup-jobs.sh
+./scripts/install-hermes-backup-jobs.sh
 ```
 
-This installs launchd jobs for backup automation and removes legacy OpenClaw cron entries.
+This installs launchd jobs for backup automation and removes legacy Hermes cron entries.
 
 ## Verification
 
 ### Test Backup
 
 ```bash
-cd ~/.smartclaw/workspace/openclaw
-./scripts/run-openclaw-backup.sh
+cd ~/.smartclaw/workspace/hermes
+./scripts/run-hermes-backup.sh
 ```
 
 Check for backup:
 ```bash
-ls -la ~/.smartclaw/workspace/openclaw/.smartclaw-backups/
+ls -la ~/.smartclaw/workspace/hermes/.smartclaw-backups/
 ```
 
 ### Check Logs
 
 ```bash
 # Backup logs
-tail -f ~/Library/Logs/openclaw-backup/openclaw-backup.log
+tail -f ~/Library/Logs/hermes-backup/hermes-backup.log
 
 # Launchd stdout
-tail -f ~/Library/Logs/openclaw-backup/stdout.log
+tail -f ~/Library/Logs/hermes-backup/stdout.log
 
 # Launchd stderr
-tail -f ~/Library/Logs/openclaw-backup/stderr.log
+tail -f ~/Library/Logs/hermes-backup/stderr.log
 ```
 
 ### Verify Jobs
 
 ```bash
-# OpenClaw reminders/schedules (gateway cron only)
-openclaw cron status
-openclaw cron list
+# Hermes reminders/schedules (gateway cron only)
+hermes cron status
+hermes cron list
 
 # Check launchd
-launchctl list | grep openclaw
+launchctl list | grep hermes
 launchctl print gui/$(id -u)/com.smartclaw.backup
 ```
 
@@ -134,7 +134,7 @@ The backup script automatically redacts:
 - URLs with credentials
 - PyPI tokens
 
-See `scripts/backup-openclaw-full.sh` for full redaction patterns.
+See `scripts/backup-hermes-full.sh` for full redaction patterns.
 
 ## Troubleshooting
 
@@ -162,31 +162,31 @@ launchctl kickstart -k gui/$(id -u)/com.smartclaw.backup
 
 ```bash
 # Check gateway cron status and jobs
-openclaw cron status
-openclaw cron list
+hermes cron status
+hermes cron list
 
 # Manually run the backup
-~/.smartclaw/workspace/openclaw/scripts/run-openclaw-backup.sh
+~/.smartclaw/workspace/hermes/scripts/run-hermes-backup.sh
 ```
 
 ## Migrating to a New Machine
 
 ### Export Current Setup
 
-Your entire OpenClaw setup is already being backed up! To migrate:
+Your entire Hermes setup is already being backed up! To migrate:
 
 1. **Backup Current Machine:**
-   - All backups are in `~/.smartclaw/workspace/openclaw/.smartclaw-backups/`
+   - All backups are in `~/.smartclaw/workspace/hermes/.smartclaw-backups/`
    - Optionally push to GitHub (if using git remote)
 
 2. **On New Machine:**
    ```bash
    # Clone repo
-   git clone https://github.com/your-fork/openclaw.git
-   cd openclaw
+   git clone https://github.com/your-fork/hermes.git
+   cd hermes
 
    # Run setup
-   ./scripts/setup-openclaw-full.sh
+   ./scripts/setup-hermes-full.sh
 
    # Restore your configuration
    # (Copy your actual ~/.smartclaw/ files from backup if needed)
@@ -198,19 +198,19 @@ Your entire OpenClaw setup is already being backed up! To migrate:
 
 ## Additional Scripts
 
-### `backup-openclaw-full.sh`
+### `backup-hermes-full.sh`
 Main backup script with redaction logic.
 
-### `run-openclaw-backup.sh`
+### `run-hermes-backup.sh`
 Wrapper script that runs backup and commits to git.
 
-### `install-openclaw-backup-jobs.sh`
+### `install-hermes-backup-jobs.sh`
 Installs launchd backup jobs.
 
-### `openclaw-backup.plist`
+### `hermes-backup.plist`
 Launchd configuration for automated backups.
 
 ## See Also
 
-- [docs/openclaw-backup-jobs.md](docs/openclaw-backup-jobs.md) - Detailed backup documentation
+- [docs/hermes-backup-jobs.md](docs/hermes-backup-jobs.md) - Detailed backup documentation
 - [scripts/](scripts/) - All setup and backup scripts

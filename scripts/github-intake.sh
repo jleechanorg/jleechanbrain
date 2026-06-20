@@ -21,6 +21,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source shared library
 source "$REPO_ROOT/lib/github-intake-lib.sh"
+# Source shared Slack post helper (thread anchor + dedupe + channel resolution).
+# shellcheck source=../lib/slack_thread_lib.sh
+IS_SOURCED=1 source "$REPO_ROOT/lib/slack_thread_lib.sh"
 
 # Configuration
 INTAKE_ENABLED="${INTAKE_ENABLED:-1}"
@@ -267,28 +270,21 @@ if [[ "$INTAKE_DRY_RUN" != "1" ]] && (( dispatched + escalated > 0 )); then
     done
   fi
 
-  # Post to Slack via bot token (SLACK_BOT_TOKEN in ~/.bashrc or launchd env)
-  if [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
-    curl -s -X POST "https://slack.com/api/chat.postMessage" \
-      -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n --arg channel "$INTAKE_SLACK_CHANNEL" --arg text "$(echo -e "$msg")" '{channel: $channel, text: $text}')" \
-      >/dev/null 2>&1 || log "WARNING: Slack digest post failed"
-  fi
+  # Post to Slack via shared lib (handles thread anchor + dedupe + channel resolution).
+  # The intake digest threads under the per-day anchor instead of flooding the channel root.
+  slack_post "github-intake-digest" "$(echo -e "$msg")" \
+    --channel "$INTAKE_SLACK_CHANNEL" >/dev/null 2>&1 || \
+    log "WARNING: Slack digest post failed"
 
-  # DM escalations to Jeffrey
+  # DM escalations to Jeffrey (also threaded per day so multiple intakes aggregate)
   if (( ${#escalation_details[@]} > 0 )); then
     esc_msg="[github-intake] Items needing your review:"
     for e in "${escalation_details[@]}"; do
       esc_msg="$esc_msg\n• $e"
     done
-    if [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
-      curl -s -X POST "https://slack.com/api/chat.postMessage" \
-        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$(jq -n --arg channel "$INTAKE_ESCALATE_CHANNEL" --arg text "$(echo -e "$esc_msg")" '{channel: $channel, text: $text}')" \
-        >/dev/null 2>&1 || log "WARNING: Slack escalation DM failed"
-    fi
+    slack_post "github-intake-escalate" "$(echo -e "$esc_msg")" \
+      --channel "$INTAKE_ESCALATE_CHANNEL" >/dev/null 2>&1 || \
+      log "WARNING: Slack escalation DM failed"
   fi
 fi
 

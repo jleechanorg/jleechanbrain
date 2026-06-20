@@ -85,7 +85,7 @@ src/tests/test_merge_gate.py::TestBlockingCommentsResolution::test_resolved_crit
 src/tests/test_merge_gate.py::TestBlockingCommentsResolution::test_unresolved_critical_comments_block PASSED [ 78%]
 src/tests/test_merge_gate.py::TestBlockingCommentsResolution::test_graphql_failure_falls_back_to_rest PASSED [ 79%]
 src/tests/test_merge_gate.py::TestUnresolvedThreadPagination::test_unresolved_comment_ids_are_paginated PASSED [ 80%]
-src/tests/test_merge_gate.py::TestOpenClawReviewMissing::test_no_openclaw_review_blocks PASSED [ 81%]
+src/tests/test_merge_gate.py::TestHermesReviewMissing::test_no_hermes_review_blocks PASSED [ 81%]
 src/tests/test_merge_gate.py::TestCrBodyFalsePositive::test_cr_commented_with_major_but_threads_resolved_passes PASSED [ 82%]
 src/tests/test_merge_gate.py::TestCrBodyFalsePositive::test_cr_waiver_ignores_non_cr_unresolved_threads PASSED [ 83%]
 src/tests/test_merge_gate.py::TestCrBodyFalsePositive::test_cr_commented_with_major_and_unresolved_cr_threads_blocks PASSED [ 84%]

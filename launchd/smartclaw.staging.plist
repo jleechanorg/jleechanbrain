@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.staging</string>
+
+    <key>Comment</key>
+    <string>Hermes staging gateway (port 8644, ~/.smartclaw/ = staging dir). CLI matches prod pattern: launchd-env-wrapper.sh + env -u TELEGRAM_BOT_TOKEN + hermes gateway run. Telegram is unset to avoid colliding with prod (PID 1438 already holds the bot token). Paths use install-time placeholders so this template works on any machine HERMES_BIN/@HOME@ resolve to.</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>env</string>
+        <string>-u</string>
+        <string>TELEGRAM_BOT_TOKEN</string>
+        <string>@HERMES_BIN@</string>
+        <string>gateway</string>
+        <string>run</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>HERMES_HOME</key>
+        <string>@HOME@/.smartclaw</string>
+        <key>HERMES_STATE_DIR</key>
+        <string>@HOME@/.smartclaw</string>
+        <key>HERMES_CONFIG_PATH</key>
+        <string>@HOME@/.smartclaw/config.staging.yaml</string>
+        <key>HERMES_GATEWAY_PORT</key>
+        <string>8644</string>
+        <key>HERMES_PROFILE</key>
+        <string>staging</string>
+        <key>HERMES_SERVICE_KIND</key>
+        <string>gateway</string>
+        <key>HERMES_SERVICE_MARKER</key>
+        <string>hermes-staging</string>
+        <key>HERMES_RAW_STREAM</key>
+        <string>0</string>
+        <key>HERMES_RAW_STREAM_PATH</key>
+        <string>/tmp/hermes/staging-raw-stream.jsonl</string>
+        <key>API_SERVER_PORT</key>
+        <string>8644</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/staging-gateway.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/staging-gateway.err.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

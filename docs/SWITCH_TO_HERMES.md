@@ -1,26 +1,26 @@
 # Hermes Agent — Primary AI Agent
 
-**Hermes Agent** (Nous Research) is the primary AI agent. OpenClaw is **disabled** unless explicitly re-enabled.
+**Hermes Agent** (Nous Research) is the primary AI agent. Hermes is **disabled** unless explicitly re-enabled.
 
 ## Architecture
 
 | | Hermes Staging | Hermes Prod |
 |---|---|---|
-| **Directory** | `~/.hermes/` (git repo) | `~/.hermes_prod/` |
-| **Launchd** | `ai.hermes-staging` | `ai.hermes.prod` |
+| **Directory** | `~/.smartclaw/` (git repo) | `~/.smartclaw_prod/` |
+| **Launchd** | `ai.smartclaw-staging` | `ai.smartclaw.prod` |
 | **Slack bot** | Staging app (`xoxb-...roQR...`) | Prod app (`xoxb-...L1ZG...`) |
 | **Model** | `minimax-portal/MiniMax-M2.7` | `minimax-portal/MiniMax-M2.7` |
-| **HERMES_HOME** | `~/.hermes/` | `~/.hermes_prod/` |
+| **HERMES_HOME** | `~/.smartclaw/` | `~/.smartclaw_prod/` |
 | **Tokens** | Staging Slack | Prod Slack |
 
 **Directory structure:**
 ```
-~/.hermes/          ← git repo root (smartclaw), Hermes staging
-~/.smartclaw/        ← symlink → ~/.hermes/ (backward compat)
-~/.hermes_prod/     ← Hermes prod (separate runtime data)
+~/.smartclaw/          ← git repo root (smartclaw), Hermes staging
+~/.smartclaw/        ← symlink → ~/.smartclaw/ (backward compat)
+~/.smartclaw_prod/     ← Hermes prod (separate runtime data)
 ```
 
-**OpenClaw is disabled** — set `OPENCLAW_ENABLED=1` in the monitor to re-enable AO checks.
+**Hermes is disabled** — set `HERMES_ENABLED=1` in the monitor to re-enable AO checks.
 
 ## Quick Start
 
@@ -34,72 +34,72 @@ bash ~/.smartclaw/scripts/hermes-monitor.sh
 
 ```bash
 hermes status                        # staging
-HERMES_HOME=~/.hermes_prod hermes status   # prod
+HERMES_HOME=~/.smartclaw_prod hermes status   # prod
 ```
 
 ### Start/Stop Gateways
 
 ```bash
-launchctl start gui/$(id -u)/ai.hermes-staging   # start staging
-launchctl stop gui/$(id -u)/ai.hermes-staging    # stop staging
-launchctl start gui/$(id -u)/ai.hermes.prod     # start prod
-launchctl stop gui/$(id -u)/ai.hermes.prod      # stop prod
+launchctl start gui/$(id -u)/ai.smartclaw-staging   # start staging
+launchctl stop gui/$(id -u)/ai.smartclaw-staging    # stop staging
+launchctl start gui/$(id -u)/ai.smartclaw.prod     # start prod
+launchctl stop gui/$(id -u)/ai.smartclaw.prod      # stop prod
 ```
 
 Or manually:
 ```bash
-HERMES_HOME=~/.hermes hermes gateway run        # staging (foreground)
-HERMES_HOME=~/.hermes_prod hermes gateway run  # prod (foreground)
+HERMES_HOME=~/.smartclaw hermes gateway run        # staging (foreground)
+HERMES_HOME=~/.smartclaw_prod hermes gateway run  # prod (foreground)
 ```
 
 ### Restart a Gateway
 
 ```bash
-launchctl kickstart -kp gui/$(id -u)/ai.hermes-staging
-launchctl kickstart -kp gui/$(id -u)/ai.hermes.prod
+launchctl kickstart -kp gui/$(id -u)/ai.smartclaw-staging
+launchctl kickstart -kp gui/$(id -u)/ai.smartclaw.prod
 ```
 
 ## Gateway Details
 
 | | Hermes Staging | Hermes Prod |
 |---|---|---|
-| **Launchd label** | `ai.hermes-staging` | `ai.hermes.prod` |
+| **Launchd label** | `ai.smartclaw-staging` | `ai.smartclaw.prod` |
 | **Slack tokens** | Staging | Prod |
-| **Memory** | `~/.hermes/memories/` | `~/.hermes_prod/memories/` |
-| **Sessions** | `~/.hermes/sessions/` | `~/.hermes_prod/sessions/` |
-| **Skills** | `~/.hermes/skills/` | `~/.hermes_prod/skills/` |
+| **Memory** | `~/.smartclaw/memories/` | `~/.smartclaw_prod/memories/` |
+| **Sessions** | `~/.smartclaw/sessions/` | `~/.smartclaw_prod/sessions/` |
+| **Skills** | `~/.smartclaw/skills/` | `~/.smartclaw_prod/skills/` |
 
 ## Configuration Files
 
-### Staging `.env` (`~/.hermes/.env`)
+### Staging `.env` (`~/.smartclaw/.env`)
 
 ```bash
 HERMES_ENABLED=true
 HERMES_ENV=staging
-HERMES_HOME=${HOME}/.hermes
+HERMES_HOME=${HOME}/.smartclaw
 
 # Slack — STAGING tokens
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 
-OPENCLAW_STATE_DIR=${HOME}/.smartclaw/
-OPENCLAW_CONFIG_PATH=${HOME}/.smartclaw/openclaw.json
+HERMES_STATE_DIR=${HOME}/.smartclaw/
+HERMES_CONFIG_PATH=${HOME}/.smartclaw/config.yaml
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
-### Prod `.env` (`~/.hermes_prod/.env`)
+### Prod `.env` (`~/.smartclaw_prod/.env`)
 
 ```bash
 HERMES_ENABLED=true
 HERMES_ENV=prod
-HERMES_HOME=${HOME}/.hermes_prod
+HERMES_HOME=${HOME}/.smartclaw_prod
 
 # Slack — PROD tokens
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 
-OPENCLAW_STATE_DIR=${HOME}/.smartclaw_prod/
-OPENCLAW_CONFIG_PATH=${HOME}/.smartclaw_prod/openclaw.json
+HERMES_STATE_DIR=${HOME}/.smartclaw_prod/
+HERMES_CONFIG_PATH=${HOME}/.smartclaw_prod/config.yaml
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
@@ -115,10 +115,10 @@ Both Hermes instances share the same `auth.json` for Discord/Telegram, causing "
 
 ```bash
 hermes gateway status                    # staging
-HERMES_HOME=~/.hermes_prod hermes gateway status  # prod
+HERMES_HOME=~/.smartclaw_prod hermes gateway status  # prod
 hermes doctor
-cat ~/.hermes/logs/gateway.log         # staging
-cat ~/.hermes_prod/logs/gateway.log    # prod
+cat ~/.smartclaw/logs/gateway.log         # staging
+cat ~/.smartclaw_prod/logs/gateway.log    # prod
 ```
 
 ### Slack not responding
@@ -126,20 +126,20 @@ cat ~/.hermes_prod/logs/gateway.log    # prod
 ```bash
 hermes status                        # check Slack ✓
 # Verify tokens:
-rg 'SLACK_BOT_TOKEN' ~/.hermes/.env        # staging
-rg 'SLACK_BOT_TOKEN' ~/.hermes_prod/.env  # prod
+rg 'SLACK_BOT_TOKEN' ~/.smartclaw/.env        # staging
+rg 'SLACK_BOT_TOKEN' ~/.smartclaw_prod/.env  # prod
 ```
 
-### Re-enable OpenClaw (AO path)
+### Re-enable Hermes (AO path)
 
-OpenClaw AO is currently disabled. To re-enable:
+Hermes AO is currently disabled. To re-enable:
 
 ```bash
-OPENCLAW_ENABLED=1 bash ~/.smartclaw/scripts/hermes-monitor.sh
+HERMES_ENABLED=1 bash ~/.smartclaw/scripts/hermes-monitor.sh
 ```
 
 Launchd services to load:
 ```bash
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
-launchctl start gui/$(id -u)/ai.smartclaw.gateway
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.smartclaw.prod.plist
+launchctl start gui/$(id -u)/ai.smartclaw.prod
 ```

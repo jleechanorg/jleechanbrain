@@ -92,7 +92,7 @@ class EnqueueResponse:
 Enforces that only one instance of the control plane runs at a time. Uses OS-level file locking + a heartbeat lease.
 
 **Mechanism:**
-1. Acquire `flock(LOCKFILE, LOCK_EX | LOCK_NB)` on `$OPENCLAW_STATE_DIR/antig_control_plane.lock`
+1. Acquire `flock(LOCKFILE, LOCK_EX | LOCK_NB)` on `$HERMES_STATE_DIR/antig_control_plane.lock`
 2. Write `{pid, hostname, started_at}` to lockfile
 3. Heartbeat thread updates `locked_at` every 30 seconds
 4. On startup: if lockfile exists and process is alive, refuse to start

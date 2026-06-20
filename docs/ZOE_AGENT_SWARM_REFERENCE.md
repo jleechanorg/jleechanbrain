@@ -1,17 +1,17 @@
-# ZOE: OpenClaw + Agent Swarm Reference
+# ZOE: Hermes + Agent Swarm Reference
 
-**Source:** Email from Elvis (@eRvissun) — "OpenClaw + Codex/ClaudeCode Agent Swarm: The One-Person Dev Team [Full Setup]"
+**Source:** Email from Elvis (@eRvissun) — "Hermes + Codex/ClaudeCode Agent Swarm: The One-Person Dev Team [Full Setup]"
 **Saved:** 2026-03-09
-**Relevance:** This is essentially the "replace me" architecture Jeffrey wants to build — OpenClaw as orchestrator (Zoe), spawning Codex/Claude agents, monitoring via cron, notifying on completion.
+**Relevance:** This is essentially the "replace me" architecture Jeffrey wants to build — Hermes as orchestrator (Zoe), spawning Codex/Claude agents, monitoring via cron, notifying on completion.
 
 ---
 
 ## Core Thesis
 
-> "I went from managing claude code, to managing an openclaw agent that manages a fleet of other claude code and codex agents."
+> "I went from managing claude code, to managing an hermes agent that manages a fleet of other claude code and codex agents."
 
 **Context windows are zero-sum.** Two-tier system:
-- **Orchestrator (Zoe/OpenClaw):** business context, decisions, memory, prompt-writing
+- **Orchestrator (Zoe/Hermes):** business context, decisions, memory, prompt-writing
 - **Coding agents (Codex/CC):** codebase, conventions, task execution
 
 Specialization through context, not different models.
@@ -202,14 +202,14 @@ RAM is the bottleneck. Each agent = own worktree + node_modules + builds/tests.
 
 | Elvis's System | Jeffrey's Equivalent |
 |----------------|---------------------|
-| Zoe (orchestrator) | OpenClaw (smartclaw agent) |
+| Zoe (orchestrator) | Hermes (smartclaw agent) |
 | Obsidian vault | MEMORY.md + weekly memory files + SOUL.md |
 | `.clawdbot/active-tasks.json` | `src/orchestration/session_registry.py` |
 | `check-agents.sh` | `src/orchestration/supervisor.py` |
-| Telegram notifications | Slack DM via `openclaw_notifier.py` |
+| Telegram notifications | Slack DM via `hermes_notifier.py` |
 | Codex agents | `ai_orch` workers in tmux+worktrees |
 | 3-model PR review | `/copilot` + CodeRabbit |
 
-**Key gap:** Elvis's Zoe writes *context-rich prompts* for each agent based on business history. Jeffrey's OpenClaw dispatches tasks but doesn't yet inject deep context from MEMORY.md into the agent prompt. This is the L2 gap in `REPLACE_ME_DESIGN.md`.
+**Key gap:** Elvis's Zoe writes *context-rich prompts* for each agent based on business history. Jeffrey's Hermes dispatches tasks but doesn't yet inject deep context from MEMORY.md into the agent prompt. This is the L2 gap in `REPLACE_ME_DESIGN.md`.
 
 **The "replace me" goal IS Zoe.** The memory system work (seed_memory, extract_patterns, ghost) is building Zoe's business context layer.

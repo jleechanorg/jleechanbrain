@@ -4,7 +4,7 @@
 # Usage: ./scripts/install.sh [--uninstall]
 #
 # Installs:
-#   openclaw:  com.smartclaw.gateway, ai.smartclaw.startup-check, scheduled jobs, MC (if present)
+#   hermes:  ai.smartclaw.prod, ai.smartclaw.startup-check, scheduled jobs, MC (if present)
 #   mctrl:     ai.mctrl.supervisor
 #   ao-orchestrators: per-project GitHub pollers that fire reactions (ci-failed, bugbot-comments, etc.)
 #   ao-lifecycle: lifecycle-worker for agent-orchestrator (launchd KeepAlive job)
@@ -36,7 +36,7 @@ run_installer() {
   echo ""
 }
 
-run_installer "OpenClaw (gateway + startup + MC)"  "install-launchagents.sh"
+run_installer "Hermes (gateway + startup + MC)"  "install-launchagents.sh"
 run_installer "mctrl supervisor"                   "install-mctrl-supervisor.sh"
 run_installer "ao orchestrators (reactions)"       "install-ao-orchestrators.sh"
 run_installer "ao lifecycle-worker (agent-orchestrator)" "install-ao-lifecycle-agent-orchestrator.sh"

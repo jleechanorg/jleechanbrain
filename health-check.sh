@@ -1,6 +1,6 @@
 #!/bin/bash
-# OpenClaw Health Check & Auto-Recovery Script
-# Staged remediation: health probe -> restart -> doctor --fix -> reinstall -> escalate.
+# Hermes Health Check & Auto-Recovery Script
+# Staged remediation: health probe -> restart -> reinstall -> escalate.
 
 set -u
 
@@ -8,7 +8,7 @@ LOG_FILE="$HOME/.smartclaw/logs/health-check.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
 LOCK_DIR="$HOME/.smartclaw/locks/health-check.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
-LOCK_MAX_AGE_SECONDS="${OPENCLAW_HEALTH_LOCK_MAX_AGE_SECONDS:-900}"
+LOCK_MAX_AGE_SECONDS="${HERMES_HEALTH_LOCK_MAX_AGE_SECONDS:-900}"
 STATE_DIR="$HOME/.smartclaw/state"
 ESCALATION_STAMP="$STATE_DIR/health-check-last-escalation.ts"
 ALERT_STAMP_UNHEALTHY="$STATE_DIR/health-check-last-alert-unhealthy.ts"
@@ -16,24 +16,24 @@ ALERT_STAMP_RECOVERED="$STATE_DIR/health-check-last-alert-recovered.ts"
 
 export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/.nvm/versions/node/v22.22.0/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-OPENCLAW_BIN="$(command -v openclaw || true)"
+HERMES_BIN="$(command -v hermes || true)"
 AI_ORCH_BIN="$(command -v ai_orch || true)"
 AGENTO_BIN="$(command -v agento || true)"
 GOG_BIN="$(command -v gog || true)"
 MAIL_BIN="$(command -v mail || true)"
 
-GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
-HEALTH_URL="${OPENCLAW_HEALTH_URL:-http://127.0.0.1:${GATEWAY_PORT}/health}"
-CURL_TIMEOUT="${OPENCLAW_HEALTH_CURL_TIMEOUT:-8}"
-POST_ACTION_WAIT="${OPENCLAW_POST_ACTION_WAIT_SECONDS:-3}"
-ESCALATION_COOLDOWN_SECONDS="${OPENCLAW_ESCALATION_COOLDOWN_SECONDS:-3600}"
-ALERT_COOLDOWN_SECONDS="${OPENCLAW_ALERT_COOLDOWN_SECONDS:-900}"
-MAX_LOG_TAIL_LINES="${OPENCLAW_SELF_HEAL_LOG_TAIL_LINES:-80}"
-DOCTOR_FIX_ENABLED="${OPENCLAW_HEALTH_ENABLE_DOCTOR_FIX:-0}"
+GATEWAY_PORT="${HERMES_GATEWAY_PORT:-8643}"
+HEALTH_URL="${HERMES_HEALTH_URL:-http://127.0.0.1:${GATEWAY_PORT}/health}"
+CURL_TIMEOUT="${HERMES_HEALTH_CURL_TIMEOUT:-8}"
+POST_ACTION_WAIT="${HERMES_POST_ACTION_WAIT_SECONDS:-3}"
+ESCALATION_COOLDOWN_SECONDS="${HERMES_ESCALATION_COOLDOWN_SECONDS:-3600}"
+ALERT_COOLDOWN_SECONDS="${HERMES_ALERT_COOLDOWN_SECONDS:-900}"
+MAX_LOG_TAIL_LINES="${HERMES_SELF_HEAL_LOG_TAIL_LINES:-80}"
+DOCTOR_FIX_ENABLED="${HERMES_HEALTH_ENABLE_DOCTOR_FIX:-0}"
 
-ALERT_SLACK_TARGET="${OPENCLAW_ALERT_SLACK_TARGET:-}"
-ALERT_EMAIL_TO="${OPENCLAW_ALERT_EMAIL_TO:-}"
-ALERT_EMAIL_FROM="${OPENCLAW_ALERT_EMAIL_FROM:-}"
+ALERT_SLACK_TARGET="${HERMES_ALERT_SLACK_TARGET:-}"
+ALERT_EMAIL_TO="${HERMES_ALERT_EMAIL_TO:-}"
+ALERT_EMAIL_FROM="${HERMES_ALERT_EMAIL_FROM:-}"
 
 now_epoch() {
   date +%s
@@ -58,33 +58,33 @@ gateway_health_ok() {
 }
 
 service_loaded() {
-  launchctl list | grep -q "ai.smartclaw.gateway"
+  launchctl list | grep -q "ai.smartclaw.prod"
 }
 
 service_running_pid() {
-  launchctl list | awk '/ai\.smartclaw\.gateway/{print $1}'
+  launchctl list | awk '/ai\.smartclaw\.prod/{print $1}'
 }
 
 restart_gateway() {
-  if [ -n "$OPENCLAW_BIN" ] && command_ok "$OPENCLAW_BIN" gateway restart; then
+  if [ -n "$HERMES_BIN" ] && command_ok "$HERMES_BIN" gateway restart; then
     return 0
   fi
 
-  log "openclaw CLI unavailable or restart failed; trying launchctl kickstart fallback."
-  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1
+  log "hermes CLI unavailable or restart failed; trying launchctl kickstart fallback."
+  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.prod" >> "$LOG_FILE" 2>&1
 }
 
 install_gateway() {
-  local plist="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
+  local plist="$HOME/Library/LaunchAgents/ai.smartclaw.prod.plist"
 
-  # Prefer launchctl bootstrap with the KeepAlive plist — does not depend on openclaw CLI
-  # and always uses the correct ai.smartclaw.gateway label.
+  # Prefer launchctl bootstrap with the KeepAlive plist — does not depend on hermes CLI
+  # and always uses the correct ai.smartclaw.prod label.
   if [ -f "$plist" ]; then
     if command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
       return 0
     fi
     log "launchctl bootstrap failed; trying bootout + re-bootstrap."
-    launchctl bootout "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1 || true
+    launchctl bootout "gui/$(id -u)/ai.smartclaw.prod" >> "$LOG_FILE" 2>&1 || true
     if command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
       return 0
     fi
@@ -106,15 +106,15 @@ install_gateway() {
     log "install-launchagents.sh not found or not executable; cannot regenerate plist."
   fi
 
-  log "launchctl bootstrap failed; openclaw CLI unavailable or plist not found."
+  log "launchctl bootstrap failed; hermes CLI unavailable or plist not found."
   return 1
 }
 
 doctor_fix() {
-  if [ -z "$OPENCLAW_BIN" ]; then
+  if [ -z "$HERMES_BIN" ]; then
     return 1
   fi
-  command_ok "$OPENCLAW_BIN" doctor --fix
+  command_ok "$HERMES_BIN" doctor --fix
 }
 
 cooldown_allows() {
@@ -141,10 +141,10 @@ mark_stamp() {
 
 send_slack_alert() {
   local message="$1"
-  [ -n "$OPENCLAW_BIN" ] || return 1
+  [ -n "$HERMES_BIN" ] || return 1
   [ -n "$ALERT_SLACK_TARGET" ] || return 1
 
-  "$OPENCLAW_BIN" message send \
+  "$HERMES_BIN" message send \
     --channel slack \
     --target "$ALERT_SLACK_TARGET" \
     --message "$message" >> "$LOG_FILE" 2>&1
@@ -194,8 +194,8 @@ send_alert() {
     return 0
   fi
 
-  alert_message=":warning: OpenClaw gateway self-heal alert\n${summary}\n${detail}"
-  email_subject="[OpenClaw] Gateway self-heal alert"
+  alert_message=":warning: Hermes gateway self-heal alert\n${summary}\n${detail}"
+  email_subject="[Hermes] Gateway self-heal alert"
   email_body="${summary}\n\n${detail}\n\nHost: $(hostname)\nTime: $(ts)\nHealth URL: ${HEALTH_URL}"
 
   local alert_sent=false
@@ -222,7 +222,7 @@ send_alert() {
 escalate_to_agent() {
   local reason="$1"
   local task
-  task="OpenClaw gateway self-heal escalation: ${reason}. Investigate gateway health, recover service, and leave findings in ~/.smartclaw/logs/health-check.log and ~/.smartclaw/logs/gateway.err.log."
+  task="Hermes gateway self-heal escalation: ${reason}. Investigate gateway health, recover service, and leave findings in ~/.smartclaw/logs/health-check.log and ~/.smartclaw/logs/gateway.err.log."
 
   if ! cooldown_allows "$ESCALATION_STAMP" "$ESCALATION_COOLDOWN_SECONDS"; then
     log "Escalation suppressed by cooldown (${ESCALATION_COOLDOWN_SECONDS}s)."
@@ -251,8 +251,8 @@ escalate_to_agent() {
   return 1
 }
 
-if [ -z "$OPENCLAW_BIN" ]; then
-  log "openclaw CLI not found in PATH=$PATH (continuing with launchctl fallbacks)."
+if [ -z "$HERMES_BIN" ]; then
+  log "hermes CLI not found in PATH=$PATH (continuing with launchctl fallbacks)."
 fi
 
 # Single-run lock to prevent overlapping launchd invocations.
@@ -300,8 +300,8 @@ if gateway_health_ok; then
 
   # orch-wso: Silent postMessage gap check — alert if gateway is alive but
   # hasn't posted a Slack reply in >2h while active sessions exist.
-  REPLY_GAP_THRESHOLD="${OPENCLAW_REPLY_GAP_THRESHOLD_SECONDS:-7200}"
-  TODAY_LOG="/tmp/openclaw/openclaw-$(date +%F).log"
+  REPLY_GAP_THRESHOLD="${HERMES_REPLY_GAP_THRESHOLD_SECONDS:-7200}"
+  TODAY_LOG="/tmp/hermes/hermes-$(date +%F).log"
   SESSIONS_DIR="$HOME/.smartclaw/agents/main/sessions"
   if [ -f "$TODAY_LOG" ]; then
     last_post_epoch=$(grep -o '"date":"[^"]*"' "$TODAY_LOG" 2>/dev/null \
@@ -313,7 +313,7 @@ if gateway_health_ok; then
     recent_sessions=$(find "$SESSIONS_DIR" -name "*.jsonl" -mmin -30 2>/dev/null | wc -l | tr -d ' ')
     if [ "${last_post_epoch:-0}" -gt 0 ] && [ "$gap" -gt "$REPLY_GAP_THRESHOLD" ] && [ "$recent_sessions" -gt 0 ]; then
       log "WARN: No Slack postMessage in ${gap}s (>${REPLY_GAP_THRESHOLD}s) with ${recent_sessions} active sessions — possible silent reply failure (orch-wso)"
-      send_alert "OpenClaw silent reply gap" "No Slack reply posted in ${gap}s ($(( gap / 3600 ))h) despite ${recent_sessions} active sessions. Sessions are running but not posting. Check for context-ceiling spiral or token exhaustion."
+      send_alert "Hermes silent reply gap" "No Slack reply posted in ${gap}s ($(( gap / 3600 ))h) despite ${recent_sessions} active sessions. Sessions are running but not posting. Check for context-ceiling spiral or token exhaustion."
     fi
   fi
 
@@ -345,17 +345,17 @@ if gateway_health_ok; then
 fi
 
 if [ "$DOCTOR_FIX_ENABLED" = "1" ]; then
-  log "Attempting remediation step 2: openclaw doctor --fix (enabled by OPENCLAW_HEALTH_ENABLE_DOCTOR_FIX=1)."
+  log "Attempting remediation step 2: hermes doctor --fix (enabled by HERMES_HEALTH_ENABLE_DOCTOR_FIX=1)."
   doctor_fix || log "Doctor --fix failed."
   sleep "$POST_ACTION_WAIT"
 
   if gateway_health_ok; then
     log "Gateway recovered after doctor --fix."
-    send_alert "Gateway recovered" "Recovered after openclaw doctor --fix." "recovered"
+    send_alert "Gateway recovered" "Recovered after hermes doctor --fix." "recovered"
     exit 0
   fi
 else
-  log "Skipping remediation step 2: openclaw doctor --fix is disabled by default (set OPENCLAW_HEALTH_ENABLE_DOCTOR_FIX=1 to enable)."
+  log "Skipping remediation step 2: hermes doctor --fix is disabled by default (set HERMES_HEALTH_ENABLE_DOCTOR_FIX=1 to enable)."
 fi
 
 log "Attempting remediation step 3: force reinstall + restart gateway."

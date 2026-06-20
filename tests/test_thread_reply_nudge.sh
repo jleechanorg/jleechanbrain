@@ -25,10 +25,10 @@ log_info() { echo -e "${YELLOW}ℹ INFO${NC}: $1"; }
 IS_SOURCED=1 source "$NUDGE_SCRIPT"
 set +e  # undo -e added by the sourced script; tests use explicit log_pass/fail
 
-# Create a minimal openclaw.json mock with known channels (includes the previously-missed one)
+# Create a minimal config.yaml mock with known channels (includes the previously-missed one)
 make_mock_config() {
   local dir="$1"
-  cat >"$dir/openclaw.json" <<'EOF'
+  cat >"$dir/config.yaml" <<'EOF'
 {
   "channels": {
     "slack": {
@@ -48,7 +48,7 @@ EOF
 # Helper: reset env state between tests
 reset_env() {
   unset THREAD_REPLY_CHANNEL 2>/dev/null || true
-  unset OPENCLAW_CONFIG_FILE 2>/dev/null || true
+  unset HERMES_CONFIG_FILE 2>/dev/null || true
 }
 
 # ── Test 1: env var override (comma-separated) ────────────────────────────────
@@ -59,7 +59,7 @@ test_env_var_override() {
   local tmpdir; tmpdir="$(mktemp -d)"
   make_mock_config "$tmpdir"
   export THREAD_REPLY_CHANNEL="CA123,CB456"
-  export OPENCLAW_CONFIG_FILE="$tmpdir/openclaw.json"
+  export HERMES_CONFIG_FILE="$tmpdir/config.yaml"
   local result; result="$(resolve_nudge_channels 2>/dev/null)"
   reset_env; rm -rf "$tmpdir"
 
@@ -72,12 +72,12 @@ test_env_var_override() {
 
 # ── Test 2: json channels included (all explicit, no wildcard) ────────────────
 test_json_channels_included() {
-  log_info "Test: All explicit channels from openclaw.json are included"
+  log_info "Test: All explicit channels from config.yaml are included"
   reset_env
 
   local tmpdir; tmpdir="$(mktemp -d)"
   make_mock_config "$tmpdir"
-  export OPENCLAW_CONFIG_FILE="$tmpdir/openclaw.json"
+  export HERMES_CONFIG_FILE="$tmpdir/config.yaml"
   local result; result="$(resolve_nudge_channels 2>/dev/null)"
   reset_env; rm -rf "$tmpdir"
 
@@ -98,7 +98,7 @@ test_wildcard_excluded() {
 
   local tmpdir; tmpdir="$(mktemp -d)"
   make_mock_config "$tmpdir"
-  export OPENCLAW_CONFIG_FILE="$tmpdir/openclaw.json"
+  export HERMES_CONFIG_FILE="$tmpdir/config.yaml"
   local result; result="$(resolve_nudge_channels 2>/dev/null)"
   reset_env; rm -rf "$tmpdir"
 
@@ -114,7 +114,7 @@ test_fallback_hardcoded() {
   log_info "Test: Fallback channel used when no json and no env var"
   reset_env
 
-  export OPENCLAW_CONFIG_FILE="/nonexistent/openclaw.json"
+  export HERMES_CONFIG_FILE="/nonexistent/config.yaml"
   local result; result="$(resolve_nudge_channels 2>/dev/null)"
   reset_env
 
@@ -137,7 +137,7 @@ test_prompt_includes_channels() {
   local lockdir="$tmpdir/nudge.lock"
   local logdir="$tmpdir/logs"
   local prompt
-  prompt="$(DRY_RUN=1 OPENCLAW_CONFIG_FILE="$tmpdir/openclaw.json" \
+  prompt="$(DRY_RUN=1 HERMES_CONFIG_FILE="$tmpdir/config.yaml" \
     NUDGE_LOCK_DIR="$lockdir" NUDGE_LOG_DIR="$logdir" \
     bash "$NUDGE_SCRIPT" 2>&1 || true)"
   rm -rf "$tmpdir"
@@ -159,7 +159,7 @@ test_previously_missed_channel() {
 
   local tmpdir; tmpdir="$(mktemp -d)"
   make_mock_config "$tmpdir"
-  export OPENCLAW_CONFIG_FILE="$tmpdir/openclaw.json"
+  export HERMES_CONFIG_FILE="$tmpdir/config.yaml"
   local result; result="$(resolve_nudge_channels 2>/dev/null)"
   reset_env; rm -rf "$tmpdir"
 

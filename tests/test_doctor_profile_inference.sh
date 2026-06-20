@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regression test for doctor.sh profile inference when the plist omits OPENCLAW_STATE_DIR.
+# Regression test for doctor.sh profile inference when the plist omits HERMES_STATE_DIR.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,40 +45,40 @@ PY
 
 eval "$(extract_function infer_gateway_profile_dir_from_port)"
 
-PLIST="$TMP_ROOT/ai.smartclaw.gateway.plist"
+PLIST="$TMP_ROOT/ai.smartclaw.prod.plist"
 python3 - "$PLIST" <<'PY'
 import plistlib
 import sys
 
 plist = {
-    "Label": "ai.smartclaw.gateway",
+    "Label": "ai.smartclaw.prod",
     "EnvironmentVariables": {
-        "OPENCLAW_GATEWAY_PORT": "18789"
+        "HERMES_GATEWAY_PORT": "8643"
     },
 }
 with open(sys.argv[1], "wb") as f:
     plistlib.dump(plist, f)
 PY
 
-if /usr/bin/plutil -extract EnvironmentVariables.OPENCLAW_STATE_DIR raw -o - "$PLIST" >/dev/null 2>&1; then
-  fail "plist unexpectedly contains OPENCLAW_STATE_DIR"
+if /usr/bin/plutil -extract EnvironmentVariables.HERMES_STATE_DIR raw -o - "$PLIST" >/dev/null 2>&1; then
+  fail "plist unexpectedly contains HERMES_STATE_DIR"
 else
-  pass "plist omits OPENCLAW_STATE_DIR"
+  pass "plist omits HERMES_STATE_DIR"
 fi
 
 HOME="$HOME_DIR"
-PORT="$(/usr/bin/plutil -extract EnvironmentVariables.OPENCLAW_GATEWAY_PORT raw -o - "$PLIST")"
+PORT="$(/usr/bin/plutil -extract EnvironmentVariables.HERMES_GATEWAY_PORT raw -o - "$PLIST")"
 INFERRED="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "$PORT")"
 
 if [[ "$INFERRED" == "$HOME_DIR/.smartclaw_prod" ]]; then
-  pass "doctor infers prod profile from gateway port 18789"
+  pass "doctor infers prod profile from gateway port 8643"
 else
   fail "doctor inferred '$INFERRED' instead of '$HOME_DIR/.smartclaw_prod'"
 fi
 
-INFERRED_STAGING="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "18810")"
+INFERRED_STAGING="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "8644")"
 if [[ "$INFERRED_STAGING" == "$HOME_DIR/.smartclaw" ]]; then
-  pass "doctor infers staging profile from gateway port 18810"
+  pass "doctor infers staging profile from gateway port 8644"
 else
   fail "doctor inferred '$INFERRED_STAGING' instead of '$HOME_DIR/.smartclaw' for staging port"
 fi

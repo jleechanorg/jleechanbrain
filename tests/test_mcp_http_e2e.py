@@ -300,14 +300,14 @@ class TestE2ECurlEquivalence:
 # E2E: Gateway connectivity (optional — requires live gateway)
 # ---------------------------------------------------------------------------
 
-GATEWAY_URL = "http://localhost:18789"
-GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "")
+GATEWAY_URL = "http://localhost:8643"
+GATEWAY_TOKEN = os.environ.get("HERMES_GATEWAY_TOKEN", "")
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not GATEWAY_TOKEN, reason="OPENCLAW_GATEWAY_TOKEN not set")
+@pytest.mark.skipif(not GATEWAY_TOKEN, reason="HERMES_GATEWAY_TOKEN not set")
 class TestGatewayConnectivity:
-    """Smoke: verify the OpenClaw gateway is up and reachable."""
+    """Smoke: verify the Hermes gateway is up and reachable."""
 
     def test_gateway_responds(self):
         """Gateway returns valid HTTP response (even if 405 for GET)."""
