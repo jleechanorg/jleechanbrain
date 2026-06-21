@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — One-shot setup for ~/.smartclaw/ (jleechanorg/smartclaw)
+# install.sh — One-shot setup for ~/.smartclaw/ (jleechanorg/hermes-agent)
 #
 # Usage (post-clone):
 #   bash ~/.smartclaw/install.sh
@@ -9,16 +9,16 @@
 #   2. Installs all LaunchAgents / systemd units (gateway, monitor, startup-check, etc.)
 #
 # Prerequisites:
-#   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
+#   - config.yaml must exist at ~/.smartclaw/config.yaml with real tokens hardcoded
 #     (create/update this local runtime file directly; it is gitignored)
-#   - openclaw CLI must be in PATH
+#   - hermes CLI must be in PATH
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$REPO_ROOT/scripts"
 
-echo "=== OpenClaw Install ==="
+echo "=== Hermes Install ==="
 echo "Repo root: $REPO_ROOT"
 echo ""
 
@@ -45,17 +45,21 @@ if [[ -f "$REPO_YAML" ]]; then
   bash "$SCRIPTS/bootstrap.sh" --symlink-only
 fi
 
-# --- 2. Verify openclaw.json has real tokens ---
-if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
+# --- 2. Verify config.yaml has real tokens ---
+if [[ ! -f "$REPO_ROOT/config.yaml" ]]; then
   echo ""
-  echo "ERROR: ~/.smartclaw/openclaw.json not found."
-  echo "  Create openclaw.json with real tokens before running install."
+  echo "ERROR: ~/.smartclaw/config.yaml not found."
+  echo "  Create config.yaml with real tokens before running install."
   exit 1
 fi
 
-if python3 - "$REPO_ROOT/openclaw.json" <<'PY'
-import json, sys
-data = json.loads(open(sys.argv[1]).read())
+if python3 - "$REPO_ROOT/config.yaml" <<'PY'
+import sys
+try:
+    import yaml
+except ImportError:
+    print("ERROR: PyYAML not installed — cannot validate config.yaml", file=sys.stderr)
+    sys.exit(1)
 def has_placeholder(obj):
     if isinstance(obj, str):
         return obj.startswith("${") and obj.endswith("}")
@@ -64,12 +68,14 @@ def has_placeholder(obj):
     if isinstance(obj, list):
         return any(has_placeholder(v) for v in obj)
     return False
+with open(sys.argv[1]) as fh:
+    data = yaml.safe_load(fh) or {}
 if has_placeholder(data):
-    print("ERROR: openclaw.json still contains \${PLACEHOLDER} values — fill in real tokens first.", file=__import__("sys").stderr)
+    print("ERROR: config.yaml still contains ${PLACEHOLDER} values — fill in real tokens first.", file=sys.stderr)
     sys.exit(1)
 PY
 then
-  echo "✓ openclaw.json: tokens appear to be real (no placeholders)"
+  echo "✓ config.yaml: tokens appear to be real (no placeholders)"
 else
   exit 1
 fi
@@ -102,6 +108,6 @@ echo "--- Installing services ---"
 echo ""
 echo "=== Install complete ==="
 echo ""
-echo "Gateway token and all secrets are read directly from ~/.smartclaw/openclaw.json."
-echo "Do NOT add tokens to plists or environment variables — openclaw.json is the"
+echo "Gateway token and all secrets are read directly from ~/.smartclaw/config.yaml."
+echo "Do NOT add tokens to plists or environment variables — config.yaml is the"
 echo "single source of truth."

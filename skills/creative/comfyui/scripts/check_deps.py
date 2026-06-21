@@ -360,7 +360,8 @@ def check_deps(
         folder_errors.setdefault("embeddings", emb_err)
 
     is_ready = (
-        not missing_nodes
+        not node_check_skipped
+        and not missing_nodes
         and not missing_models
         and not missing_embeddings
     )

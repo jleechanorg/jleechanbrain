@@ -1,10 +1,10 @@
-# 3-Stage OpenClaw Dev Pipeline
+# 3-Stage Hermes Dev Pipeline
 
 > **Status**: Operational as of 2026-03-31.
 
 ## Background
 
-Before this pipeline, changes to `~/.smartclaw/` (the live gateway config) went straight to production with no safety gate. A bad `openclaw.json` edit could crash the gateway, drop Slack messages, or break all agent sessions. Manual review caught some cases, but not consistently.
+Before this pipeline, changes to `~/.smartclaw/` (the live gateway config) went straight to production with no safety gate. A bad `config.yaml` edit could crash the gateway, drop Slack messages, or break all agent sessions. Manual review caught some cases, but not consistently.
 
 The 3-stage pipeline (orch-1ps epic) adds automated safety gates between `~/.smartclaw/` and unvalidated changes:
 
@@ -16,7 +16,7 @@ The 3-stage pipeline (orch-1ps epic) adds automated safety gates between `~/.sma
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│  ~/.smartclaw/  (PROD — live gateway on port 18789)                                      │
+│  ~/.smartclaw/  (PROD — live gateway on port 8643)                                      │
 │  Branch: main                                                                          │
 │  Pulls from origin/main via git pull or webhook                                        │
 └───────────────────────────────┬──────────────────────────────────────────────────────────┘
@@ -59,7 +59,7 @@ flowchart LR
         SG[Staging gateway]
     end
 
-    subgraph ProdEnv["~/.smartclaw/  (port 18789)"]
+    subgraph ProdEnv["~/.smartclaw/  (port 8643)"]
         PW[Prod worktree\nbranch: main]
         PG[Prod gateway]
     end
@@ -127,7 +127,7 @@ git worktree add ~/.smartclaw-staging origin/staging
 bash scripts/staging-promote.sh
 
 # Verify prod after promotion
-bash scripts/staging-canary.sh --port 18789
+bash scripts/staging-canary.sh --port 8643
 ```
 
 **Fail-closed**: Any canary failure = no promotion. The script exits with non-zero and prints the failing check.
@@ -136,7 +136,7 @@ bash scripts/staging-canary.sh --port 18789
 
 **File**: `.github/workflows/staging-canary-gate.yml`
 
-**What it does**: Fires on every PR (`pull_request` event). Detects whether `openclaw.json` changed in the PR diff. If so, runs the full canary (which also reads `package.json` for Check 5 — SDK protocol version). The `staging-canary-gate` does not trigger on `package.json` changes alone (no openclaw.json changed); the `skeptic-gate` still reviews all PRs.
+**What it does**: Fires on every PR (`pull_request` event). Detects whether `config.yaml` changed in the PR diff. If so, runs the full canary (which also reads `package.json` for Check 5 — SDK protocol version). The `staging-canary-gate` does not trigger on `package.json` changes alone (no config.yaml changed); the `skeptic-gate` still reviews all PRs.
 
 **Checks run in CI**:
 
@@ -155,16 +155,16 @@ CI runs checks 2 and 5 (static analysis, no local gateway needed). The remaining
 
 **File**: `.github/workflows/staging-canary-full.yml`
 
-**What it does**: When `openclaw.json` changes in a PR, runs **`scripts/staging-canary.sh` (all 6 checks)** on a **self-hosted runner** (typically your Mac with `ai.smartclaw.staging` listening on port **18810**).
+**What it does**: When `config.yaml` changes in a PR, runs **`scripts/staging-canary.sh` (all 6 checks)** on a **self-hosted runner** (typically your Mac with `ai.smartclaw.staging` listening on port **8644**).
 
 **Why**: GitHub-hosted runners cannot reach `127.0.0.1` on your machine or load `~/.smartclaw/extensions`. This job closes that gap so the full canary runs automatically on every config PR once a runner is registered.
 
-**Setup**: `.github/SELFHOSTED_TEST.md` — add labels `self-hosted` **and** `openclaw-staging`. Optional repo variables: `STAGING_CANARY_PORT` (default `18810`), `OPENCLAW_STAGING_CONFIG` (absolute path if your staging JSON is not `~/.smartclaw/openclaw.staging.json`). Set `ENABLE_STAGING_CANARY_SELFHOSTED=false` to skip the job (runner offline) without removing the runner.
+**Setup**: `.github/SELFHOSTED_TEST.md` — add labels `self-hosted` **and** `hermes-staging`. Optional repo variables: `STAGING_CANARY_PORT` (default `8644`), `HERMES_STAGING_CONFIG` (absolute path if your staging JSON is not `~/.smartclaw/hermes.staging.json`). Set `ENABLE_STAGING_CANARY_SELFHOSTED=false` to skip the job (runner offline) without removing the runner.
 
 **Not included**: `monitor-agent.sh` stays on LaunchAgent (`ai.smartclaw.monitor-agent`); it is operational monitoring, not a PR gate.
 
 **CI gate behavior**:
-- PRs touching `openclaw.json` are blocked from merging if CI fails (the `staging-canary-gate` does not trigger on `package.json` changes alone; `skeptic-gate` still reviews all PRs)
+- PRs touching `config.yaml` are blocked from merging if CI fails (the `staging-canary-gate` does not trigger on `package.json` changes alone; `skeptic-gate` still reviews all PRs)
 - Non-config PRs (docs-only, etc.) skip the `staging-canary-gate` silently (skeptic-gate still reviews all PRs)
 - Results posted as PR comment so developers always see the outcome
 
@@ -192,7 +192,7 @@ bash scripts/staging-gateway.sh stop   # Stop staging gateway
 bash scripts/staging-gateway.sh status # Show PID, port, health
 ```
 
-The staging gateway is a separate process from the production gateway (port 18789). It shares the same binary and Node.js but uses `~/.smartclaw/staging/openclaw.json` as its config.
+The staging gateway is a separate process from the production gateway (port 8643). It shares the same binary and Node.js but uses `~/.smartclaw/staging/config.yaml` as its config.
 
 ## Day-to-Day Workflow
 
@@ -200,7 +200,7 @@ The staging gateway is a separate process from the production gateway (port 1878
 
 ```bash
 # 1. In feature worktree: edit the file you want to change
-#    e.g., openclaw.json, agents/, skills/, SOUL.md, etc.
+#    e.g., config.yaml, agents/, skills/, SOUL.md, etc.
 
 # 2. Open PR targeting: staging (NOT main)
 #    gh pr create --base staging --head feat/my-change
@@ -222,7 +222,7 @@ bash scripts/staging-promote.sh
 # 7. Production picks up the change via git pull; if needed: stop && start the gateway
 ```
 
-### Gateway config change (openclaw.json, agents/, skills/)
+### Gateway config change (config.yaml, agents/, skills/)
 
 Same as above — edit in feature worktree, PR → staging, canary → promote.
 

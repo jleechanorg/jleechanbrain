@@ -3,7 +3,7 @@
 # When no_agent=true, stdout becomes the Slack message. Empty stdout = silent.
 set -euo pipefail
 
-ROOT="${HERMES_ROOT:-$HOME/.hermes}"
+ROOT="${HERMES_ROOT:-$HOME/.smartclaw}"
 GAPS="$ROOT/docs/context/DOC_GAPS.md"
 
 # Run the actual audit (always updates snapshot + gaps file)

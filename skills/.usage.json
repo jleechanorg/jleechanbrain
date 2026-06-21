@@ -12,6 +12,19 @@
     "use_count": 1,
     "view_count": 1
   },
+  "context-token-audit": {
+    "archived_at": null,
+    "created_at": "2026-05-28T12:55:49.784062+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-05-28T12:55:49.785447+00:00",
+    "last_viewed_at": "2026-05-28T12:55:49.784081+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 1,
+    "view_count": 1
+  },
   "dispatch-task": {
     "archived_at": null,
     "created_at": "2026-05-15T06:12:56.989824+00:00",
@@ -25,6 +38,32 @@
     "use_count": 4,
     "view_count": 4
   },
+  "github-pr-automation-debug": {
+    "archived_at": null,
+    "created_at": "2026-05-29T19:48:00.710268+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-05-29T19:51:01.633001+00:00",
+    "last_used_at": "2026-06-20T01:24:08.889574+00:00",
+    "last_viewed_at": "2026-06-20T01:24:08.887483+00:00",
+    "patch_count": 5,
+    "pinned": false,
+    "state": "active",
+    "use_count": 3,
+    "view_count": 3
+  },
+  "hermes-health-check": {
+    "archived_at": null,
+    "created_at": "2026-05-28T09:20:17.102445+00:00",
+    "created_by": null,
+    "last_patched_at": "2026-05-29T18:32:48.381479+00:00",
+    "last_used_at": "2026-05-29T18:31:23.802424+00:00",
+    "last_viewed_at": "2026-05-29T18:31:23.801661+00:00",
+    "patch_count": 23,
+    "pinned": false,
+    "state": "active",
+    "use_count": 39,
+    "view_count": 39
+  },
   "pr-clean-worktree": {
     "archived_at": null,
     "created_at": "2026-05-15T01:21:21.127514+00:00",
@@ -37,5 +76,18 @@
     "state": "active",
     "use_count": 3,
     "view_count": 3
+  },
+  "repro": {
+    "archived_at": null,
+    "created_at": "2026-05-29T07:39:15.684302+00:00",
+    "created_by": null,
+    "last_patched_at": "2026-05-29T19:43:57.703055+00:00",
+    "last_used_at": "2026-05-29T21:35:57.448210+00:00",
+    "last_viewed_at": "2026-05-29T21:35:57.447256+00:00",
+    "patch_count": 11,
+    "pinned": false,
+    "state": "active",
+    "use_count": 13,
+    "view_count": 13
   }
 }

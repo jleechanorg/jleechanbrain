@@ -4,9 +4,9 @@ Verifies the end-to-end canary loop:
   1. Second bot (U0A4G7LDJ4R) posts a canary to #ai-slack-test via Slack API.
   2. Verifies Slack accepts the message (ok=true).
 
-The OpenClaw gateway is configured with ignoredUsers=["U0A4G7LDJ4R"]
+The Hermes gateway is configured with ignoredUsers=["U0A4G7LDJ4R"]
 so it drops these messages and does NOT respond. This is verified
-by checking that no new OpenClaw-bot message appears in the channel
+by checking that no new Hermes-bot message appears in the channel
 within a short observation window after the canary is sent.
 
 Requires: real Slack API access (no mocks), real token from
@@ -26,10 +26,10 @@ import pytest
 
 # Test channel: #ai-slack-test
 TEST_CHANNEL = "${SLACK_CHANNEL_ID}"
-# Second bot user ID (must match openclaw.json channels.slack.ignoredUsers)
+# Second bot user ID (must match config.yaml channels.slack.ignoredUsers)
 SECOND_BOT_USER_ID = "U0A4G7LDJ4R"
-# OpenClaw bot user ID (gateway should respond to this, not to canary)
-OPENCLAW_BOT_USER_ID = "U0AEZC7RX1Q"
+# Hermes bot user ID (gateway should respond to this, not to canary)
+HERMES_BOT_USER_ID = "U0AEZC7RX1Q"
 
 
 def _get_token() -> Optional[str]:
@@ -97,12 +97,12 @@ def _get_recent_messages(channel: str, oldest: str, limit: int = 10) -> list[dic
         return []
 
 
-def _count_openclaw_responses(
+def _count_hermes_responses(
     channel: str,
     since_ts: str,
     before_ts: str,
 ) -> int:
-    """Count messages from the OpenClaw bot between since_ts and before_ts."""
+    """Count messages from the Hermes bot between since_ts and before_ts."""
     messages = _get_recent_messages(channel, since_ts, limit=20)
     count = 0
     for msg in messages:
@@ -112,7 +112,7 @@ def _count_openclaw_responses(
         if ts and ts <= since_ts:
             continue  # outside window
         user = msg.get("user", "") or msg.get("bot_profile", {}).get("bot_user_id", "")
-        if user == OPENCLAW_BOT_USER_ID:
+        if user == HERMES_BOT_USER_ID:
             count += 1
     return count
 
@@ -136,11 +136,11 @@ class TestCanaryIntegration:
         )
         assert "ts" in result, "Slack response missing 'ts' (message timestamp)"
 
-    def test_gateway_ignores_canary_no_openclaw_response(self) -> None:
+    def test_gateway_ignores_canary_no_hermes_response(self) -> None:
         """Gateway does NOT respond to canary from second bot (U0A4G7LDJ4R).
 
         This proves the ignoredUsers config works: after the canary is posted,
-        no OpenClaw-bot message appears in the channel within the observation window.
+        no Hermes-bot message appears in the channel within the observation window.
         """
         # Record the time before sending
         before_ts_float = time.time()
@@ -163,20 +163,20 @@ class TestCanaryIntegration:
         after_ts_float = time.time()
         after_ts = str(after_ts_float)
 
-        # Look for OpenClaw bot responses between canary_ts and after_ts
+        # Look for Hermes bot responses between canary_ts and after_ts
         messages = _get_recent_messages(TEST_CHANNEL, canary_ts, limit=20)
-        openclaw_responses = [
+        hermes_responses = [
             msg for msg in messages
             if canary_ts < msg.get("ts", "") < after_ts
             and (
-                msg.get("user") == OPENCLAW_BOT_USER_ID
-                or msg.get("bot_profile", {}).get("bot_user_id") == OPENCLAW_BOT_USER_ID
+                msg.get("user") == HERMES_BOT_USER_ID
+                or msg.get("bot_profile", {}).get("bot_user_id") == HERMES_BOT_USER_ID
             )
         ]
 
-        assert len(openclaw_responses) == 0, (
+        assert len(hermes_responses) == 0, (
             f"Gateway responded to canary (ignoredUsers may not be working): "
-            f"{openclaw_responses}"
+            f"{hermes_responses}"
         )
 
     def test_canary_in_thread_gets_no_reply(self) -> None:
@@ -202,18 +202,18 @@ class TestCanaryIntegration:
         time.sleep(8)
         after_ts_float = time.time()
 
-        # Check for OpenClaw responses in the thread
+        # Check for Hermes responses in the thread
         messages = _get_recent_messages(TEST_CHANNEL, canary_ts, limit=20)
-        openclaw_thread_replies = [
+        hermes_thread_replies = [
             msg for msg in messages
             if canary_ts < msg.get("ts", "") < str(after_ts_float)
             and msg.get("thread_ts") == parent_ts
             and (
-                msg.get("user") == OPENCLAW_BOT_USER_ID
-                or msg.get("bot_profile", {}).get("bot_user_id") == OPENCLAW_BOT_USER_ID
+                msg.get("user") == HERMES_BOT_USER_ID
+                or msg.get("bot_profile", {}).get("bot_user_id") == HERMES_BOT_USER_ID
             )
         ]
 
-        assert len(openclaw_thread_replies) == 0, (
-            f"Gateway replied in thread to canary: {openclaw_thread_replies}"
+        assert len(hermes_thread_replies) == 0, (
+            f"Gateway replied in thread to canary: {hermes_thread_replies}"
         )

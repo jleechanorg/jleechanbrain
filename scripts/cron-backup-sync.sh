@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${HERMES_HOME:-$HOME/.smartclaw}"
 CTX="$ROOT/docs/context"
 BACKUP_JSON="$CTX/CRON_JOBS_BACKUP.json"
 BACKUP_MD="$CTX/CRON_JOBS_BACKUP.md"
@@ -10,15 +10,15 @@ REPORT="$ROOT/logs/cron-backup/report-$(date +%Y%m%d).txt"
 mkdir -p "$CTX" "$ROOT/logs/cron-backup"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
-if ! command -v openclaw >/dev/null 2>&1; then
-  log "SKIP: openclaw CLI not found"
+if ! command -v hermes >/dev/null 2>&1; then
+  log "SKIP: hermes CLI not found"
   exit 0
 fi
 
-log "Exporting OpenClaw cron jobs..."
-CRON_JSON=$(openclaw cron list --json 2>/dev/null) || true
+log "Exporting Hermes cron jobs..."
+CRON_JSON=$(hermes cron list --json 2>/dev/null) || true
 
-# openclaw may emit plugin noise before the JSON; find the first { and parse from there
+# hermes may emit plugin noise before the JSON; find the first { and parse from there
 CRON_JOBS=$(echo "$CRON_JSON" | awk '/^{/ {found=1} found' | python3 -c "
 import json, sys
 raw = sys.stdin.read().strip()
@@ -87,8 +87,7 @@ if [[ "$CHANGED" -eq 1 ]]; then
     if git add "$BACKUP_JSON" "$BACKUP_MD" 2>/dev/null; then
       if ! git diff --cached --quiet; then
         if git commit -m "chore: refresh cron backup" 2>/dev/null; then
-          COMMIT_SHA=$(git rev-parse HEAD)
-          log "Committed: $COMMIT_SHA"
+          log "Committed: $(git rev-parse HEAD)"
           git push 2>/dev/null || true
         fi
       fi
@@ -112,7 +111,7 @@ do_slack() {
     >> "$ROOT/logs/cron-backup/slack-$(date +%Y%m%d).log" 2>&1 || true
 }
 
-if [[ "$CHANGED" -eq 1 ]] && [[ -n "${COMMIT_SHA:-}" ]]; then
+if [[ "$CHANGED" -eq 1 ]] && [[ -n "$COMMIT_SHA" ]]; then
   do_slack "Cron Backup: committed. Total: $TOTAL jobs ($ENABLED enabled)."
 elif [[ "$CHANGED" -eq 1 ]]; then
   do_slack "Cron Backup: changed (not committed). Total: $TOTAL jobs."

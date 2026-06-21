@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # consolidate-workspace-snapshots.sh — ONE-TIME migration script.
 #
-# Rsyncs existing backup snapshots from the workspace copy of openclaw
-# (where the old misconfigured openclaw-cron job deposited them) into
+# Rsyncs existing backup snapshots from the workspace copy of hermes
+# (where the old misconfigured hermes-cron job deposited them) into
 # this repo's .smartclaw-backups/ directory.
 #
-# Source:      ~/.smartclaw/workspace/openclaw/.smartclaw-backups/
+# Source:      ~/.smartclaw/workspace/hermes/.smartclaw-backups/
 # Destination: <repo>/.smartclaw-backups/
 #
 # Safe to run multiple times: --ignore-existing never overwrites newer data.
@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DST_BASE="$REPO_ROOT/.smartclaw-backups"
-SRC_BASE="${HOME}/.smartclaw/workspace/openclaw/.smartclaw-backups"
+SRC_BASE="${HOME}/.smartclaw/workspace/hermes/.smartclaw-backups"
 
 if [[ ! -d "$SRC_BASE" ]]; then
   echo "Source not found: $SRC_BASE"

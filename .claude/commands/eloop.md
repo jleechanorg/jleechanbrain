@@ -75,7 +75,7 @@ find novel/ docs/novel/ -name '*.md' -newer /tmp/evolve_loop_last_run 2>/dev/nul
    ⚠️ **Known limitation (no-op until /claw is updated)**: `/claw` deletes `.claw-spawn-*` files on every exit
    path (success, failure, send-error, error). Phase 1e cannot detect orphaned dispatches because the files
    it would need to read are always gone by the time this loop runs.
-   **Required /claw fix**: write a persistent `/tmp/openclaw/.claw-track-<ISSUE_ID>` file (containing
+   **Required /claw fix**: write a persistent `/tmp/hermes/.claw-track-<ISSUE_ID>` file (containing
    `SESSION_NAME`, `PROJECT_ID`, `SPAWNED_AT`) before deleting the spawn output on any exit path.
    **Proxy until that fix lands**: rely on Phase 1b (tmux session listing) and Phase 1c (conversation capture)
    to surface dead workers — a session that disappears between cycles indicates a dispatch that died.

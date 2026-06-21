@@ -42,6 +42,6 @@ bash scripts/sync-to-smartclaw.sh
 
 ## Guardrails
 
-- Never export `openclaw.json` or runtime state (logs, DBs, memory, credentials).
+- Never export `config.yaml` or runtime state (logs, DBs, memory, credentials).
 - Keep launchd templates renamed to `smartclaw.*` when source is `ai.smartclaw.*`.
 - Keep sanitization in `scripts/sync-to-smartclaw.sh` enabled.

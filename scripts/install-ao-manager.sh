@@ -11,10 +11,10 @@
 #
 set -euo pipefail
 
-# Canonical openclaw home — always use ~/.smartclaw, resolved at runtime
-OPENCLAW_HOME="$(python3 -c 'import os; print(os.path.expanduser("~/.smartclaw"))')"
+# Canonical hermes home — always use ~/.smartclaw, resolved at runtime
+HERMES_HOME="$(python3 -c 'import os; print(os.path.expanduser("~/.smartclaw"))')"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-PLIST_TEMPLATE="$OPENCLAW_HOME/launchd/ai.agento-manager.plist.template"
+PLIST_TEMPLATE="$HERMES_HOME/launchd/ai.agento-manager.plist.template"
 PLIST_NAME="ai.agento.manager.plist"
 PLIST_PATH="$LAUNCHD_DIR/$PLIST_NAME"
 LABEL="ai.agento.manager"

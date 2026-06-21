@@ -1,11 +1,11 @@
 #!/bin/bash
 # test_monitor_core_md.sh - Tests for run_core_md_probe() in monitor-agent.sh
 #
-# Tests the core markdown file health check that validates openclaw's
+# Tests the core markdown file health check that validates hermes's
 # required policy/identity files exist and are non-empty (not broken symlinks).
 #
 # Each test:
-#   1. Creates a temp directory simulating an openclaw home
+#   1. Creates a temp directory simulating a hermes home
 #   2. Sources the shared probe library (single source of truth)
 #   3. Runs the probe and checks the resulting RC and SUMMARY
 
@@ -62,7 +62,7 @@ test_all_present() {
     echo "# workspace/$f" > "$oc_dir/workspace/${f}.md"
   done
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$result_file"
@@ -85,7 +85,7 @@ test_missing_file() {
   result_file=$(mktemp "/tmp/test_probe_rc.XXXXXX")
   echo "# Soul" > "$oc_dir/SOUL.md"
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$result_file"
@@ -118,7 +118,7 @@ test_broken_symlink() {
   rm -f "$oc_dir/USER.md"
   ln -s "$real_dir/does_not_exist.md" "$oc_dir/USER.md"
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$real_dir" "$result_file"
@@ -150,7 +150,7 @@ test_empty_file() {
   done
   : > "$oc_dir/HEARTBEAT.md"
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$result_file"
@@ -172,8 +172,8 @@ test_disabled() {
   oc_dir=$(mktemp -d "/tmp/test_monitor_core_md.XXXXXX")
   result_file=$(mktemp "/tmp/test_probe_rc.XXXXXX")
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" \
-    OPENCLAW_MONITOR_CORE_MD_ENABLE=0 \
+  HERMES_MONITOR_OC_DIR="$oc_dir" \
+    HERMES_MONITOR_CORE_MD_ENABLE=0 \
     probe_run > "$result_file"
   probe_parse "$result_file"
 
@@ -199,7 +199,7 @@ test_custom_dir() {
 
   # With only SOUL.md present in custom_dir, RC=1 (15 files missing),
   # but SOUL.md should NOT be in the missing list (it was found in custom_dir).
-  OPENCLAW_MONITOR_OC_DIR="$custom_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$custom_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$custom_dir" "$result_file"
@@ -233,7 +233,7 @@ test_both_layers_checked() {
     echo "# $f" > "$oc_dir/workspace/${f}.md"
   done
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$result_file"
@@ -269,7 +269,7 @@ test_wrong_symlink_target() {
     ln -s "$oc_dir/workspace/${f}.md" "$oc_dir/${f}.md"
   done
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$result_file"
@@ -306,7 +306,7 @@ test_out_of_tree_symlink() {
     ln -s "$oc_dir/workspace/${f}.md" "$oc_dir/${f}.md"
   done
 
-  OPENCLAW_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
+  HERMES_MONITOR_OC_DIR="$oc_dir" probe_run > "$result_file"
   probe_parse "$result_file"
 
   rm -rf "$oc_dir" "$real_dir" "$result_file"

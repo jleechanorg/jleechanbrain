@@ -101,13 +101,13 @@ echo ""
 
 # 4. PeekabooBridge socket
 echo "4) PeekabooBridge"
-SOCKET_PATH="$HOME/Library/Application Support/OpenClaw/PeekabooBridge.sock"
+SOCKET_PATH="$HOME/Library/Application Support/Hermes/PeekabooBridge.sock"
 if [ -e "$SOCKET_PATH" ]; then
   printf "  ✅  Bridge socket exists at %s\n" "$SOCKET_PATH"
   PASS=$((PASS + 1))
 else
   printf "  ❌  Bridge socket not found\n"
-  printf "      → Ensure OpenClaw macOS app is running with PeekabooBridge enabled\n"
+  printf "      → Ensure Hermes macOS app is running with PeekabooBridge enabled\n"
   FAIL=$((FAIL + 1))
 fi
 echo ""
@@ -115,13 +115,13 @@ echo ""
 # 5. Local skill file
 echo "5) Local Peekaboo Skill"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SKILL_PATH="$SCRIPT_DIR/openclaw-config/skills/peekaboo/SKILL.md"
+SKILL_PATH="$SCRIPT_DIR/hermes-config/skills/peekaboo/SKILL.md"
 if [ -f "$SKILL_PATH" ]; then
   printf "  ✅  Skill file exists at %s\n" "$SKILL_PATH"
   PASS=$((PASS + 1))
 else
   printf "  ❌  Skill file missing\n"
-  printf "      → Expected at openclaw-config/skills/peekaboo/SKILL.md\n"
+  printf "      → Expected at hermes-config/skills/peekaboo/SKILL.md\n"
   FAIL=$((FAIL + 1))
 fi
 echo ""

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Shared mem0 client — openclaw, Codex, and Claude all use the same qdrant store.
+"""Shared mem0 client — hermes, Codex, and Claude all use the same qdrant store.
 
-Reads the openclaw-mem0 plugin config from ~/.smartclaw/openclaw.json so
+Reads the hermes-mem0 plugin config from ~/.smartclaw/config.yaml so
 there is exactly one source of truth for the connection parameters.
 
 Usage from any agent or script:
@@ -31,6 +31,23 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+# mem0 creates an internal "mem0migrations" telemetry collection at init when
+# MEM0_TELEMETRY is truthy (its default). That collection creation can fail on a
+# corrupted/orphaned qdrant segment dir and also phones home. We do not want
+# either, and the shared store has no use for mem0's telemetry. Disable it before
+# mem0 is imported (the flag is read at mem0.memory.telemetry import time).
+os.environ.setdefault("MEM0_TELEMETRY", "False")
+
+_HERMES_VENV_PYTHON = Path.home() / ".smartclaw" / ".venv" / "bin" / "python"
+if (
+    sys.version_info >= (3, 14)
+    and _HERMES_VENV_PYTHON.exists()
+    and Path(sys.executable).resolve() != _HERMES_VENV_PYTHON.resolve()
+    and os.environ.get("MEM0_SHARED_CLIENT_NO_REEXEC") != "1"
+):
+    os.environ["MEM0_SHARED_CLIENT_NO_REEXEC"] = "1"
+    os.execv(str(_HERMES_VENV_PYTHON), [str(_HERMES_VENV_PYTHON), *sys.argv])
+
 
 class EmbedderProvider(StrEnum):
     """Supported embedder providers."""
@@ -58,15 +75,59 @@ def _make_qdrant_client(host: str, port: int) -> Any:
     return QdrantClient(host=host, port=port, check_compatibility=False)
 
 
-def _load_openclaw_mem0_config() -> dict:
+def _load_hermes_mem0_config() -> dict:
     global _MEM0_CONFIG_CACHE
     if _MEM0_CONFIG_CACHE is not None:
         return _MEM0_CONFIG_CACHE
 
-    env_path = os.environ.get("OPENCLAW_CONFIG_PATH")
-    cfg_path = Path(os.path.expanduser(env_path)) if env_path else Path.home() / ".smartclaw" / "openclaw.json"
-    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-    oss = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]["oss"]
+    env_path = os.environ.get("HERMES_CONFIG_PATH")
+    cfg_path = Path(os.path.expanduser(env_path)) if env_path else Path.home() / ".smartclaw" / "config.yaml"
+    cfg_text = cfg_path.read_text(encoding="utf-8")
+    try:
+        cfg = json.loads(cfg_text)
+    except json.JSONDecodeError:
+        import yaml
+
+        cfg = yaml.safe_load(cfg_text) or {}
+
+    plugin_config = (
+        cfg.get("plugins", {})
+        .get("entries", {})
+        .get("hermes-mem0", {})
+        .get("config", {})
+    )
+    oss = plugin_config.get("oss")
+    if not isinstance(oss, dict):
+        # Current Hermes configs no longer always carry the legacy plugin block.
+        # Keep the Python CLI usable by matching the Claude hook defaults.
+        oss = {
+            "embedder": {
+                "provider": "ollama",
+                "config": {
+                    "model": os.environ.get("MEM0_OLLAMA_EMBED_MODEL", "nomic-embed-text"),
+                    "baseURL": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+                    "embeddingDims": 768,
+                },
+            },
+            "llm": {
+                "provider": "ollama",
+                "config": {
+                    "model": os.environ.get("MEM0_OLLAMA_LLM_MODEL", "gemma2:2b"),
+                    "baseURL": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+                    "temperature": 0,
+                },
+            },
+            "vectorStore": {
+                "provider": "qdrant",
+                "config": {
+                    "host": "127.0.0.1",
+                    "port": 6333,
+                    "collection_name": "hermes_mem0",
+                    "embedding_model_dims": 768,
+                },
+            },
+            "historyDbPath": str(Path.home() / ".smartclaw" / "mem0-history.db"),
+        }
 
     # Normalize camelCase keys to snake_case and expand env vars
     _CAMEL_TO_SNAKE = {
@@ -93,11 +154,35 @@ def _load_openclaw_mem0_config() -> dict:
         return obj
 
     oss = expand(oss)
-    top = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]
+
+    def _mem0_base_url_key(provider: str) -> str:
+        """mem0's config classes accept provider-specific base-url kwargs
+        (e.g. ollama_base_url / openai_base_url), NOT the camelCase ``baseURL``
+        or generic ``base_url`` used in config.yaml. Translate so
+        Memory.from_config() does not raise on the unexpected ``baseURL`` kwarg."""
+        return {
+            "ollama": "ollama_base_url",
+            "openai": "openai_base_url",
+        }.get(provider, "ollama_base_url")
+
+    def _normalize_base_url(section: dict) -> dict:
+        """Rename baseURL/url to the mem0-accepted provider key in a
+        {provider, config} embedder/llm section. Returns a new dict."""
+        if not isinstance(section, dict):
+            return section
+        provider = section.get("provider", "")
+        inner = dict(section.get("config", {}) or {})
+        target = _mem0_base_url_key(provider)
+        for legacy_key in ("baseURL", "base_url", "url"):
+            if legacy_key in inner:
+                inner.setdefault(target, inner.pop(legacy_key))
+        return {**section, "config": inner}
+
+    top = plugin_config if isinstance(plugin_config, dict) else {}
 
     _MEM0_CONFIG_CACHE = {
-        "embedder": oss["embedder"],
-        "llm": oss["llm"],
+        "embedder": _normalize_base_url(oss["embedder"]),
+        "llm": _normalize_base_url(oss["llm"]),
         "vector_store": {
             "provider": oss["vectorStore"]["provider"],
             "config": {
@@ -108,7 +193,7 @@ def _load_openclaw_mem0_config() -> dict:
             },
         },
         "history_db_path": oss["historyDbPath"],
-        # openclaw plugin settings
+        # hermes plugin settings
         "_top_k": top.get("topK", 8),
         "_threshold": top.get("searchThreshold", 0.3),
         "_user_id": top.get("userId", None),  # None = no default, must be provided
@@ -119,7 +204,7 @@ def _load_openclaw_mem0_config() -> dict:
 def get_memory() -> Any:
     """Return a configured mem0 Memory instance pointing at the shared qdrant store."""
     from mem0 import Memory  # type: ignore
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     mem0_cfg = {k: v for k, v in cfg.items() if not k.startswith("_")}
     return Memory.from_config(mem0_cfg)
 
@@ -148,7 +233,7 @@ def search_memory(
     Returns:
         List of {memory, score, id} dicts (filtered by threshold if set)
     """
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     m = get_memory()
     if user_id is None:
         user_id = cfg["_user_id"]
@@ -248,7 +333,7 @@ def _get_embedding(query: str, embedder_cfg: EmbedderConfig) -> list[float]:
         model = config.get("model", "text-embedding-3-small")
         client = OpenAI(api_key=api_key)
         # Must match vector store / collection (e.g. text-embedding-3-small defaults to 1536;
-        # openclaw.json uses embeddingDims 768 for Qdrant openclaw_mem0).
+        # config.yaml uses embeddingDims 768 for Qdrant hermes_mem0).
         dims = config.get("embedding_dims") or config.get("embeddingDims")
         create_kwargs: dict[str, Any] = {
             "model": model,
@@ -267,7 +352,7 @@ def _search_via_raw_client(query: str, user_id: str, limit: int, filter: dict | 
     """Fallback search via raw qdrant_client when mem0 doesn't support filter."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     vs = cfg["vector_store"]["config"]
 
     # Convert raw dict embedder config to type-safe EmbedderConfig
@@ -337,7 +422,7 @@ def add_memory(
             Catch this to accept deduplication, or retry with infer=False.
         ValueError: When user_id is not provided and no default is configured.
     """
-    cfg = _load_openclaw_mem0_config()
+    cfg = _load_hermes_mem0_config()
     m = get_memory()
     if user_id is None:
         user_id = cfg["_user_id"]
@@ -364,7 +449,7 @@ def add_memory(
                 f"Input (first 120 chars): {text[:120]!r}"
             )
 
-    # COMPAT FIX: Node.js openclaw-mem0 extension filters Qdrant by camelCase "userId",
+    # COMPAT FIX: Node.js hermes-mem0 extension filters Qdrant by camelCase "userId",
     # but Python mem0 library stores snake_case "user_id". Add userId to make points
     # visible to autoRecall. Uses cached client for performance.
     try:
@@ -374,7 +459,7 @@ def add_memory(
             if point_ids:
                 # Use cached client to avoid connection overhead on every call
                 if not hasattr(add_memory, "_qdrant_client"):
-                    cfg = _load_openclaw_mem0_config()
+                    cfg = _load_hermes_mem0_config()
                     vs = cfg["vector_store"]["config"]
                     add_memory._qdrant_client = _make_qdrant_client(vs["host"], vs["port"])
                     add_memory._collection_name = vs["collection_name"]
@@ -393,7 +478,7 @@ def add_memory(
 def get_stats() -> dict:
     """Return basic stats about the shared memory store."""
     try:
-        cfg = _load_openclaw_mem0_config()
+        cfg = _load_hermes_mem0_config()
         vs = cfg["vector_store"]["config"]
         client = _make_qdrant_client(vs["host"], vs["port"])
         info = client.get_collection(vs["collection_name"])

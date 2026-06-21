@@ -61,27 +61,27 @@ A structured multi-agent architecture for autonomous coding tasks that would ove
 
 ```bash
 # Run the full harness from CLI
-python3 ~/.hermes/skills/long-running-harness/scripts/harness.py \
+python3 ~/.smartclaw/skills/long-running-harness/scripts/harness.py \
   --task "Add cursor-based pagination to the list endpoint" \
   --repo /path/to/repo \
   --project-id agent-orchestrator
 
 # Or step-by-step (more control):
 # 1. Research
-python3 ~/.hermes/skills/long-running-harness/scripts/harness.py \
+python3 ~/.smartclaw/skills/long-running-harness/scripts/harness.py \
   research --task "..." --repo /path/to/repo
 
 # 2. Plan (after reviewing research.md)
-python3 ~/.hermes/skills/long-running-harness/scripts/harness.py \
+python3 ~/.smartclaw/skills/long-running-harness/scripts/harness.py \
   plan --task "..." --repo /path/to/repo
 
 # 3. Implement (after approving plan.md)
-python3 ~/.hermes/skills/long-running-harness/scripts/harness.py \
-  implement --repo /path/to/repo --todo-file .hermes/plans/todo.md
+python3 ~/.smartclaw/skills/long-running-harness/scripts/harness.py \
+  implement --repo /path/to/repo --todo-file .smartclaw/plans/todo.md
 
 # 4. Evaluate
-python3 ~/.hermes/skills/long-running-harness/scripts/harness.py \
-  evaluate --repo /path/to/repo --plan-file .hermes/plans/plan.md
+python3 ~/.smartclaw/skills/long-running-harness/scripts/harness.py \
+  evaluate --repo /path/to/repo --plan-file .smartclaw/plans/plan.md
 ```
 
 ## Key Design Decisions
@@ -106,10 +106,10 @@ Boris Tane's insight: the plan document is a shared working surface. Inline note
 
 | Phase | Input | Output | Location |
 |-------|-------|--------|----------|
-| Research | prompt + codebase | `research.md` | `.hermes/plans/research.md` |
-| Planning | `research.md` + human notes | `plan.md` + `todo.md` | `.hermes/plans/` |
-| Execution | `plan.md` + `todo.md` | code changes + `handoff.md` | worktree + `.hermes/plans/handoff.md` |
-| Evaluation | plan spec + code diff | `eval_report.md` | `.hermes/plans/eval_report.md` |
+| Research | prompt + codebase | `research.md` | `.smartclaw/plans/research.md` |
+| Planning | `research.md` + human notes | `plan.md` + `todo.md` | `.smartclaw/plans/` |
+| Execution | `plan.md` + `todo.md` | code changes + `handoff.md` | worktree + `.smartclaw/plans/handoff.md` |
+| Evaluation | plan spec + code diff | `eval_report.md` | `.smartclaw/plans/eval_report.md` |
 | Ship | all artifacts | final commit | worktree |
 
 ## Model + Cost Profile

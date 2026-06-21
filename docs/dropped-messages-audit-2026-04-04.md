@@ -11,7 +11,7 @@ Bead: orch-p8f (DM coverage gap fix)
 ## Script Dry-Run Baseline
 
 ```
-DRY_RUN=1 LOOKBACK_HOURS=2 bash ~/.smartclaw/scripts/dropped-thread-followup.sh
+DRY_RUN=1 LOOKBACK_HOURS=2 bash ~/.openclaw/scripts/dropped-thread-followup.sh
 → actioned=0, skipped=2 (nudged recently)
 ```
 

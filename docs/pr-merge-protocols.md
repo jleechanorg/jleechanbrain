@@ -1,6 +1,6 @@
 # PR & Merge Protocols — Full Reference
 
-- **NEVER make PRs to openclaw/openclaw** — this is a personal backup repo
+- **NEVER make PRs to hermes/hermes** — this is a personal backup repo
 - **NEVER merge without explicit user approval**
 - **ALL CI checks must pass before merge** — `mergeable: "MERGEABLE"` only means no conflicts
 - Always check `statusCheckRollup` for failures before declaring PR ready

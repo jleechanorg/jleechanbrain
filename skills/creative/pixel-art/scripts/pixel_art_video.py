@@ -53,16 +53,8 @@ def draw_stars(draw, stars, t, W, H):
             _pixel_cross(draw, sx, sy, (255, 255, 220), arm=2)
 
 
-def _randint_in_bounds(rng, low, high, limit):
-    lo = max(0, int(low))
-    hi = min(int(high), max(0, limit - 1))
-    if hi < lo:
-        lo, hi = 0, max(0, limit - 1)
-    return rng.randint(lo, hi)
-
-
 def init_fireflies(rng, W, H):
-    return [{"x": _randint_in_bounds(rng, 20, W - 20, W), "y": _randint_in_bounds(rng, H // 4, H - 20, H),
+    return [{"x": rng.randint(20, W - 20), "y": rng.randint(H // 4, H - 20),
              "phase": rng.uniform(0, 6.28), "speed": rng.uniform(0.3, 0.8)}
             for _ in range(10)]
 
@@ -92,7 +84,7 @@ def draw_leaves(draw, leaves, t, W, H):
 
 
 def init_dust_motes(rng, W, H):
-    return [{"x": _randint_in_bounds(rng, 30, W - 30, W), "y": _randint_in_bounds(rng, 30, H - 30, H),
+    return [{"x": rng.randint(30, W - 30), "y": rng.randint(30, H - 30),
              "phase": rng.uniform(0, 6.28), "speed": rng.uniform(0.2, 0.5),
              "amp": rng.uniform(2, 6)} for _ in range(20)]
 
@@ -145,7 +137,7 @@ def draw_lightning(draw, state, t, W, H):
 
 
 def init_bubbles(rng, W, H):
-    return [{"x": _randint_in_bounds(rng, 20, W - 20, W), "y": _randint_in_bounds(rng, H, H * 2, max(H * 2, 1)),
+    return [{"x": rng.randint(20, W - 20), "y": rng.randint(H, H * 2),
              "speed": rng.uniform(0.3, 0.8), "size": rng.choice([1, 2, 2])}
             for _ in range(15)]
 
@@ -279,10 +271,6 @@ def pixel_art_video(
         raise ValueError(
             f"Unknown scene {scene!r}. Choose from: {sorted(SCENES)}"
         )
-    if not isinstance(duration, int) or duration <= 0:
-        raise ValueError(f"duration must be a positive integer, got {duration!r}")
-    if not isinstance(fps, int) or fps <= 0:
-        raise ValueError(f"fps must be a positive integer, got {fps!r}")
     _ensure_ffmpeg()
 
     base = Image.open(base_image).convert("RGB")

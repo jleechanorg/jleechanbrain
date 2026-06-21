@@ -1,4 +1,4 @@
-# OpenClaw Orchestration System Design Document
+# Hermes Orchestration System Design Document
 
 > **Last updated:** 2026-03-15
 > **Status:** Living document — updated as the system evolves
@@ -44,14 +44,14 @@ surfaces work to the human when genuine judgment is required.
 
 The system is built on top of three real tools:
 
-- **OpenClaw** — LLM-powered agent runtime with persistent memory, webhooks, and skill dispatch
+- **Hermes** — LLM-powered agent runtime with persistent memory, webhooks, and skill dispatch
 - **agent-orchestrator (AO)** — session lifecycle manager: spawns/kills headless agent sessions in tmux worktrees, monitors CI/review state, auto-remediates deterministically
 - **Headless agents** — `claude-code`, `codex`, or `gemini` sessions running inside AO worktrees, each with fresh context and a specific task
 
-OpenClaw sits *above* the AO loop. It has persistent memory across sessions. It
+Hermes sits *above* the AO loop. It has persistent memory across sessions. It
 makes the same decisions the developer would make — routing CI failures to retries,
 interpreting vague review comments, deciding when a PR needs human eyes. AO does
-the grunt work; OpenClaw provides the judgment.
+the grunt work; Hermes provides the judgment.
 
 ---
 
@@ -93,12 +93,12 @@ fast, and predictable. The split:
 |--------|-------------|
 | CI failed ≤ retry cap | AO deterministic rule |
 | Review comment received | AO deterministic rule |
-| CI failed, retry budget ≥ 2 remaining, parseable error | OpenClaw spawns parallel fix strategies |
-| Agent session idle > threshold | OpenClaw kills and respawns |
-| Retry budget exhausted | OpenClaw escalates to developer |
-| PR approved + CI green | OpenClaw LLM reviews PR |
-| Vague review comment | OpenClaw LLM interprets + dispatches fix |
-| Risky change in sensitive path | OpenClaw LLM escalates with warning |
+| CI failed, retry budget ≥ 2 remaining, parseable error | Hermes spawns parallel fix strategies |
+| Agent session idle > threshold | Hermes kills and respawns |
+| Retry budget exhausted | Hermes escalates to developer |
+| PR approved + CI green | Hermes LLM reviews PR |
+| Vague review comment | Hermes LLM interprets + dispatches fix |
+| Risky change in sensitive path | Hermes LLM escalates with warning |
 
 The LLM is not called for routine reactions. It handles the 20% that requires
 interpretation, strategy, or risk judgment.
@@ -116,7 +116,7 @@ escalates rather than acting on a low-confidence decision.
 ### 5. Config-First, Code as Last Resort
 
 Before writing Python, check if the goal can be achieved by editing config files.
-OpenClaw has rich built-in capabilities — cron, memory, webhook routing, skill
+Hermes has rich built-in capabilities — cron, memory, webhook routing, skill
 dispatch. New Python in `src/orchestration/` is only justified for capabilities
 that genuinely don't exist in the config surface.
 
@@ -161,13 +161,13 @@ pattern_synthesizer.py (cron, nightly)
 generate_fix_strategies() seeds with known-winning strategies for next retry
 ```
 
-**Feedback memories shape OpenClaw's judgment:**
+**Feedback memories shape Hermes's judgment:**
 
 ```
 Developer: "stop marking PRs ready when CodeRabbit has open comments"
-  ↓ OpenClaw stores feedback memory
+  ↓ Hermes stores feedback memory
   ↓ Future PR reviews: memory injected into review_pr() LLM context
-  → OpenClaw applies the correction without being told again
+  → Hermes applies the correction without being told again
 ```
 
 **Project memories prevent repeated mistakes:**
@@ -198,7 +198,7 @@ session.stuck (idle > threshold)
   → KillAndRespawnAction
 
 merge.ready
-  → auto_review_trigger → OpenClaw LLM reviews PR
+  → auto_review_trigger → Hermes LLM reviews PR
     ├── approve   → post GH review + notify developer "ready to merge"
     ├── changes   → post GH review + RetryAction
     └── escalate  → notify developer "needs your eyes"
@@ -229,7 +229,7 @@ The full loop from PR open to merge:
 | Color | Layer / Meaning |
 |-------|----------------|
 | 🟡 **Gold** | Human decision points (Jeffrey) |
-| 🔵 **Cyan** | Intelligence layer — OpenClaw LLM, judgment engine |
+| 🔵 **Cyan** | Intelligence layer — Hermes LLM, judgment engine |
 | 🟠 **Orange** | Memory & persistent storage (mem0, SQLite, outcomes) |
 | 🟣 **Purple** | Orchestration layer — AO session management |
 | 🟢 **Green** | Execution layer — headless agents · success/happy paths |
@@ -253,7 +253,7 @@ flowchart TD
 
     J(["👤 Jeffrey"]):::human
 
-    subgraph oc["OpenClaw — LLM Brain"]
+    subgraph oc["Hermes — LLM Brain"]
         mem[("🗄️ Memory\nproject · feedback · outcomes")]:::memory
         judge["🧠 Judgment Engine\nescalation_router · pr_reviewer\nparallel_retry"]:::brain
         ing["🔌 Webhook Ingress :19888\n/webhook  ·  /ao-notify"]:::brain
@@ -469,7 +469,7 @@ sequenceDiagram
     participant PL as pr_lifecycle
     participant AO as agent-orchestrator
     participant AG as 🤖 Headless Agent
-    participant OC as 🧠 OpenClaw
+    participant OC as 🧠 Hermes
 
     Note over J,GH: 🟡 Human initiates
     J->>GH: Open PR (or push commit)
@@ -588,7 +588,7 @@ A PR is considered merge-ready only when **all five** are true:
 | No conflicts | GitHub API | `mergeable == "MERGEABLE"` |
 | No serious comments | CodeRabbit, Copilot, Cursor Bugbot | No `REQUEST_CHANGES` verdict |
 | Evidence reviewed | CodeRabbit / Codex via `/er` | Evidence review PASS or WARN |
-| OpenClaw approved | `pr_reviewer.py` LLM | `ReviewDecision.approve` |
+| Hermes approved | `pr_reviewer.py` LLM | `ReviewDecision.approve` |
 
 The developer only needs to hit the merge button. The system tells them when.
 
@@ -656,7 +656,7 @@ Each agent:
     ↓
 Post summary to #bug-hunt Slack channel
     ↓
-Ask OpenClaw to fix via agento
+Ask Hermes to fix via agento
 ```
 
 ### Components
@@ -665,7 +665,7 @@ Ask OpenClaw to fix via agento
 |-----------|------|-------------|
 | Bug hunt script | `scripts/bug-hunt-daily.sh` | Main orchestration script |
 | Launchd plist | `launchd/ai.smartclaw.schedule.bug-hunt-9am.plist` | macOS scheduler |
-| OpenClaw cron | `daily-bug-hunt-9am-pacific` | Gateway cron job |
+| Hermes cron | `daily-bug-hunt-9am-pacific` | Gateway cron job |
 | Bug reports | `bug_reports/` | Output directory for bug reports |
 
 ### Repos Scanned

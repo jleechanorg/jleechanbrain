@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Install OpenClaw services from this repo (macOS: LaunchAgents, Linux: systemd user units)
+# Install Hermes services from this repo (macOS: LaunchAgents, Linux: systemd user units)
 # Usage: ./scripts/install-launchagents.sh [--mc-token <token>]
 #
 # Installs:
 #   - ai.smartclaw.qdrant              (qdrant Docker container, port 6333, for mem0)
-#   - ai.smartclaw.gateway             (openclaw gateway, port 18789, via openclaw CLI)
+#   - ai.smartclaw.prod                (hermes gateway, port 8643, via hermes CLI)
 #   - ai.smartclaw.webhook             (webhook daemon, port 19888, GitHub webhook ingress)
 #   - ai.smartclaw.startup-check       (startup verification on login)
-#   - ai.smartclaw.staging            (staging gateway, port 18810, if plist exists in repo)
+#   - ai.smartclaw.staging             (staging gateway, port 8644, if plist exists in repo)
 #   - ai.smartclaw.monitor-agent       (periodic health monitoring, hourly)
 #   - ai.smartclaw.antig-cmux-loop    (steer Antigravity terminal via cmux, every 10 min)
 #   - ai.smartclaw.mission-control     (MC backend, port 9010)
 #   - ai.smartclaw.mission-control-frontend (MC frontend, port 3000)
 #
-# The MC token is read from ~/.smartclaw/openclaw.json if not passed explicitly.
-# Gateway token is hardcoded in ~/.smartclaw/openclaw.json — the gateway reads it
-# directly. Do NOT inject tokens into plists (single source of truth: openclaw.json).
+# The MC token is read from ~/.smartclaw/config.yaml if not passed explicitly.
+# Gateway token is hardcoded in ~/.smartclaw/config.yaml — the gateway reads it
+# directly. Do NOT inject tokens into plists (single source of truth: config.yaml).
 
 set -euo pipefail
 
@@ -29,11 +29,11 @@ echo "Detected OS: $OS"
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # All plists and scripts tracked in the repo live at the repo root
-# (openclaw-config/ was removed in 4e57fa88 — repo IS ~/.smartclaw now).
+# (hermes-config/ was removed in 4e57fa88 — repo IS ~/.smartclaw now).
 CONFIG_DIR="$REPO_DIR"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
-OPENCLAW_HOME="$HOME/.smartclaw"
+HERMES_HOME_DIR="$HOME/.smartclaw"
 ENV_FILE="$REPO_DIR/.env"
 # Linux PATH used in generated systemd units
 LINUX_PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -89,7 +89,7 @@ while [[ $# -gt 0 ]]; do
         echo "Error: --gateway-token requires a non-empty value" >&2
         exit 1
       fi
-      # Gateway token is read directly from openclaw.json — this flag is a no-op
+      # Gateway token is read directly from config.yaml — this flag is a no-op
       shift 2
       ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
@@ -112,7 +112,7 @@ fi
 if ! is_valid_mc_token "$MC_TOKEN"; then
   MC_TOKEN=$(python3 - <<'PY'
 import json, pathlib
-p = pathlib.Path.home()/'.smartclaw'/'openclaw.json'
+p = pathlib.Path.home()/'.smartclaw'/'config.yaml'
 try:
     data = json.loads(p.read_text())
 except Exception:
@@ -149,24 +149,24 @@ _safe_install() {
 }
 
 install_startup_check_script() {
-  install -d "$OPENCLAW_HOME"
-  mkdir -p "$OPENCLAW_HOME/logs" "$OPENCLAW_HOME/logs/scheduled-jobs"
-  # ai.smartclaw.startup-check.plist logs to ~/Library/Logs/openclaw/ — must exist
+  install -d "$HERMES_HOME_DIR"
+  mkdir -p "$HERMES_HOME_DIR/logs" "$HERMES_HOME_DIR/logs/scheduled-jobs"
+  # ai.smartclaw.startup-check.plist logs to ~/Library/Logs/hermes/ — must exist
   # before launchd bootstrap or some macOS versions return EIO for the job.
-  mkdir -p "$HOME/Library/Logs/openclaw"
-  if [[ -f "$CONFIG_DIR/startup-check.sh" ]] && [[ "$(realpath "$CONFIG_DIR/startup-check.sh" 2>/dev/null)" != "$(realpath "$OPENCLAW_HOME/startup-check.sh" 2>/dev/null)" ]]; then
-    install -m 755 "$CONFIG_DIR/startup-check.sh" "$OPENCLAW_HOME/startup-check.sh"
+  mkdir -p "$HOME/Library/Logs/hermes"
+  if [[ -f "$CONFIG_DIR/startup-check.sh" ]] && [[ "$(realpath "$CONFIG_DIR/startup-check.sh" 2>/dev/null)" != "$(realpath "$HERMES_HOME_DIR/startup-check.sh" 2>/dev/null)" ]]; then
+    install -m 755 "$CONFIG_DIR/startup-check.sh" "$HERMES_HOME_DIR/startup-check.sh"
   else
-    _safe_install "$CONFIG_DIR/startup-check.sh" "$OPENCLAW_HOME/startup-check.sh" 755
+    _safe_install "$CONFIG_DIR/startup-check.sh" "$HERMES_HOME_DIR/startup-check.sh" 755
   fi
-  _safe_install "$CONFIG_DIR/run-scheduled-job.sh" "$OPENCLAW_HOME/run-scheduled-job.sh" 755
+  _safe_install "$CONFIG_DIR/run-scheduled-job.sh" "$HERMES_HOME_DIR/run-scheduled-job.sh" 755
   echo "  ✓ startup-check.sh installed"
   echo "  ✓ run-scheduled-job.sh installed"
 }
 
 ensure_staging_config_file() {
-  local staging_cfg="$OPENCLAW_HOME/openclaw.staging.json"
-  local main_cfg="$OPENCLAW_HOME/openclaw.json"
+  local staging_cfg="$HERMES_HOME_DIR/config.staging.yaml"
+  local main_cfg="$HERMES_HOME_DIR/config.yaml"
   python3 - "$staging_cfg" "$main_cfg" <<'PY'
 import json
 import os
@@ -176,8 +176,8 @@ import sys
 
 staging_path = pathlib.Path(sys.argv[1])
 main_path = pathlib.Path(sys.argv[2])
-staging_slack_bot_token = os.environ.get("OPENCLAW_STAGING_SLACK_BOT_TOKEN", "")
-staging_slack_app_token = os.environ.get("OPENCLAW_STAGING_SLACK_APP_TOKEN", "")
+staging_slack_bot_token = os.environ.get("HERMES_STAGING_SLACK_BOT_TOKEN", "")
+staging_slack_app_token = os.environ.get("HERMES_STAGING_SLACK_APP_TOKEN", "")
 
 def load_json(path: pathlib.Path):
     try:
@@ -205,14 +205,14 @@ token = (
 
 staging_overrides = {
     "gateway": {
-        "port": 18810,
+        "port": 8644,
         "mode": "local",
         "auth": {"mode": "token", "token": token},
         "remote": {"token": token},
         "controlUi": {
             "allowedOrigins": [
-                "http://localhost:18810",
-                "http://127.0.0.1:18810",
+                "http://localhost:8644",
+                "http://127.0.0.1:8644",
             ],
         },
     },
@@ -227,7 +227,7 @@ if staging_slack_bot_token:
     staging_overrides.setdefault("channels", {}).setdefault("slack", {})["botToken"] = staging_slack_bot_token
 
 if staging_slack_app_token:
-    staging_overrides.setdefault("env", {})["OPENCLAW_SLACK_APP_TOKEN"] = staging_slack_app_token
+    staging_overrides.setdefault("env", {})["HERMES_SLACK_APP_TOKEN"] = staging_slack_app_token
     staging_overrides.setdefault("channels", {}).setdefault("slack", {})["appToken"] = staging_slack_app_token
 
 staging_cfg = deep_merge(main_cfg if isinstance(main_cfg, dict) else {}, existing if isinstance(existing, dict) else {})
@@ -354,7 +354,7 @@ _start_or_defer() {
 
 # --- Linux: write a systemd user service unit and enable it ---
 install_systemd_service() {
-  local unit_name="$1"   # e.g. "openclaw-gateway"
+  local unit_name="$1"   # e.g. "hermes-gateway"
   local exec_start="$2"
   local svc_type="${3:-simple}"  # simple | oneshot
   local extra_env="${4:-}"
@@ -363,10 +363,10 @@ install_systemd_service() {
   [[ "$svc_type" == "simple" ]] && restart_policy="always"
   local unit_file="$SYSTEMD_USER_DIR/${unit_name}.service"
 
-  mkdir -p "$SYSTEMD_USER_DIR" "$OPENCLAW_HOME/logs"
+  mkdir -p "$SYSTEMD_USER_DIR" "$HERMES_HOME_DIR/logs"
   cat > "$unit_file" <<EOF
 [Unit]
-Description=OpenClaw ${unit_name}
+Description=Hermes ${unit_name}
 After=network.target
 
 [Service]
@@ -374,8 +374,8 @@ Type=${svc_type}
 ExecStart=${exec_start}
 Restart=${restart_policy}
 RestartSec=30
-StandardOutput=append:${OPENCLAW_HOME}/logs/${log_base}.log
-StandardError=append:${OPENCLAW_HOME}/logs/${log_base}.err.log
+StandardOutput=append:${HERMES_HOME_DIR}/logs/${log_base}.log
+StandardError=append:${HERMES_HOME_DIR}/logs/${log_base}.err.log
 Environment=HOME=${HOME}
 Environment=PATH=${LINUX_PATH}
 ${extra_env}
@@ -390,24 +390,24 @@ EOF
 
 # --- Linux: write a systemd user timer+service pair and enable it ---
 install_systemd_timer() {
-  local unit_name="$1"   # e.g. "openclaw-schedule-backup-4h20"
+  local unit_name="$1"   # e.g. "hermes-schedule-backup-4h20"
   local exec_start="$2"
   local on_calendar="$3"  # may be multi-line (each line = one OnCalendar=)
   local extra_env="${4:-}"
-  local log_name="${unit_name#openclaw-schedule-}"
+  local log_name="${unit_name#hermes-schedule-}"
 
-  mkdir -p "$SYSTEMD_USER_DIR" "$OPENCLAW_HOME/logs/scheduled-jobs"
+  mkdir -p "$SYSTEMD_USER_DIR" "$HERMES_HOME_DIR/logs/scheduled-jobs"
 
   # Service unit
   cat > "$SYSTEMD_USER_DIR/${unit_name}.service" <<EOF
 [Unit]
-Description=OpenClaw ${unit_name}
+Description=Hermes ${unit_name}
 
 [Service]
 Type=oneshot
 ExecStart=${exec_start}
-StandardOutput=append:${OPENCLAW_HOME}/logs/scheduled-jobs/${log_name}.out.log
-StandardError=append:${OPENCLAW_HOME}/logs/scheduled-jobs/${log_name}.err.log
+StandardOutput=append:${HERMES_HOME_DIR}/logs/scheduled-jobs/${log_name}.out.log
+StandardError=append:${HERMES_HOME_DIR}/logs/scheduled-jobs/${log_name}.err.log
 Environment=HOME=${HOME}
 Environment=TZ=America/Los_Angeles
 Environment=PATH=${LINUX_PATH}
@@ -416,7 +416,7 @@ EOF
 
   # Timer unit — each line of on_calendar becomes one OnCalendar= entry
   {
-    printf '[Unit]\nDescription=OpenClaw timer: %s\n\n[Timer]\n' "$unit_name"
+    printf '[Unit]\nDescription=Hermes timer: %s\n\n[Timer]\n' "$unit_name"
     while IFS= read -r cal_entry; do
       [[ -n "$cal_entry" ]] && printf 'OnCalendar=%s\n' "$cal_entry"
     done <<< "$on_calendar"
@@ -429,13 +429,13 @@ EOF
   echo "  ✓ ${unit_name}.timer installed"
 }
 
-# Detect whether openclaw binary is in launchd's PATH (launchd doesn't inherit shell env).
+# Detect whether hermes binary is in launchd's PATH (launchd doesn't inherit shell env).
 # Returns the dir + ":" if non-standard, else empty string.
-# NOTE: Duplicated from install-openclaw-scheduled-jobs.sh (same logic, independent scripts).
-# Both may run standalone and must each compute OPENCLAW_EXTRA_PATH independently.
-_detect_openclaw_extra_path() {
+# NOTE: Duplicated from install-hermes-scheduled-jobs.sh (same logic, independent scripts).
+# Both may run standalone and must each compute HERMES_EXTRA_PATH independently.
+_detect_hermes_extra_path() {
   local bin_path bin_dir
-  bin_path="$(command -v openclaw 2>/dev/null || true)"
+  bin_path="$(command -v hermes 2>/dev/null || true)"
   [[ -z "$bin_path" ]] && echo "" && return
   bin_dir="$(dirname "$bin_path")"
   case ":$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:$HOME/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" in
@@ -444,26 +444,26 @@ _detect_openclaw_extra_path() {
   esac
 }
 
-OPENCLAW_EXTRA_PATH="$(_detect_openclaw_extra_path)"
+HERMES_EXTRA_PATH="$(_detect_hermes_extra_path)"
 
-# Resolve openclaw binary path. Uses command -v (which checks PATH) as primary;
-# explicit paths as fallbacks for machines where openclaw lives outside PATH.
-_openclaw_resolve() {
+# Resolve hermes binary path. Uses command -v (which checks PATH) as primary;
+# explicit paths as fallbacks for machines where hermes lives outside PATH.
+_hermes_resolve() {
   local candidate
   # 1. PATH lookup
-  candidate="$(command -v openclaw 2>/dev/null || true)"
+  candidate="$(command -v hermes 2>/dev/null || true)"
   if [[ -n "$candidate" && -x "$candidate" ]]; then
     printf '%s\n' "$candidate"
     return 0
   fi
   # 2. Explicitly check nvm/pnpm/bun/Homebrew locations (startup-check.sh compatible)
   for candidate in \
-    "$HOME/.nvm/versions/node/current/bin/openclaw" \
-    "$HOME/.nvm/versions/node/v22.22.0/bin/openclaw" \
-    "$HOME/Library/pnpm/openclaw" \
-    "$HOME/.bun/bin/openclaw" \
-    "/opt/homebrew/bin/openclaw" \
-    "/usr/local/bin/openclaw"; do
+    "$HOME/.nvm/versions/node/current/bin/hermes" \
+    "$HOME/.nvm/versions/node/v22.22.0/bin/hermes" \
+    "$HOME/Library/pnpm/hermes" \
+    "$HOME/.bun/bin/hermes" \
+    "/opt/homebrew/bin/hermes" \
+    "/usr/local/bin/hermes"; do
     if [[ -x "$candidate" ]]; then
       printf '%s\n' "$candidate"
       return 0
@@ -473,14 +473,14 @@ _openclaw_resolve() {
   return 1
 }
 
-OPENCLAW_BIN="$(_openclaw_resolve || true)"
+HERMES_BIN="$(_hermes_resolve || true)"
 
-# Validate early — OPENCLAW_BIN is substituted into plist templates via sed;
+# Validate early — HERMES_BIN is substituted into plist templates via sed;
 # an empty value produces a broken plist (empty ProgramArguments).
-if [[ -z "$OPENCLAW_BIN" ]] || [[ ! -x "$OPENCLAW_BIN" ]]; then
-  echo "ERROR: openclaw binary not found or not executable." >&2
-  echo "  Resolved: '${OPENCLAW_BIN:-<empty>}'" >&2
-  echo "  Check PATH, or install openclaw before running this script." >&2
+if [[ -z "$HERMES_BIN" ]] || [[ ! -x "$HERMES_BIN" ]]; then
+  echo "ERROR: hermes binary not found or not executable." >&2
+  echo "  Resolved: '${HERMES_BIN:-<empty>}'" >&2
+  echo "  Check PATH, or install hermes before running this script." >&2
   exit 1
 fi
 
@@ -518,9 +518,10 @@ install_plist() {
     -e "s|@NODE_BIN_DIR@|$(_esc_sed "$NODE_BIN_DIR_FOR_LAUNCHD")|g" \
     -e "s|@NODE_PATH@|$(_esc_sed "$NODE_PATH_FOR_LAUNCHD")|g" \
     -e "s|@AO_DASHBOARD_DIR@|$(_esc_sed "$AO_DASHBOARD_DIR")|g" \
-    -e "s|@OPENCLAW_EXTRA_PATH@|$(_esc_sed "$OPENCLAW_EXTRA_PATH")|g" \
-    -e "s|@OPENCLAW_BIN@|$(_esc_sed "$OPENCLAW_BIN")|g" \
+    -e "s|@HERMES_EXTRA_PATH@|$(_esc_sed "$HERMES_EXTRA_PATH")|g" \
+    -e "s|@HERMES_BIN@|$(_esc_sed "$HERMES_BIN")|g" \
     -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
+    -e "s|@HERMES_HOME@|$(_esc_sed "${HERMES_HOME:-$HOME/.smartclaw}")|g" \
     "$src" > "$dst"
 
   # Unregister any existing job with this label first. Re-running install when the
@@ -566,9 +567,9 @@ if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
   else
     echo "  • Docker not running — skipping qdrant container setup (will start on next login)"
   fi
-  mkdir -p "$OPENCLAW_HOME/scripts"
+  mkdir -p "$HERMES_HOME_DIR/scripts"
   _src="$REPO_DIR/scripts/start-qdrant-container.sh"
-  _dst="$OPENCLAW_HOME/scripts/start-qdrant-container.sh"
+  _dst="$HERMES_HOME_DIR/scripts/start-qdrant-container.sh"
   if [[ "$(realpath "$_src" 2>/dev/null)" != "$(realpath "$_dst" 2>/dev/null)" ]]; then
     install -m 755 "$_src" "$_dst"
   else
@@ -582,8 +583,8 @@ if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
     echo "  ✓ ai.smartclaw.qdrant installed (qdrant on port 6333)"
     QDRANT_INSTALLED=1
   else
-    install_systemd_service "openclaw-qdrant" \
-      "/bin/bash $OPENCLAW_HOME/scripts/start-qdrant-container.sh" \
+    install_systemd_service "hermes-qdrant" \
+      "/bin/bash $HERMES_HOME_DIR/scripts/start-qdrant-container.sh" \
       "oneshot" "" "qdrant"
     QDRANT_INSTALLED=1
   fi
@@ -597,7 +598,7 @@ WEBHOOK_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
     if [[ -f "$WEBHOOK_PLIST_TEMPLATE" ]]; then
         dst="$LAUNCHD_DIR/ai.smartclaw.webhook.plist"
-        # Read webhookSecret from webhook.json (gitignored — not in openclaw.json which has strict schema)
+        # Read webhookSecret from webhook.json (gitignored — not in config.yaml which has strict schema)
         WEBHOOK_SECRET="$(python3 -c "import json,os; p=os.path.expanduser('~/.smartclaw/webhook.json'); d=json.load(open(p)) if os.path.exists(p) else {}; print(d.get('webhookSecret',''))" 2>/dev/null || true)"
         if [[ -z "$WEBHOOK_SECRET" ]]; then
           WEBHOOK_SECRET="$(openssl rand -hex 32)"
@@ -627,7 +628,7 @@ open(p, 'w').write(json.dumps(d, indent=2))
 else
     # webhook_daemon.py is retired — use agent-orchestrator's GitHub poller plugin instead.
     # See agent-orchestrator.yaml for configuration.
-    echo "  • skipping openclaw-webhook on Linux (webhook_daemon.py is retired — use AO poller-github-pr plugin)"
+    echo "  • skipping hermes-webhook on Linux (webhook_daemon.py is retired — use AO poller-github-pr plugin)"
     WEBHOOK_INSTALLED=0
 fi
 
@@ -635,8 +636,8 @@ fi
 # ~/.smartclaw/ = staging (repo checkout), ~/.smartclaw_prod/ = production (separate dir)
 PROD_DIR="$HOME/.smartclaw_prod"
 
-normalize_prod_openclaw_config_paths() {
-  local cfg_path="$PROD_DIR/openclaw.json"
+normalize_prod_hermes_config_paths() {
+  local cfg_path="$PROD_DIR/config.yaml"
   local tmp_path=""
 
   [[ -f "$cfg_path" ]] || return 0
@@ -645,38 +646,46 @@ normalize_prod_openclaw_config_paths() {
     return 0
   fi
 
-  tmp_path="$(mktemp "$PROD_DIR/openclaw.json.tmp.XXXXXX")" || {
+  tmp_path="$(mktemp "$PROD_DIR/config.yaml.tmp.XXXXXX")" || {
     echo "  ! warning: failed to create temp file for $cfg_path" >&2
     return 0
   }
 
   if jq --arg prod "$PROD_DIR" '
-    .agents.defaults.workspace |= (
-      if type == "string" then sub("^${HOME}/\\.smartclaw"; $prod) else . end
-    )
-    | .agents.list |= (
-      (. // [])
-      | map(
-          .workspace |= (
-            if type == "string" then
-              sub("^${HOME}/\\.smartclaw"; $prod)
-            elif ((.id // .name // "") == "main") then
-              ($prod + "/workspace")
-            else
-              .
-            end
+    if .agents.defaults.workspace != null then
+      .agents.defaults.workspace |= (
+        if type == "string" then (sub("^${HOME}/\\.smartclaw(/|$)"; $prod + "/") | sub("//+"; "/")) else . end
+      )
+    else
+      .
+    end
+    | if .agents.list != null then
+      .agents.list |= (
+        (. // [])
+        | map(
+            .workspace |= (
+              if type == "string" then
+                (sub("^${HOME}/\\.smartclaw(/|$)"; $prod + "/") | sub("//+"; "/"))
+              elif ((.id // .name // "") == "main") then
+                ($prod + "/workspace")
+              else
+                .
+              end
+            )
+            | .agentDir |= (
+              if type == "string" then
+                (sub("^${HOME}/\\.smartclaw(/|$)"; $prod + "/") | sub("//+"; "/"))
+              elif ((.id // .name // "") != "") then
+                ($prod + "/agents/" + (.id // .name) + "/agent")
+              else
+                .
+              end
+            )
           )
-          | .agentDir |= (
-            if type == "string" then
-              sub("^${HOME}/\\.smartclaw"; $prod)
-            elif ((.id // .name // "") != "") then
-              ($prod + "/agents/" + (.id // .name) + "/agent")
-            else
-              .
-            end
-          )
-        )
-    )
+      )
+    else
+      .
+    end
   ' "$cfg_path" >"$tmp_path"; then
     mv "$tmp_path" "$cfg_path"
     echo "  ✓ Normalized prod config workspace/agentDir paths in $cfg_path"
@@ -690,9 +699,9 @@ if [[ ! -d "$PROD_DIR" ]]; then
   echo "  Creating production directory: $PROD_DIR"
   mkdir -p "$PROD_DIR/logs"
   # Seed prod config from staging if it doesn't exist
-  if [[ -f "$HOME/.smartclaw/openclaw.json" ]] && [[ ! -f "$PROD_DIR/openclaw.json" ]]; then
-    cp "$HOME/.smartclaw/openclaw.json" "$PROD_DIR/openclaw.json"
-    echo "  Seeded $PROD_DIR/openclaw.json from staging"
+  if [[ -f "$HOME/.smartclaw/config.yaml" ]] && [[ ! -f "$PROD_DIR/config.yaml" ]]; then
+    cp "$HOME/.smartclaw/config.yaml" "$PROD_DIR/config.yaml"
+    echo "  Seeded $PROD_DIR/config.yaml from staging"
   fi
   # Symlink shared resources
   for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
@@ -707,51 +716,53 @@ else
   mkdir -p "$PROD_DIR/logs"
 fi
 
-normalize_prod_openclaw_config_paths
+normalize_prod_hermes_config_paths
 
 # --- gateway (production) ---
-# Production gateway reads from ~/.smartclaw_prod/openclaw.json.
-# Do NOT inject tokens into plists; openclaw.json is the single source of truth.
+# Production gateway reads from ~/.smartclaw_prod/config.yaml.
+# Do NOT inject tokens into plists; config.yaml is the single source of truth.
 if [[ "$OS" == "macos" ]]; then
-  # ai.smartclaw.gateway: KeepAlive plist, logs to ~/.smartclaw_prod/logs/gateway.log
-  # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
+  # ai.smartclaw.prod: KeepAlive plist, logs to ~/.smartclaw_prod/logs/gateway.log
+  # HERMES_BIN is already validated earlier (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
-  # Install canonical gateway plist. Clean up legacy com.smartclaw.gateway if present.
-  if install_plist "$REPO_DIR/launchd/ai.smartclaw.gateway.plist.template"; then
-    # Tear down legacy com.smartclaw.gateway if it exists (migration from old label).
+  # Install canonical gateway plist. Clean up legacy ai.smartclaw.gateway if present.
+  if install_plist "$REPO_DIR/launchd/ai.smartclaw.prod.plist"; then
+    # Tear down legacy labels if they exist (migration from old labels).
+    launchctl bootout "gui/$(id -u)/ai.smartclaw.gateway" 2>/dev/null || true
+    rm -f "$LAUNCHD_DIR/ai.smartclaw.gateway.plist"
     launchctl bootout "gui/$(id -u)/com.smartclaw.gateway" 2>/dev/null || true
-    rm -f "$LAUNCHD_DIR/com.ai.smartclaw.gateway.plist.template"
+    rm -f "$LAUNCHD_DIR/com.smartclaw.gateway.plist"
   else
     echo "ERROR: gateway plist failed to load." >&2
   fi
 else
   # Linux: write systemd service for gateway
-  GATEWAY_ENV="Environment=OPENCLAW_GATEWAY_PORT=18789
-Environment=OPENCLAW_SERVICE_KIND=gateway
-Environment=OPENCLAW_SERVICE_MARKER=openclaw
-Environment=OPENCLAW_SYSTEMD_UNIT=openclaw-gateway.service
-Environment=OPENCLAW_RAW_STREAM=${OPENCLAW_RAW_STREAM:-0}
-Environment=OPENCLAW_RAW_STREAM_PATH=/tmp/openclaw/raw-stream.jsonl
+  GATEWAY_ENV="Environment=HERMES_GATEWAY_PORT=8643
+Environment=HERMES_SERVICE_KIND=gateway
+Environment=HERMES_SERVICE_MARKER=hermes
+Environment=HERMES_SYSTEMD_UNIT=hermes-gateway.service
+Environment=HERMES_RAW_STREAM=${HERMES_RAW_STREAM:-0}
+Environment=HERMES_RAW_STREAM_PATH=/tmp/hermes/raw-stream.jsonl
 Environment=GOOGLE_CLOUD_PROJECT=infinite-zephyr-487405-d0
 Environment=MISSION_CONTROL_BASE_URL=http://localhost:9010
 Environment=MISSION_CONTROL_BOARD_ID=aa68f729-d5e0-4d44-8c99-51bcebc0b8bc"
-  install_systemd_service "openclaw-gateway" \
-    "$(command -v openclaw) gateway run --port 18789 --bind loopback" \
+  install_systemd_service "hermes-gateway" \
+    "$(command -v hermes) gateway run --port 8643 --bind loopback" \
     "simple" "$GATEWAY_ENV" "gateway"
 fi
 
 # --- staging gateway ---
-# ~/.smartclaw/ IS the staging environment. Staging gateway runs on port 18810
-# using openclaw.staging.json from ~/.smartclaw/ (separate from prod).
+# ~/.smartclaw/ IS the staging environment. Staging gateway runs on port 8644
+# using config.staging.yaml from ~/.smartclaw/ (separate from prod).
 if [[ "$OS" == "macos" ]]; then
   ensure_staging_config_file
   # Remove the auto-generated plist from staging-gateway.sh (now managed by installer)
-  if [[ -f "$HOME/.smartclaw/ai.smartclaw.staging.plist.template" ]]; then
+  if [[ -f "$HOME/.smartclaw/ai.smartclaw.staging.plist" ]]; then
     launchctl bootout "gui/$(id -u)/ai.smartclaw.staging" 2>/dev/null || true
-    rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist.template"
+    rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist"
   fi
-  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist.template" ]]; then
-    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist.template"
+  if [[ -f "$REPO_DIR/launchd/ai.smartclaw.staging.plist" ]]; then
+    install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist"
   else
     echo "  • skipping ai.smartclaw.staging (plist not in repo — opt-in)"
   fi
@@ -762,17 +773,17 @@ fi
 # --- startup check ---
 install_startup_check_script
 if [[ "$OS" == "macos" ]]; then
-  : # install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist" (missing in repo)
+  install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist"
 else
-  install_systemd_service "openclaw-startup-check" \
-    "/bin/bash $OPENCLAW_HOME/startup-check.sh" \
+  install_systemd_service "hermes-startup-check" \
+    "/bin/bash $HERMES_HOME_DIR/startup-check.sh" \
     "oneshot" "" "startup-check"
 fi
 
 # --- monitor-agent (periodic health monitoring) ---
 MONITOR_AGENT_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
-  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist.template"
+  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist"
   if [[ -f "$MONITOR_AGENT_PLIST" ]]; then
     install_plist "$MONITOR_AGENT_PLIST"
     MONITOR_AGENT_INSTALLED=1
@@ -781,8 +792,8 @@ if [[ "$OS" == "macos" ]]; then
   fi
 else
   # Linux: install systemd timer for hourly health monitoring
-  install_systemd_timer "openclaw-monitor-agent" \
-    "/bin/bash $OPENCLAW_HOME/monitor-agent.sh" \
+  install_systemd_timer "hermes-monitor-agent" \
+    "/bin/bash $HERMES_HOME_DIR/monitor-agent.sh" \
     "hourly"
   MONITOR_AGENT_INSTALLED=1
 fi
@@ -791,13 +802,13 @@ fi
 if [[ "$OS" == "macos" ]]; then
   ANTIG_CMUX_SCRIPT="$REPO_DIR/scripts/antig-cmux-loop.sh"
   if [[ -f "$ANTIG_CMUX_SCRIPT" ]]; then
-    mkdir -p "$OPENCLAW_HOME/scripts"
-    _antig_dst="$OPENCLAW_HOME/scripts/antig-cmux-loop.sh"
+    mkdir -p "$HERMES_HOME_DIR/scripts"
+    _antig_dst="$HERMES_HOME_DIR/scripts/antig-cmux-loop.sh"
     if [[ "$(realpath "$ANTIG_CMUX_SCRIPT" 2>/dev/null)" != "$(realpath "$_antig_dst" 2>/dev/null)" ]]; then
       cp "$ANTIG_CMUX_SCRIPT" "$_antig_dst"
     fi
     chmod +x "$_antig_dst"
-    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist.template"
+    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.smartclaw.antig-cmux-loop.plist"
     if [[ -f "$ANTIG_CMUX_PLIST" ]]; then
       install_plist "$ANTIG_CMUX_PLIST"
       echo "  ✓ ai.smartclaw.antig-cmux-loop installed"
@@ -813,7 +824,7 @@ fi
 
 # --- ao7green-smartclaw (drive smartclaw PRs to 7-green every 30 min) ---
 if [[ "$OS" == "macos" ]]; then
-  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-smartclaw.plist.template"
+  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-smartclaw.plist"
   AO7GREEN_LAUNCHD_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.launchd.sh"
   AO7GREEN_MONITOR_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.sh"
   AO7GREEN_REPLACED_CRON_ID="64f2399d-33f4-4451-be87-05350d2b2590"
@@ -821,9 +832,9 @@ if [[ "$OS" == "macos" ]]; then
     if [[ ! -f "$AO7GREEN_LAUNCHD_SCRIPT" || ! -f "$AO7GREEN_MONITOR_SCRIPT" ]]; then
       echo "  • skipping ao7green-smartclaw (monitor scripts missing under $REPO_DIR/scripts)" >&2
     else
-      mkdir -p "$OPENCLAW_HOME/scripts"
-      _ao7green_launchd_dst="$OPENCLAW_HOME/scripts/ao7green-pr-monitor.launchd.sh"
-      _ao7green_monitor_dst="$OPENCLAW_HOME/scripts/ao7green-pr-monitor.sh"
+      mkdir -p "$HERMES_HOME_DIR/scripts"
+      _ao7green_launchd_dst="$HERMES_HOME_DIR/scripts/ao7green-pr-monitor.launchd.sh"
+      _ao7green_monitor_dst="$HERMES_HOME_DIR/scripts/ao7green-pr-monitor.sh"
       if [[ "$(realpath "$AO7GREEN_LAUNCHD_SCRIPT" 2>/dev/null)" != "$(realpath "$_ao7green_launchd_dst" 2>/dev/null)" ]]; then
         cp "$AO7GREEN_LAUNCHD_SCRIPT" "$_ao7green_launchd_dst"
       fi
@@ -835,8 +846,8 @@ if [[ "$OS" == "macos" ]]; then
       echo "  ✓ ai.smartclaw.schedule.ao7green-smartclaw installed"
       # Disable the replaced gateway cron job directly in jobs.json by ID.
       # ao7green-smartclaw is handled here and is not migrated via
-      # install-openclaw-scheduled-jobs.sh MIGRATED_JOBS.
-      _live_cron_jobs="$OPENCLAW_HOME/cron/jobs.json"
+      # install-hermes-scheduled-jobs.sh MIGRATED_JOBS.
+      _live_cron_jobs="$HERMES_HOME_DIR/cron/jobs.json"
       if [[ -f "$_live_cron_jobs" ]]; then
         if command -v jq >/dev/null 2>&1; then
           # Use flock for atomic read-modify-write if available, else proceed unlocked (best effort)
@@ -858,7 +869,7 @@ if [[ "$OS" == "macos" ]]; then
           ' "$_live_cron_jobs" >"$_tmp_jobs"; then
             mv "$_tmp_jobs" "$_live_cron_jobs"
             echo "  - disabled gateway cron $AO7GREEN_REPLACED_CRON_ID (ao7green-smartclaw now launchd)"
-            _gw_pid="$(pgrep -f 'openclaw.*gateway' | head -n1 || true)"
+            _gw_pid="$(pgrep -f 'hermes.*gateway' | head -n1 || true)"
             if [[ -n "$_gw_pid" ]]; then
               kill -HUP "$_gw_pid" 2>/dev/null || true
             fi
@@ -887,14 +898,14 @@ if [[ "$OS" == "macos" ]]; then
   AGENTO_DASHBOARD_PLIST="$REPO_DIR/launchd/ai.agento.dashboard.plist.template"
   # Persist opt-in to a state file so preference survives across installer runs
   # without the env var being set in the current shell.
-  AGENTO_DASHBOARD_STATE_FILE="${OPENCLAW_STATE_DIR:-${HOME}/.smartclaw}/.ao_dashboard_opt_in"
+  AGENTO_DASHBOARD_STATE_FILE="${HERMES_HOME:-${HOME}/.smartclaw}/.ao_dashboard_opt_in"
   # Explicit env var takes precedence. Unset means "preserve persisted state".
-  if [[ "${OPENCLAW_INSTALL_AO_DASHBOARD:-}" == "1" ]]; then
+  if [[ "${HERMES_INSTALL_AO_DASHBOARD:-}" == "1" ]]; then
     # Explicit opt-in this run: record it persistently and enable.
     mkdir -p "$(dirname "$AGENTO_DASHBOARD_STATE_FILE")"
     echo "1" > "$AGENTO_DASHBOARD_STATE_FILE"
     AGENTO_DASHBOARD_ENABLED=1
-  elif [[ "${OPENCLAW_INSTALL_AO_DASHBOARD:-}" == "0" ]]; then
+  elif [[ "${HERMES_INSTALL_AO_DASHBOARD:-}" == "0" ]]; then
     # Explicit opt-out this run: remove persisted state and ensure disabled.
     rm -f "$AGENTO_DASHBOARD_STATE_FILE"
     AGENTO_DASHBOARD_ENABLED=0
@@ -916,7 +927,7 @@ if [[ "$OS" == "macos" ]]; then
   else
     launchctl bootout "gui/$(id -u)/ai.agento.dashboard" 2>/dev/null || true
     launchctl disable "gui/$(id -u)/ai.agento.dashboard" 2>/dev/null || true
-    echo "  • skipping ai.agento.dashboard (set OPENCLAW_INSTALL_AO_DASHBOARD=1 to enable)"
+    echo "  • skipping ai.agento.dashboard (set HERMES_INSTALL_AO_DASHBOARD=1 to enable)"
   fi
 else
   echo "  • skipping ai.agento.dashboard (Linux not yet implemented)"
@@ -939,47 +950,47 @@ fi
 
 # --- scheduled jobs ---
 SCHEDULED_JOBS_INSTALLED=0
-# Skip if called from the central installer (install-openclaw-launchd.sh), which
-# runs install-openclaw-scheduled-jobs.sh directly in Step 2 to avoid double-install.
+# Skip if called from the central installer (install-hermes-launchd.sh), which
+# runs install-hermes-scheduled-jobs.sh directly in Step 2 to avoid double-install.
 if [[ "${CALLED_AS_PART_OF_CENTRAL:-0}" == "1" ]]; then
   echo "  • skipping nested scheduled-jobs install (central installer handles this in Step 2)"
 elif [[ "$OS" == "macos" ]]; then
-  SCHEDULE_INSTALLER="$REPO_DIR/scripts/install-openclaw-scheduled-jobs.sh"
+  SCHEDULE_INSTALLER="$REPO_DIR/scripts/install-hermes-scheduled-jobs.sh"
   if [[ -x "$SCHEDULE_INSTALLER" ]]; then
     LOCAL_TZ="$(detect_local_timezone)"
-    if [[ "$LOCAL_TZ" != "America/Los_Angeles" && "${OPENCLAW_ALLOW_NON_PT_SCHEDULE:-0}" != "1" ]]; then
+    if [[ "$LOCAL_TZ" != "America/Los_Angeles" && "${HERMES_ALLOW_NON_PT_SCHEDULE:-0}" != "1" ]]; then
       echo "  • skipping scheduled job migration: local timezone '$LOCAL_TZ' differs from America/Los_Angeles"
-      echo "    set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 to override"
+      echo "    set HERMES_ALLOW_NON_PT_SCHEDULE=1 to override"
     else
       "$SCHEDULE_INSTALLER"
       SCHEDULED_JOBS_INSTALLED=1
     fi
   else
-    echo "  • skipping scheduled job migration (installer not found: $SCHEDULE_INSTALLER)"
+    echo "  • skipping scheduled job migration (installer not found — expected install-hermes-scheduled-jobs.sh)"
   fi
 else
   # Linux: install systemd timers for all scheduled jobs
-  # Each timer directly executes the corresponding script in $OPENCLAW_HOME/scripts,
+  # Each timer directly executes the corresponding script in $HERMES_HOME_DIR/scripts,
   # mirroring the macOS launchd scheduled jobs.
   # ── morning operational jobs ──────────────────────────────────────────────────
-  install_systemd_timer "openclaw-schedule-morning-log-review" \
-    "/bin/bash $OPENCLAW_HOME/scripts/morning-log-review.sh" \
+  install_systemd_timer "hermes-schedule-morning-log-review" \
+    "/bin/bash $HERMES_HOME_DIR/scripts/morning-log-review.sh" \
     "Mon..Fri * 08:00:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-docs-drift-review" \
-    "/bin/bash $OPENCLAW_HOME/scripts/docs-drift-review.sh" \
+  install_systemd_timer "hermes-schedule-docs-drift-review" \
+    "/bin/bash $HERMES_HOME_DIR/scripts/docs-drift-review.sh" \
     "Mon..Fri * 08:15:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-cron-backup-sync" \
-    "/bin/bash $OPENCLAW_HOME/scripts/cron-backup-sync.sh" \
+  install_systemd_timer "hermes-schedule-cron-backup-sync" \
+    "/bin/bash $HERMES_HOME_DIR/scripts/cron-backup-sync.sh" \
     "Mon..Fri * 08:25:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-weekly-error-trends" \
-    "/bin/bash $OPENCLAW_HOME/scripts/weekly-error-trends.sh" \
+  install_systemd_timer "hermes-schedule-weekly-error-trends" \
+    "/bin/bash $HERMES_HOME_DIR/scripts/weekly-error-trends.sh" \
     "Mon * 09:00:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-daily-research" \
-    "/bin/bash $OPENCLAW_HOME/scripts/daily-openclaw-research.sh" \
+  install_systemd_timer "hermes-schedule-daily-research" \
+    "/bin/bash $HERMES_HOME_DIR/scripts/daily-hermes-research.sh" \
     "Mon..Fri * 18:00:00 America/Los_Angeles"
 fi
 
@@ -990,12 +1001,12 @@ if [[ "$OS" == "macos" ]]; then
   if [[ -f "$MC_BACKEND_PLIST" ]]; then
     install_plist "$MC_BACKEND_PLIST"
   else
-    echo "  • skipping ai.smartclaw.mission-control (plist not found in openclaw-config/)"
+    echo "  • skipping ai.smartclaw.mission-control (plist not found in hermes config dir)"
   fi
   if [[ -f "$MC_FRONTEND_PLIST" ]]; then
     install_plist "$MC_FRONTEND_PLIST"
   else
-    echo "  • skipping ai.smartclaw.mission-control-frontend (plist not found in openclaw-config/)"
+    echo "  • skipping ai.smartclaw.mission-control-frontend (plist not found in hermes config dir)"
   fi
 else
   echo "  • skipping Mission Control services (Linux: not yet implemented)"
@@ -1003,7 +1014,7 @@ fi
 echo ""
 echo "Verifying..."
 sleep 3
-PORTS=(18789 6333)
+PORTS=(8643 6333)
 [[ "$WEBHOOK_INSTALLED" -eq 1 ]] && PORTS+=(19888)
 if [[ "$OS" == "macos" ]]; then
   [[ -f "$MC_BACKEND_PLIST" ]] && PORTS+=(9010)
@@ -1020,7 +1031,7 @@ done
 echo ""
 if [[ "$OS" == "macos" ]]; then
   echo "Verifying launchd labels..."
-  EXPECTED_LABELS=("ai.smartclaw.gateway" "ai.smartclaw.startup-check")
+  EXPECTED_LABELS=("ai.smartclaw.prod" "ai.smartclaw.startup-check")
   [[ "$QDRANT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.smartclaw.qdrant")
   [[ "$WEBHOOK_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.smartclaw.webhook")
   [[ "$MONITOR_AGENT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.smartclaw.monitor-agent")
@@ -1067,14 +1078,14 @@ if [[ "$OS" == "macos" ]]; then
 else
   echo "Verifying systemd user units..."
   EXPECTED_UNITS=(
-    "openclaw-gateway.service"
-    "openclaw-webhook.service"
-    "openclaw-startup-check.service"
-    "openclaw-schedule-morning-log-review.timer"
-    "openclaw-schedule-docs-drift-review.timer"
-    "openclaw-schedule-cron-backup-sync.timer"
-    "openclaw-schedule-weekly-error-trends.timer"
-    "openclaw-schedule-daily-research.timer"
+    "hermes-gateway.service"
+    "hermes-webhook.service"
+    "hermes-startup-check.service"
+    "hermes-schedule-morning-log-review.timer"
+    "hermes-schedule-docs-drift-review.timer"
+    "hermes-schedule-cron-backup-sync.timer"
+    "hermes-schedule-weekly-error-trends.timer"
+    "hermes-schedule-daily-research.timer"
   )
   missing=0
   for unit in "${EXPECTED_UNITS[@]}"; do
@@ -1097,7 +1108,7 @@ fi
 echo ""
 echo "Log locations:"
 echo "  qdrant:        ~/.smartclaw/logs/qdrant.log"
-echo "  gateway:       ~/.smartclaw/logs/gateway.log"
+echo "  gateway:       ~/.smartclaw_prod/logs/gateway.log"
 echo "  startup check: ~/.smartclaw/logs/startup-check.log"
 if [[ "$OS" == "macos" ]]; then
   echo "  MC backend:    /tmp/mc-backend.log"
@@ -1106,7 +1117,7 @@ fi
 echo ""
 if [[ "$OS" == "linux" ]]; then
   echo "Useful Linux commands:"
-  echo "  systemctl --user status openclaw-gateway"
-  echo "  systemctl --user list-timers 'openclaw-schedule-*'"
-  echo "  journalctl --user -u openclaw-gateway -f"
+  echo "  systemctl --user status hermes-gateway"
+  echo "  systemctl --user list-timers 'hermes-schedule-*'"
+  echo "  journalctl --user -u hermes-gateway -f"
 fi

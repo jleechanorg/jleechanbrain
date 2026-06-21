@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenClaw Orchestration System — Design Document</title>
+  <title>Hermes Orchestration System — Design Document</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -310,7 +310,7 @@
 
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="sidebar-title">OpenClaw Orchestration</div>
+    <div class="sidebar-title">Hermes Orchestration</div>
     <nav>
       <a href="#background">Background</a>
       <a href="#goals">Goals &amp; Tenets</a>
@@ -338,7 +338,7 @@
 
   <!-- Main -->
   <main class="main">
-    <h1>OpenClaw Orchestration System</h1>
+    <h1>Hermes Orchestration System</h1>
     <div class="subtitle">Design Document &nbsp;·&nbsp; Last updated: 2026-03-15 &nbsp;·&nbsp; Status: Living document</div>
 
     <!-- ===== NORTH STAR ===== -->
@@ -371,12 +371,12 @@
       surfaces work to the human when genuine judgment is required.</p>
       <p>The system is built on top of three real tools:</p>
       <ul>
-        <li><strong>OpenClaw</strong> — LLM-powered agent runtime with persistent memory, webhooks, and skill dispatch</li>
+        <li><strong>Hermes</strong> — LLM-powered agent runtime with persistent memory, webhooks, and skill dispatch</li>
         <li><strong>agent-orchestrator (AO)</strong> — session lifecycle manager: spawns/kills headless agent sessions in tmux worktrees, monitors CI/review state, auto-remediates deterministically</li>
         <li><strong>Headless agents</strong> — <code>claude-code</code>, <code>codex</code>, or <code>gemini</code> sessions running inside AO worktrees, each with fresh context and a specific task</li>
       </ul>
       <div class="callout">
-        OpenClaw sits <em>above</em> the AO loop. It has persistent memory across sessions and makes the same decisions the developer would make — routing CI failures to retries, interpreting vague review comments, deciding when a PR needs human eyes. AO does the grunt work; OpenClaw provides the judgment.
+        Hermes sits <em>above</em> the AO loop. It has persistent memory across sessions and makes the same decisions the developer would make — routing CI failures to retries, interpreting vague review comments, deciding when a PR needs human eyes. AO does the grunt work; Hermes provides the judgment.
       </div>
     </section>
 
@@ -403,7 +403,7 @@
         </div>
         <div class="tenet-card">
           <h4>5. Config-First, Code Last</h4>
-          <p>Before writing Python, check if OpenClaw config handles it — cron, memory, webhooks, skills. New code in <code>src/orchestration/</code> is only justified for genuinely missing capabilities.</p>
+          <p>Before writing Python, check if Hermes config handles it — cron, memory, webhooks, skills. New code in <code>src/orchestration/</code> is only justified for genuinely missing capabilities.</p>
         </div>
       </div>
 
@@ -415,12 +415,12 @@
         <tbody>
           <tr><td>CI failed ≤ retry cap</td><td>AO deterministic rule</td></tr>
           <tr><td>Review comment received</td><td>AO deterministic rule</td></tr>
-          <tr><td>CI failed, budget ≥ 2, parseable error</td><td>OpenClaw spawns parallel fix strategies</td></tr>
-          <tr><td>Agent session idle &gt; threshold</td><td>OpenClaw kills and respawns</td></tr>
-          <tr><td>Retry budget exhausted</td><td>OpenClaw escalates to developer</td></tr>
-          <tr><td>PR approved + CI green</td><td>OpenClaw LLM reviews PR</td></tr>
-          <tr><td>Vague review comment</td><td>OpenClaw LLM interprets + dispatches fix</td></tr>
-          <tr><td>Risky change in sensitive path</td><td>OpenClaw LLM escalates with warning</td></tr>
+          <tr><td>CI failed, budget ≥ 2, parseable error</td><td>Hermes spawns parallel fix strategies</td></tr>
+          <tr><td>Agent session idle &gt; threshold</td><td>Hermes kills and respawns</td></tr>
+          <tr><td>Retry budget exhausted</td><td>Hermes escalates to developer</td></tr>
+          <tr><td>PR approved + CI green</td><td>Hermes LLM reviews PR</td></tr>
+          <tr><td>Vague review comment</td><td>Hermes LLM interprets + dispatches fix</td></tr>
+          <tr><td>Risky change in sensitive path</td><td>Hermes LLM escalates with warning</td></tr>
         </tbody>
       </table>
 
@@ -480,11 +480,11 @@ pattern_synthesizer.py (cron, nightly)
   ↓
 generate_fix_strategies() seeds with known-winning strategies for next retry</pre>
 
-      <p><strong>Feedback memories shape OpenClaw's judgment:</strong></p>
+      <p><strong>Feedback memories shape Hermes's judgment:</strong></p>
       <pre>Developer: "stop marking PRs ready when CodeRabbit has open comments"
-  ↓ OpenClaw stores feedback memory
+  ↓ Hermes stores feedback memory
   ↓ Future PR reviews: memory injected into review_pr() LLM context
-  → OpenClaw applies the correction without being told again</pre>
+  → Hermes applies the correction without being told again</pre>
 
       <p><strong>Project memories prevent repeated mistakes:</strong></p>
       <pre>"In this repo, tests must be committed separately from implementation"
@@ -506,7 +506,7 @@ session.stuck (idle > threshold)
   → KillAndRespawnAction
 
 merge.ready
-  → auto_review_trigger → OpenClaw LLM reviews PR
+  → auto_review_trigger → Hermes LLM reviews PR
     ├── approve   → post GH review + notify developer "ready to merge"
     ├── changes   → post GH review + RetryAction
     └── escalate  → notify developer "needs your eyes"</pre>
@@ -533,7 +533,7 @@ merge.ready
         <thead><tr><th>Color</th><th>Layer / Meaning</th></tr></thead>
         <tbody>
           <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffd700;vertical-align:middle;margin-right:6px"></span><strong>Gold</strong></td><td>Human decision points (Jeffrey)</td></tr>
-          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00d4ff;vertical-align:middle;margin-right:6px"></span><strong>Cyan</strong></td><td>Intelligence layer — OpenClaw LLM, judgment engine</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00d4ff;vertical-align:middle;margin-right:6px"></span><strong>Cyan</strong></td><td>Intelligence layer — Hermes LLM, judgment engine</td></tr>
           <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff9100;vertical-align:middle;margin-right:6px"></span><strong>Orange</strong></td><td>Memory &amp; persistent storage (mem0, SQLite, outcomes)</td></tr>
           <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#c084fc;vertical-align:middle;margin-right:6px"></span><strong>Purple</strong></td><td>Orchestration layer — AO session management</td></tr>
           <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#4ade80;vertical-align:middle;margin-right:6px"></span><strong>Green</strong></td><td>Execution layer — headless agents · success/happy paths</td></tr>
@@ -560,7 +560,7 @@ flowchart TD
 
     J(["👤 Jeffrey"]):::human
 
-    subgraph oc["OpenClaw — LLM Brain"]
+    subgraph oc["Hermes — LLM Brain"]
         mem[("🗄️ Memory\nproject · feedback · outcomes")]:::memory
         judge["🧠 Judgment Engine\nescalation_router · pr_reviewer\nparallel_retry"]:::brain
         ing["🔌 Webhook Ingress :19888\n/webhook  ·  /ao-notify"]:::brain
@@ -775,7 +775,7 @@ flowchart TD
           <tr><td><code>outcome_recorder.py</code></td><td>Records winning/losing strategies per error fingerprint</td></tr>
           <tr><td><code>pattern_synthesizer.py</code></td><td>Cron: synthesizes outcome patterns into strategy library</td></tr>
           <tr><td><code>parallel_retry.py</code></td><td>Spawns 2–3 parallel fix sessions, picks winner</td></tr>
-          <tr><td><code>openclaw_notifier.py</code></td><td>Slack DM + email escalation to developer</td></tr>
+          <tr><td><code>hermes_notifier.py</code></td><td>Slack DM + email escalation to developer</td></tr>
           <tr><td><code>gh_integration.py</code></td><td>GitHub API helpers: PR data, CI status, merge state</td></tr>
           <tr><td><code>session_registry.py</code></td><td>Maps beads → AO sessions for lifecycle tracking</td></tr>
         </tbody>
@@ -795,7 +795,7 @@ sequenceDiagram
     participant PL as pr_lifecycle
     participant AO as agent-orchestrator
     participant AG as 🤖 Headless Agent
-    participant OC as 🧠 OpenClaw
+    participant OC as 🧠 Hermes
 
     Note over J,GH: 🟡 Human initiates
     J->>GH: Open PR (or push commit)
@@ -981,7 +981,7 @@ flowchart TD
             <td>No <code>REQUEST_CHANGES</code> verdict</td>
           </tr>
           <tr>
-            <td><span class="badge badge-blue">LLM</span> OpenClaw approved</td>
+            <td><span class="badge badge-blue">LLM</span> Hermes approved</td>
             <td><code>pr_reviewer.py</code> LLM</td>
             <td><code>ReviewDecision.approve</code></td>
           </tr>

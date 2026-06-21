@@ -1,6 +1,6 @@
 # Handoff Artifact Schema
 
-When an executor session ends (either by completing its todo or by hitting a context limit), it MUST write a `handoff.md` file to `.hermes/plans/handoff.md`. This file is the ONLY mechanism for preserving state across context resets.
+When an executor session ends (either by completing its todo or by hitting a context limit), it MUST write a `handoff.md` file to `.smartclaw/plans/handoff.md`. This file is the ONLY mechanism for preserving state across context resets.
 
 ## Schema
 

@@ -5,9 +5,8 @@
 set -u
 
 HERMES_BIN="${HERMES_BIN:-hermes}"
-HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.hermes}"
-HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.hermes_prod}"
-OPENCLAW_PROD_HEALTH_URL="${OPENCLAW_PROD_HEALTH_URL:-http://127.0.0.1:18789/health}"
+HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.smartclaw}"
+HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.smartclaw_prod}"
 
 PASS=0
 FAIL=0
@@ -21,44 +20,40 @@ info() { printf '[INFO] %s\n' "$1"; }
 echo "=== Hermes Monitor ==="
 echo ""
 
-# ── Hermes staging ────────────────────────────────────────────
+# ── Hermes staging (should NOT be running between deploys) ────
+# Staging gateway is disabled between deploy cycles to reduce resource contention.
+# If it's running here, that's unexpected — warn so it can be shut down.
 info "Hermes staging (HERMES_HOME=$HERMES_STAGING_HOME)"
 
 STAGING_GW=$(HERMES_HOME="$HERMES_STAGING_HOME" "$HERMES_BIN" gateway status 2>&1)
-if echo "$STAGING_GW" | grep -q "Gateway is running"; then
-    pass "Hermes staging gateway running"
+if echo "$STAGING_GW" | grep -qE '"PID" = [0-9]+'; then
+    warn "Hermes staging gateway RUNNING (should be disabled outside deploy) — run: bash ~/.smartclaw/scripts/hermes-staging-stop.sh"
 else
-    fail "Hermes staging gateway NOT running"
+    pass "Hermes staging gateway idle (expected)"
 fi
 
-STAGING_STAT=$(HERMES_HOME="$HERMES_STAGING_HOME" "$HERMES_BIN" status 2>&1)
-if echo "$STAGING_STAT" | grep "Slack" | grep -q "✓"; then
-    pass "Hermes staging Slack: configured"
-elif echo "$STAGING_STAT" | grep "Slack" | grep -q "✗"; then
-    fail "Hermes staging Slack: error"
-else
-    warn "Hermes staging Slack: unknown"
-fi
-
-if echo "$STAGING_GW" | grep -q "token already in use"; then
-    # Discord/Telegram conflicts are expected when two instances share auth.json
-    # Only Slack matters — both have separate tokens; downgrade to warn
-    CONFLICT=$(echo "$STAGING_GW" | grep 'token already in use' | head -1 | sed 's/^[ ]*⚠ //' | sed 's/ Stop.*//')
-    warn "Hermes staging platform conflict (non-Slack): $CONFLICT"
-else
-    pass "Hermes staging no token conflicts"
+# Only check Slack/conflicts if staging is actually running
+if echo "$STAGING_GW" | grep -qE '"PID" = [0-9]+'; then
+    if echo "$STAGING_GW" | grep -q "token already in use"; then
+        CONFLICT=$(echo "$STAGING_GW" | grep 'token already in use' | head -1 | sed 's/^[ ]*⚠ //' | sed 's/ Stop.*//')
+        warn "Hermes staging platform conflict (non-Slack): $CONFLICT"
+    fi
 fi
 
 echo ""
 
 # ── Hermes prod ───────────────────────────────────────────────
-info "Hermes prod (HERMES_HOME=$HERMES_PROD_HOME)"
+# hermes gateway status always looks for ai.smartclaw.gateway.plist regardless of
+# HERMES_HOME, so it misreports prod which runs under the ai.smartclaw.prod label.
+# Use HTTP health + launchd directly instead.
+HERMES_PROD_PORT="${HERMES_PROD_PORT:-8643}"
+info "Hermes prod (HERMES_HOME=$HERMES_PROD_HOME, port $HERMES_PROD_PORT)"
 
-PROD_GW=$(HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" gateway status 2>&1)
-if echo "$PROD_GW" | grep -q "Gateway is running"; then
-    pass "Hermes prod gateway running"
+PROD_HTTP=$(curl -sf -m 5 "http://127.0.0.1:${HERMES_PROD_PORT}/health" 2>/dev/null)
+if echo "$PROD_HTTP" | grep -q '"ok"\|"status"'; then
+    pass "Hermes prod gateway running (HTTP health OK)"
 else
-    fail "Hermes prod gateway NOT running"
+    fail "Hermes prod gateway NOT responding on :${HERMES_PROD_PORT}"
 fi
 
 PROD_STAT=$(HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" status 2>&1)
@@ -70,28 +65,12 @@ else
     warn "Hermes prod Slack: unknown"
 fi
 
+# Token conflict check: use hermes status (which connects to the running gateway)
+PROD_GW=$(HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" gateway status 2>&1)
 if echo "$PROD_GW" | grep -q "token already in use"; then
     fail "Hermes prod platform conflict: $(echo "$PROD_GW" | grep 'token already in use' | head -1)"
 else
     pass "Hermes prod no token conflicts"
-fi
-
-echo ""
-
-# ── OpenClaw prod (AO path) ──────────────────────────────────
-info "OpenClaw prod health (AO path)"
-OC_STATUS=$(curl -fsS -m 10 "$OPENCLAW_PROD_HEALTH_URL" 2>&1)
-if echo "$OC_STATUS" | grep -q '"ok":true'; then
-    pass "OpenClaw prod HTTP health OK"
-else
-    fail "OpenClaw prod HTTP health FAIL: $OC_STATUS"
-fi
-
-OPENCLAW_GW_HEALTH=$(OPENCLAW_STATE_DIR=~/.smartclaw_prod openclaw gateway health --timeout 30000 2>&1 | grep -v ExperimentalWarning | tail -5)
-if echo "$OPENCLAW_GW_HEALTH" | grep -q "Slack: ok"; then
-    pass "OpenClaw prod Slack (staging tokens): ok"
-else
-    warn "OpenClaw prod Slack: $(echo "$OPENCLAW_GW_HEALTH" | grep Slack)"
 fi
 
 echo ""

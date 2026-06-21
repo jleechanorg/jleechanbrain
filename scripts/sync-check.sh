@@ -1,10 +1,10 @@
 #!/bin/bash
-# sync-check.sh - Check and sync OpenClaw config between smartclaw, openclaw_config, and ~/.smartclaw
+# sync-check.sh - Check and sync Hermes config between smartclaw, hermes_config, and ~/.smartclaw
 #
 # Usage: ./sync-check.sh [--fix]
-#   --fix: Apply fixes to ~/.smartclaw/workspace/ (openclaw_config canonical location)
+#   --fix: Apply fixes to ~/.smartclaw/workspace/ (hermes_config canonical location)
 #
-# Key policy files tracked in openclaw_config:
+# Key policy files tracked in hermes_config:
 #   Root: AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md, HEARTBEAT.md, CLAUDE.md
 #   Agents: main, memqa, monitor (auth-profiles.json, models.json)
 
@@ -24,7 +24,7 @@ POLICY_FILES="AGENTS.md SOUL.md TOOLS.md USER.md IDENTITY.md HEARTBEAT.md CLAUDE
 AGENTS="main memqa monitor"
 AGENT_FILES="auth-profiles.json models.json"
 
-echo -e "${BLUE}=== OpenClaw Sync Check ===${NC}"
+echo -e "${BLUE}=== Hermes Sync Check ===${NC}"
 echo "Workspace:   $WORKSPACE_DIR"
 echo "CLAUDE repo: $CLAUDE_REPO_DIR"
 echo ""
@@ -44,12 +44,12 @@ WORKSPACE_URL=$(git remote get-url origin 2>/dev/null || echo "unknown")
 echo "Workspace git: $WORKSPACE_URL (@ $WORKSPACE_COMMIT, branch: $WORKSPACE_BRANCH)"
 echo ""
 
-# Check OpenClaw status
-echo "=== OpenClaw Status ==="
-if openclaw gateway status > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ OpenClaw gateway is running${NC}"
+# Check Hermes status
+echo "=== Hermes Status ==="
+if hermes gateway status > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ Hermes gateway is running${NC}"
 else
-    echo -e "${RED}✗ OpenClaw gateway is NOT running${NC}"
+    echo -e "${RED}✗ Hermes gateway is NOT running${NC}"
 fi
 echo ""
 
@@ -93,7 +93,7 @@ echo ""
 for agent in $AGENTS; do
     echo "--- $agent ---"
 
-    workspace_agent_dir="$WORKSPACE_DIR/openclaw-config/agents/$agent/agent"
+    workspace_agent_dir="$WORKSPACE_DIR/hermes-config/agents/$agent/agent"
     home_agent_dir="$HOME/.smartclaw/agents/$agent/agent"
 
     if [[ ! -d "$home_agent_dir" ]]; then
@@ -149,5 +149,5 @@ fi
 if [[ -d "$CLAUDE_REPO_DIR/src" ]]; then
     echo ""
     echo "Note: smartclaw contains orchestration code only."
-    echo "Policy files are canonical in openclaw_config (workspace)."
+    echo "Policy files are canonical in hermes_config (workspace)."
 fi

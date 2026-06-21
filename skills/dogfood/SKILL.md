@@ -152,6 +152,11 @@ Save the report to `{output_dir}/report.md`.
 
 ## Tips
 
+- **If `browser_navigate` times out twice, switch to `playwright screenshot` CLI.** The browser tool can hang on complex pages. Fall back to:
+  ```bash
+  playwright screenshot --viewport-size "1280,720" --wait-for-timeout 2000 "$URL" "/tmp/dogfood-$(date +%s).png"
+  ```
+  You can still share screenshots as `MEDIA:/path` even without browser tool interaction. See skill: `web-page-screenshots`.
 - **Always check `browser_console()` after navigating and after significant interactions.** Silent JS errors are among the most valuable findings.
 - **Use `annotate=true` with `browser_vision`** when you need to reason about interactive element positions or when the snapshot refs are unclear.
 - **Test with both valid and invalid inputs** — form validation bugs are common.

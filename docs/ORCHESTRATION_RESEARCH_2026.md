@@ -261,7 +261,7 @@ Source: https://rywalker.com/research/autonomous-agentic-engineering-tools
 
 1. **Only production-proven reaction engine** as declarative config (CI failure → auto-fix → escalate)
 2. **Real production data** at scale (not just benchmarks)
-3. OpenClaw notifier plugin already wired
+3. Hermes notifier plugin already wired
 4. Declarative YAML config per project fits 20+ repo surface
 5. Plugin architecture allows swapping runtimes without changing orchestration logic
 
@@ -318,7 +318,7 @@ workarounds, transient remote push failure handling, CAS guards on JSONL registr
 "native tmux spawning" is almost certainly naive compared to this. By stacking AO (TypeScript)
 on top of ai_orch (Python), you've created a polyglot orchestration sandwich.
 
-**Recommendation:** Kill AO. OpenClaw should call ai_orch directly.
+**Recommendation:** Kill AO. Hermes should call ai_orch directly.
 
 ### Nested Ralph Loop Realism
 
@@ -355,7 +355,7 @@ traded Yegge's Go complexity for your own TypeScript/Python complexity.
 
 1. Kill AO. It provides nothing that a clean LLM tool-call directly into Python scripts couldn't do.
 2. Elevate ai_orch to be the sole programmatic API.
-3. Let OpenClaw consume the Python API directly.
+3. Let Hermes consume the Python API directly.
 4. Move "Outer Loop" logic out of the LLM prompt into a standard Python `while` loop that
    calls the LLM statelessly.
 
@@ -378,7 +378,7 @@ code and Spotify's Honk (constrain LLMs to read/edit/verify ONLY) are the models
 work in production.
 
 **Recommendation:** Flip the architecture. Make the supervisor fully deterministic — a
-rule-based FSM: `if webhook → parse event → queue task → execute`. Reserve OpenClaw as a
+rule-based FSM: `if webhook → parse event → queue task → execute`. Reserve Hermes as a
 plugin for ambiguity resolution only, not as the top-level planner. "The current approach where
 the LLM decides what to dispatch is why 40% of PRs fail. A deterministic router would push
 success rates toward 90%."
@@ -433,7 +433,7 @@ Both consultants + research converge on these themes:
 
 ### Key Disagreement
 
-- **Gemini:** Kill AO, keep ai_orch, let OpenClaw call Python directly
+- **Gemini:** Kill AO, keep ai_orch, let Hermes call Python directly
 - **Grok:** Kill AO, merge ai_orch into mctrl, make supervisor deterministic
 - **Current design:** Keep AO as the lifecycle layer, ai_orch as convenience
 

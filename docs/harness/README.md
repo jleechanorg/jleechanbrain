@@ -7,9 +7,9 @@ This directory holds **tracked copies** of **user-scope** harness text so PRs ca
 | [`user-command-harness.md`](user-command-harness.md) | `~/.claude/commands/harness.md` | General `/harness` command — any repo |
 | [`harness-engineering-scope-snippet.md`](harness-engineering-scope-snippet.md) | Merge into `~/.claude/skills/harness-engineering/SKILL.md` | **Scope: user vs repository** section |
 
-**Repository-local (OpenClaw-specific)** — not copied to global `~/.claude/`:
+**Repository-local (Hermes-specific)** — not copied to global `~/.claude/`:
 
-- [`.claude/skills/openclaw-harness/SKILL.md`](../../.claude/skills/openclaw-harness/SKILL.md)
+- [`.claude/skills/hermes-harness/SKILL.md`](../../.claude/skills/hermes-harness/SKILL.md)
 - [`.claude/commands/harness.md`](../../.claude/commands/harness.md)
 
 **Collision rule:** Workspace `.claude/commands/harness.md` overrides the global command for that project. Agents should read **user-scope first**, then **repo overlay**.

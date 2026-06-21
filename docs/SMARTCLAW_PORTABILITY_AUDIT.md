@@ -16,7 +16,7 @@ Portable candidates are selected from:
 
 Non-portable paths are excluded when they contain:
 - Secrets, credentials, personal runtime state, local DB/log/cache artifacts
-- OpenClaw live config files and backups (`openclaw.json*`)
+- Hermes live config files and backups (`config.yaml*`)
 - Internal-only context snapshots and generated local audit artifacts
 
 ## Included Files (sample)
@@ -44,8 +44,8 @@ Non-portable paths are excluded when they contain:
 - `.claude/skills/smartclaw-eloop/SKILL.md`
 - `.claude/skills/mem0-memory-operations.md`
 - `.claude/skills/nextsteps.md`
-- `.claude/skills/openclaw-harness/SKILL.md`
-- `.claude/skills/openclaw-models.md`
+- `.claude/skills/hermes-harness/SKILL.md`
+- `.claude/skills/hermes-models.md`
 - `.claude/skills/second-opinion-mcp-auth.md`
 - `.claude/skills/smartclaw-portability-export.md`
 - `.claude/skills/staging-prod-pipeline/SKILL.md`
@@ -67,8 +67,8 @@ Non-portable paths are excluded when they contain:
 - `docs/HARNESS_ENGINEERING.md`
 - `docs/HUMAN_CHANNEL_BRIDGE.html`
 - `docs/HUMAN_CHANNEL_BRIDGE.md`
-- `docs/INCIDENT_OPENCLAW_2026328_WS_STREAM.html`
-- `docs/INCIDENT_OPENCLAW_2026328_WS_STREAM.md`
+- `docs/INCIDENT_HERMES_2026328_WS_STREAM.html`
+- `docs/INCIDENT_HERMES_2026328_WS_STREAM.md`
 - `docs/ORCHESTRATION_RESEARCH_2026.md`
 - `docs/ORCHESTRATION_SYSTEM_DESIGN.html`
 - `docs/ORCHESTRATION_SYSTEM_DESIGN.md`

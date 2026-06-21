@@ -35,7 +35,7 @@ Grade each criterion as **PASS**, **FAIL**, or **N/A**:
 
 ## Output
 
-Write to `.hermes/plans/eval_report.md`:
+Write to `.smartclaw/plans/eval_report.md`:
 
 ```markdown
 # Evaluation: [Todo Item]

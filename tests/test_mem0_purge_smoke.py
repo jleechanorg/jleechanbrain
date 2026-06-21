@@ -25,7 +25,7 @@ def extract_hash(stderr: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Module-level fixture: create a minimal temp HOME with the hooks stub so
 # all dry-run/verify-only tests are hermetic and do not require the real
-# openclaw environment.
+# hermes environment.
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module", autouse=True)
 def temp_home_with_hooks() -> Iterator[str]:
@@ -39,7 +39,7 @@ def temp_home_with_hooks() -> Iterator[str]:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     (hooks_dir / "mem0_config.py").write_text(
         "MEM0_CONFIG = {'vector_store': {'config': "
-        "{'host': '127.0.0.1', 'port': 6333, 'collection_name': 'openclaw_mem0'}}}\n"
+        "{'host': '127.0.0.1', 'port': 6333, 'collection_name': 'hermes_mem0'}}}\n"
         "USER_ID = 'test'\n"
     )
     old_home = os.environ.get("HOME")
@@ -106,7 +106,7 @@ class TestMem0PurgeDryRunParsing:
         assert r.returncode == 0
         # Should mention the collection
         output = r.stdout + r.stderr
-        assert "openclaw_mem0" in output
+        assert "hermes_mem0" in output
 
     def test_dry_run_unknown_option_fails(self) -> None:
         r = run_script("--not-a-real-flag", check=False)

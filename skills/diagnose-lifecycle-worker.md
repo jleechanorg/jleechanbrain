@@ -155,7 +155,7 @@ Use the MCP mail tool (or `mcp__mcp-agent-mail__send_message`):
 **Alternatively via curl:**
 ```bash
 # Requires: SLACK_BOT_TOKEN (from ~/.bashrc) and JLEECHAN_DM_CHANNEL (your DM channel ID)
-# Bot token posts as openclaw bot; user token ($SLACK_USER_TOKEN from ~/.profile) posts as jleechan
+# Bot token posts as hermes bot; user token ($SLACK_USER_TOKEN from ~/.profile) posts as jleechan
 SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN:-}"  # set in ~/.bashrc
 JLEECHAN_DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-}"              # set in ~/.bashrc
 curl -s -X POST "https://slack.com/api/chat.postMessage" \

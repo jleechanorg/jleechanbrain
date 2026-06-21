@@ -44,7 +44,7 @@
 
 <div class="section">
 <p>Mirrors AO worker lifecycle events into Slack channel <code>C0ANK6HFW66</code> with human-readable messages and thread support. Includes startup health check for MCP mail listener and worker mailbox heartbeat.</p>
-<p><span class="badge badge-ok">Live</span> MCP mail listener: <code>http://127.0.0.1:18789/mcp</code> — responding</p>
+<p><span class="badge badge-ok">Live</span> MCP mail listener: <code>http://127.0.0.1:8643/mcp</code> — responding</p>
 </div>
 
 <h2>Architecture</h2>
@@ -76,7 +76,7 @@
   <tr><td><code>BRIDGE_HEALTH_CHECK_ENABLED</code></td><td><code>true</code></td><td>Enable/disable MCP mail health check</td></tr>
   <tr><td><code>HUMAN_CHANNEL_ID</code></td><td><code>C0ANK6HFW66</code></td><td>Slack channel for human-audience posts</td></tr>
   <tr><td><code>SLACK_BOT_TOKEN</code></td><td>(required)</td><td>Slack bot token for posting</td></tr>
-  <tr><td><code>MCP_AGENT_MAIL_URL</code></td><td><code>http://127.0.0.1:18789/mcp</code></td><td>MCP mail server health check URL</td></tr>
+  <tr><td><code>MCP_AGENT_MAIL_URL</code></td><td><code>http://127.0.0.1:8643/mcp</code></td><td>MCP mail server health check URL</td></tr>
   <tr><td><code>SLACK_POST_COOLDOWN_SECONDS</code></td><td><code>30</code></td><td>Cooldown between Slack posts</td></tr>
   <tr><td><code>BRIDGE_STATE_FILE</code></td><td><code>~/.smartclaw/state/human_channel_bridge.json</code></td><td>Persistent state file</td></tr>
 </table>
@@ -134,14 +134,14 @@
 <pre><code>notifiers:
   mcp-mail:
     plugin: mcp-mail
-    endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:18789/mcp}"
+    endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:8643/mcp}"
     projectId: smartclaw
     agentId: ao-lifecycle
     to: ["jleechan"]
 
 notificationRouting:
-  urgent: [openclaw, orchestrator, slack, mcp-mail]
-  action: [openclaw, orchestrator, slack, mcp-mail]
+  urgent: [hermes, orchestrator, slack, mcp-mail]
+  action: [hermes, orchestrator, slack, mcp-mail]
 
 reactions:
   session-spawned:
@@ -178,7 +178,7 @@ PYTHONPATH=src python -m pytest src/tests/test_human_channel_bridge.py -v
 # Smoke test (no Slack posting)
 BRIDGE_ENABLED=false \
   SLACK_BOT_TOKEN="" \
-  MCP_AGENT_MAIL_URL=http://127.0.0.1:18789/mcp \
+  MCP_AGENT_MAIL_URL=http://127.0.0.1:8643/mcp \
   PYTHONPATH=src \
   python3 -c "from src.orchestration.human_channel_bridge import health_check_main; print(health_check_main())"
 # Expected: "OK — MCP mail listener responding" exit=0</code></pre>

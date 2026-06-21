@@ -134,9 +134,9 @@ if [ -z "$GPU_FLAG" ]; then
         fi
 
         if [ -z "$FLAG" ]; then
-            err "hardware_check did not return a comfy-cli GPU flag for this machine."
-            err "Pass an explicit flag (--nvidia|--amd|--m-series|--cpu) or use Comfy Cloud."
-            exit 2
+            log "hardware_check could not pick a comfy-cli flag. Defaulting to --nvidia."
+            log "(For Intel Arc or unsupported hardware, use the manual install path.)"
+            GPU_FLAG="--nvidia"
         else
             GPU_FLAG="$FLAG"
         fi

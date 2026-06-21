@@ -27,10 +27,39 @@
 #   - hermes-watchdog.sh: call before attempting restart
 set -euo pipefail
 
+# ── Shared Slack lib ──────────────────────────────────────────────────────────
+# Source slack_thread_lib.sh so the canary notification message threads under a
+# per-job daily anchor instead of flooding channel root. bead jleechan-ry3y
+# follow-up to PR #615. The lib's slack_post cannot be used directly here
+# because the canary needs the message ts back to poll for the bot reply; we
+# reuse the lib's anchor helpers and post with USER_TOKEN (xoxp).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/lib"
+# shellcheck source=lib/slack_thread_lib.sh
+source "$LIB_DIR/slack_thread_lib.sh"
+
 # ── Defaults ──────────────────────────────────────────────────────────────────
 CHANNEL="${SLACK_TEST_CHANNEL:-${SLACK_CHANNEL_ID}}"
 TIMEOUT="${HERMES_CANARY_TIMEOUT:-20}"
-PORT="${HERMES_CANARY_PORT:-8642}"
+PROD_CONFIG="${HERMES_PROD_CONFIG:-$HOME/.smartclaw_prod/config.yaml}"
+if [[ -z "${HERMES_CANARY_PORT:-}" ]]; then
+  PORT="$(python3 - "$PROD_CONFIG" <<'PY'
+import sys
+default = 8642
+path = sys.argv[1]
+try:
+    import yaml
+    with open(path) as fh:
+        cfg = yaml.safe_load(fh) or {}
+    port = (((cfg.get("platforms") or {}).get("api_server") or {}).get("extra") or {}).get("port")
+    print(int(port) if port is not None else default)
+except Exception:
+    print(default)
+PY
+)"
+else
+  PORT="$HERMES_CANARY_PORT"
+fi
 JSON_OUTPUT=false
 CANARY_TAG="canary-$(date +%s)-$$"
 # Unique nonce that the bot must include in its response to prove LLM processing.
@@ -65,18 +94,77 @@ json_escape() {
   python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null
 }
 
-slack_post() {
-  local text="$1"
-  local escaped_text
-  escaped_text=$(echo "$text" | json_escape)
+# ── Helpers ───────────────────────────────────────────────────────────────────
+json_escape() {
+  # Escape a string for safe JSON embedding.
+  python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))" 2>/dev/null
+}
+
+slack_ensure_anchor() {
+  # Returns the daily-thread anchor ts, creating one if needed. The anchor
+  # message is a lightweight top-level post that is NEVER deleted by the
+  # canary cleanup path — only the actual canary messages are deleted. This
+  # separates "thread parent" (anchor) from "thread content" (canary), so the
+  # P1 issue on PR #630 (anchor stored a ts that the main flow then deleted,
+  # breaking subsequent same-day canary runs) cannot recur.
+  local thread_ts
+  thread_ts="$(slack_thread_anchor_get 'hermes-canary' 2>/dev/null || true)"
+  if [[ -n "$thread_ts" ]]; then
+    printf '%s' "$thread_ts"
+    return 0
+  fi
+
+  local anchor_text="hermes-canary daily anchor (UTC $(date -u +%Y-%m-%d))"
+  local payload
+  payload="$(jq -n --arg ch "$CHANNEL" --arg txt "$anchor_text" \
+    '{channel: $ch, text: $txt}')"
+
   local resp
   resp=$(curl -sf -X POST "https://slack.com/api/chat.postMessage" \
     -H "Authorization: Bearer ${USER_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "{\"channel\":\"${CHANNEL}\",\"text\":${escaped_text}}" \
+    -d "$payload" \
     --max-time 10 2>/dev/null) || return 1
 
-  local ok
+  local ok ts
+  ok=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+  if [[ "$ok" != "True" ]]; then
+    local err
+    err=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','unknown'))" 2>/dev/null)
+    echo "FAIL: anchor chat.postMessage error: ${err}" >&2
+    return 1
+  fi
+
+  ts=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ts',''))" 2>/dev/null)
+  [[ -z "$ts" ]] && return 1
+
+  slack_thread_anchor_set 'hermes-canary' "$ts"
+  printf '%s' "$ts"
+}
+
+slack_post() {
+  local text="$1"
+
+  # Ensure a daily anchor exists, then post the canary message as a reply
+  # under it. The anchor message is created once per UTC day by
+  # slack_ensure_anchor() and is NEVER deleted — only this canary message is
+  # cleaned up by slack_delete_message. The canary channel (${SLACK_CHANNEL_ID}) is
+  # low-traffic so threading under a long-lived daily anchor is safe.
+  local thread_ts
+  thread_ts="$(slack_ensure_anchor)" || return 1
+
+  local payload
+  payload="$(jq -n --arg ch "$CHANNEL" --arg txt "$text" --arg ts "$thread_ts" \
+    '{channel: $ch, text: $txt, thread_ts: $ts}')"
+
+  local resp
+  resp=$(curl -sf -X POST "https://slack.com/api/chat.postMessage" \
+    -H "Authorization: Bearer ${USER_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    --max-time 10 2>/dev/null) || return 1
+
+  local ok ts
   ok=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
   if [[ "$ok" != "True" ]]; then
     local err
@@ -85,7 +173,8 @@ slack_post() {
     return 1
   fi
 
-  echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ts',''))" 2>/dev/null
+  ts=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ts',''))" 2>/dev/null)
+  echo "$ts"
 }
 
 slack_find_bot_reply() {

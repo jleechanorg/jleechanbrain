@@ -5,7 +5,7 @@
 
 set -uo pipefail
 
-LABEL="${HERMES_HEALTH_LABEL:-ai.hermes.prod}"
+LABEL="${HERMES_HEALTH_LABEL:-ai.smartclaw.prod}"
 PORT="${HERMES_HEALTH_PORT:-8642}"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 PLIST_DISABLED="${PLIST}.disabled"
@@ -75,11 +75,11 @@ if [[ -n "$port_pid" ]]; then
 fi
 
 # 6. Watchdog registered (periodic job — PID is '-' when idle, that's fine)
-wd_registered=$(launchctl list 2>/dev/null | awk '$3=="ai.hermes-watchdog"{print "yes"}')
+wd_registered=$(launchctl list 2>/dev/null | awk '$3=="ai.smartclaw-watchdog"{print "yes"}')
 if [[ "$wd_registered" == "yes" ]]; then
   PASS+=("watchdog:registered(periodic)")
 else
-  WARN+=("watchdog:NOT_REGISTERED — run: launchctl bootstrap gui/$U $HOME/Library/LaunchAgents/ai.hermes-watchdog.plist")
+  WARN+=("watchdog:NOT_REGISTERED — run: launchctl bootstrap gui/$U $HOME/Library/LaunchAgents/ai.smartclaw-watchdog.plist")
 fi
 
 # 7. Loadavg check

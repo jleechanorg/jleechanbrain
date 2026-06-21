@@ -10,7 +10,7 @@
 
 ## What This Is
 
-A **singleton super-orchestrator** that drives Google Antigravity IDE across multiple repositories and worktrees, coordinated from `jleechanorg/smartclaw` (the OpenClaw harness), with Agent Orchestrator (AO) workers dispatched via MCP Mail.
+A **singleton super-orchestrator** that drives Google Antigravity IDE across multiple repositories and worktrees, coordinated from `jleechanorg/smartclaw` (the Hermes harness), with Agent Orchestrator (AO) workers dispatched via MCP Mail.
 
 Antigravity is a GUI-based AI coding environment on macOS. The Antigravity skill already enables single-session control via Peekaboo CLI against the Manager window. This design extends that into a **multi-repo, multi-worker control plane** with durable job queuing, global locking, and AO integration.
 
@@ -57,7 +57,7 @@ The Antigravity skill (`~/.claude/skills/antigravity-computer-use/SKILL.md`) pro
 smartclaw is the **harness repo** — the home for all orchestration, automation, and coordination logic that operates across projects. It already contains:
 
 - `src/orchestration/` — Python orchestration layer (webhook, evidence, merge gate, AO integration)
-- `~/.smartclaw/cron/jobs.json` — scheduled jobs via OpenClaw gateway cron (live definitions, not tracked in repo)
+- `~/.smartclaw/cron/jobs.json` — scheduled jobs via Hermes gateway cron (live definitions, not tracked in repo)
 - `skills/` — agent skills (including the Antigravity shim)
 - `launchd/` — macOS launch agent templates
 

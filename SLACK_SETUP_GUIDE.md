@@ -1,4 +1,4 @@
-# Slack Setup Guide for OpenClaw
+# Slack Setup Guide for Hermes
 
 **App ID:** `YOUR_SLACK_APP_ID`
 **Client ID:** `YOUR_SLACK_CLIENT_ID`
@@ -40,7 +40,7 @@ Click **"Bot Token Scopes"** and add:
 3. Click **"Allow"**
 4. **COPY** the **"Bot User OAuth Token"** (starts with `xoxb-`)
 
-### Step 3: Configure OpenClaw
+### Step 3: Configure Hermes
 
 Run the setup script with your bot token:
 
@@ -65,10 +65,10 @@ After setup, verify with:
 
 ```bash
 # Check Slack is configured
-openclaw channels list
+hermes channels list
 
 # Test message
-openclaw message send --channel slack --target '@your-username' --message 'Test from OpenClaw!'
+hermes message send --channel slack --target '@your-username' --message 'Test from Hermes!'
 ```
 
 ---
@@ -78,14 +78,14 @@ openclaw message send --channel slack --target '@your-username' --message 'Test 
 If the script doesn't work, configure manually:
 
 ```bash
-openclaw channels add \
+hermes channels add \
   --channel slack \
   --account default
 ```
 
 With Socket Mode:
 ```bash
-openclaw channels add \
+hermes channels add \
   --channel slack \
   --account default
 ```
@@ -118,15 +118,15 @@ openclaw channels add \
 ## 🎯 Next Steps After Setup
 
 1. **Invite bot to channels:**
-   - In Slack, type `/invite @openclaw` in any channel
+   - In Slack, type `/invite @hermes` in any channel
 
 2. **Test messaging:**
    ```bash
    # Send to channel
-   openclaw message send --channel slack --target '#general' --message 'Hello!'
+   hermes message send --channel slack --target '#general' --message 'Hello!'
 
    # Send DM
-   openclaw message send --channel slack --target '@username' --message 'Hi there!'
+   hermes message send --channel slack --target '@username' --message 'Hi there!'
    ```
 
 3. **Configure auto-start:**
@@ -134,18 +134,18 @@ openclaw channels add \
 
 4. **Monitor logs:**
    ```bash
-   openclaw logs --follow | grep slack
+   hermes logs --follow | grep slack
    ```
 
 ---
 
 ## 🔐 Security Notes
 
-- ✅ Bot token stored in `~/.smartclaw/openclaw.json` (chmod 700)
+- ✅ Bot token stored in `~/.smartclaw/config.yaml` (chmod 700)
 - ✅ Tokens never logged to files
 - ✅ All communication over HTTPS/WSS
 - ⚠️  Never share your tokens publicly or commit to git
 
 ---
 
-**Need help?** Check OpenClaw docs: https://docs.smartclaw.ai/channels/slack
+**Need help?** Check Hermes docs: https://docs.smartclaw.ai/channels/slack

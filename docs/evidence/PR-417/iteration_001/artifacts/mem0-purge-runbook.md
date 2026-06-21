@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Delete specific memory IDs from the openclaw mem0/Qdrant store. This script is the **only approved mechanism** for one-off memory deletions in this system. All deletions are ID-allowlist-only; no glob, no pattern, no bulk delete-all.
+Delete specific memory IDs from the hermes mem0/Qdrant store. This script is the **only approved mechanism** for one-off memory deletions in this system. All deletions are ID-allowlist-only; no glob, no pattern, no bulk delete-all.
 
 ---
 
@@ -10,7 +10,7 @@ Delete specific memory IDs from the openclaw mem0/Qdrant store. This script is t
 
 | Component | Detail |
 |-----------|--------|
-| Vector store | Qdrant at `http://127.0.0.1:6333`, collection `openclaw_mem0` |
+| Vector store | Qdrant at `http://127.0.0.1:6333`, collection `hermes_mem0` |
 | Memory layer | mem0 (`mem0ai` Python package) |
 | User namespace | `jleechan` |
 | Config | `~/.smartclaw/.claude/hooks/mem0_config.py` |
@@ -72,7 +72,7 @@ Dry-run output:
 ### Step 1 — Record pre-run point count
 
 ```bash
-curl -sf http://127.0.0.1:6333/collections/openclaw_mem0 \
+curl -sf http://127.0.0.1:6333/collections/hermes_mem0 \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['points_count'])"
 ```
 
@@ -111,13 +111,13 @@ The script auto-runs verification. Manually confirm:
 
 ```bash
 # Each ID should return 404 — use -s (not -f) so 404 body is visible
-curl -s http://127.0.0.1:6333/collections/openclaw_mem0/points/14ddf0c0-a8e4-49e3-941c-849c071c713c
-curl -s http://127.0.0.1:6333/collections/openclaw_mem0/points/dade246e-aa4d-4c93-9c58-4a98ddb31984
+curl -s http://127.0.0.1:6333/collections/hermes_mem0/points/14ddf0c0-a8e4-49e3-941c-849c071c713c
+curl -s http://127.0.0.1:6333/collections/hermes_mem0/points/dade246e-aa4d-4c93-9c58-4a98ddb31984
 # ... (all 8 should return 404 or {"status":"not_found"})
 # Note: omit -f so 404 responses print the body instead of silently failing
 
 # Point count delta should equal 8
-curl -sf http://127.0.0.1:6333/collections/openclaw_mem0 \
+curl -sf http://127.0.0.1:6333/collections/hermes_mem0 \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['points_count'])"
 ```
 
@@ -150,7 +150,7 @@ mem0 does not have a native undo. If a wrong ID is deleted:
 
 1. **Re-ingest**: If the memory text was captured (it is shown in dry-run output), re-add it:
    ```bash
-   openclaw mem0 add "<memory text here>"
+   hermes mem0 add "<memory text here>"
    ```
 2. **Accept the loss**: For ephemeral/temporary memories (timestamps, session summaries), deletion is acceptable.
 3. **Restore from session logs**: Session JSONL files in `~/.smartclaw/agents/*/sessions/` may contain the original memory text.
@@ -198,7 +198,7 @@ The script is **idempotent in dry-run mode** — it can be run as many times as 
 | Symptom | Fix |
 |---------|-----|
 | `python3: command not found` | Install Python 3.12+ |
-| Qdrant unreachable | `docker start openclaw-mem0-qdrant` or start via launchd |
+| Qdrant unreachable | `docker start hermes-mem0-qdrant` or start via launchd |
 | `mem0_config` import error | Ensure `~/.smartclaw/.claude/hooks/` is on Python path |
 | `AttributeError: 'NoneType'...` on `m.get()` | ID not found in Qdrant — already deleted or never existed |
 | Hash mismatch after editing IDs file | Re-run dry-run to get the new computed hash |

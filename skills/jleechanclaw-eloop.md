@@ -1,6 +1,6 @@
 ---
 name: smartclaw-eloop
-description: Custom evolve loop for smartclaw orchestrator — drains dropped Slack thread backlog via /claw, fixes openclaw issues, proposes new work items. Max 50 items, newest-first.
+description: Custom evolve loop for smartclaw orchestrator — drains dropped Slack thread backlog via /claw, fixes hermes issues, proposes new work items. Max 50 items, newest-first.
 type: skill
 ---
 
@@ -12,8 +12,8 @@ type: skill
 
 This is the evolve loop for the smartclaw AO orchestrator. On each poll cycle:
 
-1. **Drain the dropped-thread backlog** — find Slack threads that got no response from OpenClaw, dispatch each as a `/claw` work item (newest first, max 50 total)
-2. **Fix openclaw issues** — check for system health problems and dispatch fixes
+1. **Drain the dropped-thread backlog** — find Slack threads that got no response from Hermes, dispatch each as a `/claw` work item (newest first, max 50 total)
+2. **Fix hermes issues** — check for system health problems and dispatch fixes
 3. **Propose new work items** — create beads for patterns observed
 
 ## State file
@@ -73,22 +73,22 @@ For each `<thread_ts>` in `dispatched`, check if its bead is closed/abandoned:
 
 ## Phase 2: Find dropped Slack threads
 
-Search the openclaw Slack channels for threads that Jeffrey or other humans posted but that received NO reply from the OpenClaw bot. These are "dropped threads."
+Search the hermes Slack channels for threads that Jeffrey or other humans posted but that received NO reply from the Hermes bot. These are "dropped threads."
 
 **Channels to search** (in priority order, newest first within each):
-1. `C0AJ3SD5C79` — openclaw design/ops channel (primary)
-2. `${SLACK_CHANNEL_ID}` — #ai-slack-test (openclaw bot IS present here — check for its replies)
-3. `${SLACK_CHANNEL_ID}` — #all-jleechan-ai (openclaw bot is NOT in this channel — skip bot-reply check; threads here are informational only)
+1. `C0AJ3SD5C79` — hermes design/ops channel (primary)
+2. `${SLACK_CHANNEL_ID}` — #ai-slack-test (hermes bot IS present here — check for its replies)
+3. `${SLACK_CHANNEL_ID}` — #all-jleechan-ai (hermes bot is NOT in this channel — skip bot-reply check; threads here are informational only)
 
 **Method**: Use `mcp__slack__conversations_history` on each channel. For each thread:
 - Get messages in the thread: `mcp__slack__conversations_replies`
-- A thread is "dropped" if: started by jleechan (human, not bot), and NO reply from the OpenClaw bot user (`$OPENCLAW_BOT_USER_ID`) exists in the thread
+- A thread is "dropped" if: started by jleechan (human, not bot), and NO reply from the Hermes bot user (`$HERMES_BOT_USER_ID`) exists in the thread
 
 **Filter out**:
 - Threads older than 30 days
 - Threads already in `dispatched` or `abandoned`
 - Threads that appear to be bot-generated (starts with "[AI Terminal:", "[agento]", etc.)
-- Threads already answered (has openclaw bot reply)
+- Threads already answered (has hermes bot reply)
 
 **Sort**: Newest `ts` first (reverse chronological)
 
@@ -132,12 +132,12 @@ For each dropped thread (newest first, stopping at `processedCount >= 50`):
 
 5. **Respect concurrency**: Don't dispatch more than 3 new sessions per cycle (lifecycle-worker will queue the rest). Check active sessions only (exclude dead/stopped): `ao session ls -p smartclaw 2>/dev/null | grep -E '^\s*jc-[0-9]+\s' | grep -vE 'dead|stopped|done' | wc -l` — if result >= 5, skip dispatching this cycle.
 
-## Phase 4: Fix openclaw issues
+## Phase 4: Fix hermes issues
 
 After dispatching threads, run a quick health check:
 
 ```bash
-bash ~/.smartclaw/scripts/staging-canary.sh --port 18810; RC=$?
+bash ~/.smartclaw/scripts/staging-canary.sh --port 8644; RC=$?
 if [[ "$RC" -ne 0 ]]; then
   echo "STAGING CANARY FAILED (rc=$RC)"
   # Fix or dispatch a jc session to remediate
@@ -147,11 +147,11 @@ fi
 If any check FAILS:
 - Log the failure
 - Determine if it's fixable autonomously (config-edit scope) or needs a jc session (claw-dispatch)
-- For config issues: fix via `openclaw.json` surgical edit
+- For config issues: fix via `config.yaml` surgical edit
 - For code issues: dispatch a jc session with `/claw fix: <issue description>`
 
-**Common openclaw issues to check proactively**:
-- Multiple gateway processes: `pgrep -x openclaw-gateway | wc -l != 1`
+**Common hermes issues to check proactively**:
+- Multiple gateway processes: `pgrep -x hermes gateway | wc -l != 1`
 - Stale session locks: check `~/.smartclaw_prod/agents/main/sessions/*.lock`
 - WS pong failures in logs: `tail -5 ~/.smartclaw_prod/logs/gateway.err.log | grep pong`
 - Session lock silent failure: `tail -5 ~/.smartclaw_prod/logs/gateway.err.log | grep "session file locked"`
@@ -160,7 +160,7 @@ If any check FAILS:
 
 After the main dispatch loop, scan for patterns and create new beads:
 
-1. **Recurring openclaw failures** (2+ in logs today): Create a bead for systemic fix
+1. **Recurring hermes failures** (2+ in logs today): Create a bead for systemic fix
 2. **Stale PRs** (open > 3 days, no CI activity): Create a bead to investigate and close
 3. **Outdated docs** (if `docs/context/SYSTEM_SNAPSHOT.md` is > 7 days old): Create a bead to refresh
 4. **Unanswered MCP mail** (from `memory/mcp-mail-ack-log.md` entries with `action_needed=yes` > 24h old): Create beads

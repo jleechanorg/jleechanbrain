@@ -3,7 +3,7 @@
 # Output is ANSI-stripped and home-path-normalized for GitHub readability.
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${HERMES_HOME:-$HOME/.smartclaw}"
 CTX="$ROOT/docs/context"
 SNAP="$CTX/SYSTEM_SNAPSHOT.md"
 GAPS="$CTX/DOC_GAPS.md"
@@ -18,17 +18,17 @@ mkdir -p "$CTX"
   echo
   echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
   echo
-  echo "## OpenClaw version"
-  NO_COLOR=1 openclaw --version 2>&1 | sanitize || true
+  echo "## Hermes version"
+  NO_COLOR=1 hermes --version 2>&1 | sanitize || true
   echo
   echo "## Gateway status"
-  NO_COLOR=1 openclaw status 2>&1 | sanitize || true
+  NO_COLOR=1 hermes status 2>&1 | sanitize || true
   echo
   echo "## Cron jobs"
-  NO_COLOR=1 openclaw cron list --json 2>&1 | sanitize || true
+  NO_COLOR=1 hermes cron list --json 2>&1 | sanitize || true
   echo
   echo "## Diagnostics flags"
-  NO_COLOR=1 openclaw config get diagnostics.flags 2>&1 | sanitize || true
+  NO_COLOR=1 hermes config get diagnostics.flags 2>&1 | sanitize || true
 } > "$SNAP"
 
 missing=0

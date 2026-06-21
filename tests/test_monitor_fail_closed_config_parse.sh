@@ -1,5 +1,5 @@
 #!/bin/bash
-# Integration regression: monitor must fail closed when openclaw message send
+# Integration regression: monitor must fail closed when hermes message send
 # returns config/typeerror output signatures even if exit status is 0.
 set -euo pipefail
 
@@ -27,7 +27,7 @@ cat > "$STATE_DIR/cron/jobs.json" <<'JSON'
 {"jobs":[]}
 JSON
 
-cat > "$STATE_DIR/openclaw.json" <<'JSON'
+cat > "$STATE_DIR/config.yaml" <<'JSON'
 {
   "gateway": { "auth": { "token": "gateway-token" } },
   "channels": {
@@ -39,9 +39,9 @@ cat > "$STATE_DIR/openclaw.json" <<'JSON'
     }
   },
   "plugins": {
-    "slots": { "memory": "openclaw-mem0" },
+    "slots": { "memory": "hermes-mem0" },
     "entries": {
-      "openclaw-mem0": {
+      "hermes-mem0": {
         "enabled": true,
         "config": { "oss": { "embedder": { "config": { "apiKey": "openai-token" } } } }
       }
@@ -56,7 +56,7 @@ for name in SOUL TOOLS USER IDENTITY HEARTBEAT AGENTS MEMORY; do
   printf '# %s\n' "$name" > "$OC_DIR/workspace/${name}.md"
 done
 
-cat > "$HOME_DIR/bin/openclaw" <<'EOF'
+cat > "$HOME_DIR/bin/hermes" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 if [[ "${1:-}" == "message" && "${2:-}" == "read" ]]; then
@@ -65,7 +65,7 @@ if [[ "${1:-}" == "message" && "${2:-}" == "read" ]]; then
 fi
 if [[ "${1:-}" == "message" && "${2:-}" == "send" ]]; then
   cat <<'OUT'
-Failed to read config at /tmp/fake/openclaw.json
+Failed to read config at /tmp/fake/config.yaml
 TypeError: Cannot read properties of undefined (reading 't')
 OUT
   exit 0
@@ -80,7 +80,7 @@ if [[ "${1:-}" == "--version" ]]; then
 fi
 echo '{"ok":true}'
 EOF
-chmod +x "$HOME_DIR/bin/openclaw"
+chmod +x "$HOME_DIR/bin/hermes"
 
 cat > "$HOME_DIR/bin/curl" <<'EOF'
 #!/bin/bash
@@ -125,20 +125,20 @@ chmod +x "$HOME_DIR/bin/curl"
 
 HOME="$HOME_DIR" \
 PATH="$HOME_DIR/bin:$PATH" \
-OPENCLAW_STATE_DIR="$STATE_DIR" \
-OPENCLAW_CONFIG_PATH="$STATE_DIR/openclaw.json" \
-OPENCLAW_MONITOR_OC_DIR="$OC_DIR" \
-OPENCLAW_MONITOR_THREAD_REPLY_CHECK=0 \
-OPENCLAW_MONITOR_LOCK_DIR="$LOCK_DIR" \
-OPENCLAW_MONITOR_DOCTOR_SH_ENABLE=0 \
-OPENCLAW_MONITOR_AO_DOCTOR_ENABLE=0 \
-OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE=0 \
-OPENCLAW_MONITOR_RUN_CANARY=0 \
-OPENCLAW_MONITOR_PHASE2_ENABLE=0 \
-OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE=0 \
-OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=1 \
-OPENCLAW_MONITOR_TOKEN_PROBES_ENABLE=0 \
-OPENCLAW_MONITOR_LOG_FILE="$LOG_FILE" \
+HERMES_STATE_DIR="$STATE_DIR" \
+HERMES_CONFIG_PATH="$STATE_DIR/config.yaml" \
+HERMES_MONITOR_OC_DIR="$OC_DIR" \
+HERMES_MONITOR_THREAD_REPLY_CHECK=0 \
+HERMES_MONITOR_LOCK_DIR="$LOCK_DIR" \
+HERMES_MONITOR_DOCTOR_SH_ENABLE=0 \
+HERMES_MONITOR_AO_DOCTOR_ENABLE=0 \
+HERMES_MONITOR_INFERENCE_PROBE_ENABLE=0 \
+HERMES_MONITOR_RUN_CANARY=0 \
+HERMES_MONITOR_PHASE2_ENABLE=0 \
+HERMES_MONITOR_STATUS_BROADCAST_ENABLE=0 \
+HERMES_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=1 \
+HERMES_MONITOR_TOKEN_PROBES_ENABLE=0 \
+HERMES_MONITOR_LOG_FILE="$LOG_FILE" \
 bash "$SCRIPT" || monitor_rc=$?
 
 monitor_rc="${monitor_rc:-0}"
@@ -154,10 +154,10 @@ else
   fail "monitor did not fail closed to STATUS=PROBLEM"
 fi
 
-if grep -Eq 'fail-closed slack_send_probe(_post_phase1|_post_phase2)?: config parse/typeerror signature detected' "$LOG_FILE"; then
+if grep -Eq 'fail-closed hermes_send_probe(_post_phase1|_post_phase2)?: config parse/typeerror signature detected' "$LOG_FILE"; then
   pass "monitor records fail-closed reason in probe summary"
 else
-  fail "monitor log missing fail-closed slack_send_probe reason"
+  fail "monitor log missing fail-closed hermes_send_probe reason"
 fi
 
 if [[ "$FAILED" -gt 0 ]]; then

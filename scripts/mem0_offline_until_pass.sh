@@ -8,9 +8,9 @@ SLEEP_SECONDS="${SLEEP_SECONDS:-2}"
 attempt=1
 while (( attempt <= MAX_ATTEMPTS )); do
   echo "== mem0 offline attempt $attempt/$MAX_ATTEMPTS =="
-  node scripts/mem0_offline_50q.mjs | tee /tmp/openclaw-mem0-offline-last-run.json
+  node scripts/mem0_offline_50q.mjs | tee /tmp/hermes-mem0-offline-last-run.json
 
-  score_file="/tmp/openclaw-mem0-offline/latest/score.json"
+  score_file="/tmp/hermes-mem0-offline/latest/score.json"
   if [[ ! -f "$score_file" ]]; then
     echo "missing score file: $score_file"
     exit 1
@@ -18,7 +18,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
 
   pass_rate="$(python3 - <<'PY'
 import json
-print(json.load(open('/tmp/openclaw-mem0-offline/latest/score.json'))['pass_rate'])
+print(json.load(open('/tmp/hermes-mem0-offline/latest/score.json'))['pass_rate'])
 PY
 )"
 

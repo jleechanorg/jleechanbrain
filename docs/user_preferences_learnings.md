@@ -6,7 +6,7 @@
 
 This document captures user preferences and patterns extracted from available conversation history.
 
-**Note:** No Claude Code or Cursor conversation history was found in the home directory (~). The analysis is based on OpenClaw session data from `~/.smartclaw/backups/` covering February 2026.
+**Note:** No Claude Code or Cursor conversation history was found in the home directory (~). The analysis is based on Hermes session data from `~/.smartclaw/backups/` covering February 2026.
 
 ---
 
@@ -52,7 +52,7 @@ From onboarding session (2026-02-10):
 - Uses **cron jobs** for recurring reminders (e.g., "review-p-every-10m")
 - Active **GitHub PR workflow** - frequently reviews and addresses PR comments
 - Uses **Slack** for communication
-- Tests **E2E for OpenClaw** (character creation flows)
+- Tests **E2E for Hermes** (character creation flows)
 
 ### GitHub Activity
 - Works on `jleechanorg/worldarchitect.ai` and `jleechanorg/smartclaw`
@@ -84,7 +84,7 @@ User: 1. terse 2. keep
 
 ## Constraints & Boundaries
 
-Based on OpenClaw SOUL.md guidance:
+Based on Hermes SOUL.md guidance:
 - No filler words ("Great question!", "I'd be happy to help!")
 - Be genuinely helpful, not performatively helpful
 - Have opinions
@@ -108,6 +108,6 @@ Based on OpenClaw SOUL.md guidance:
 
 ## Data Sources
 
-- OpenClaw session backups: `~/.smartclaw/backups/20260219_120541/agents/main/sessions/`
+- Hermes session backups: `~/.smartclaw/backups/20260219_120541/agents/main/sessions/`
 - Date range: February 10-19, 2026
 - Session types: Onboarding, cron reminders, GitHub PR reviews, E2E testing

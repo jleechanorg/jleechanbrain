@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OpenClaw Test Coverage Script (Adapted for TypeScript/Node.js)
+# Hermes Test Coverage Script (Adapted for TypeScript/Node.js)
 # Runs vitest with coverage reporting
 #
 # Usage:
@@ -23,7 +23,7 @@ NC='\033[0m' # No Color
 TEST_MODE="${1:-all}"  # Options: all, unit, e2e, fast, docker
 COVERAGE_THRESHOLD="${COVERAGE_THRESHOLD:-80}"
 
-echo -e "${BLUE}🧪 Running OpenClaw Tests with Coverage${NC}"
+echo -e "${BLUE}🧪 Running Hermes Tests with Coverage${NC}"
 echo "=================================================="
 echo "Test mode: $TEST_MODE"
 echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"

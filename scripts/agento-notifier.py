@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 agento-notifier: Minimal HTTP server that receives AO webhook events
-and posts them to Slack #ai-slack-test as the openclaw bot.
+and posts them to Slack #ai-slack-test as the hermes bot.
 
 Run: python3 scripts/agento-notifier.py
 Port: 18800
@@ -17,9 +17,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
-SLACK_CHANNEL = os.environ.get("OPENCLAW_SLACK_CHANNEL", "${SLACK_CHANNEL_ID}")  # #ai-slack-test
+SLACK_CHANNEL = os.environ.get("HERMES_SLACK_CHANNEL", "${SLACK_CHANNEL_ID}")  # #ai-slack-test
 PORT = 18800
-WEBHOOK_SECRET = os.environ.get("OPENCLAW_AO_NOTIFY_TOKEN", "")
+WEBHOOK_SECRET = os.environ.get("HERMES_AO_NOTIFY_TOKEN", "")
 AO_BIN = os.environ.get("AO_BIN") or os.path.expanduser("~/bin/ao")
 COOLDOWN_SECONDS = 60
 COOLDOWN_DIR = "/tmp"
@@ -80,32 +80,60 @@ def ao_spawn(project_id: str, claim_pr: str | None = None) -> None:
         print(f"[agento-notifier] ao spawn failed for {project_id}: {e}")
 
 
-def post_to_slack(text: str) -> None:
-    # Prefer bot token for service notifier; fall back to user token if not available
-    token = (
-        os.environ.get("SLACK_BOT_TOKEN")
-        or os.environ.get("SLACK_BOT_TOKEN")
-        or os.environ.get("SLACK_USER_TOKEN")
-    )
-    if not token:
-        print(f"[agento-notifier] No Slack token in env, would have posted: {text}")
-        return
-    payload = json.dumps({"channel": SLACK_CHANNEL, "text": text}).encode()
-    req = urllib.request.Request(
-        "https://slack.com/api/chat.postMessage",
-        data=payload,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        method="POST",
-    )
+def get_tracker_info(session_id: str) -> tuple[str | None, str | None]:
+    if not session_id:
+        return None, None
+    tracker_path = os.path.expanduser(f"~/.smartclaw/ao-session-tracker/active/{session_id}.json")
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            body = json.loads(resp.read())
-        if not body.get("ok"):
-            print(f"[agento-notifier] Slack post failed: {body}")
-        else:
-            print(f"[agento-notifier] Posted to Slack: {text[:80]}")
-    except Exception as exc:
-        print(f"[agento-notifier] Slack request error: {exc}")
+        if os.path.exists(tracker_path):
+            with open(tracker_path, "r") as f:
+                data = json.load(f)
+            return data.get("slack_channel"), data.get("slack_thread_ts")
+    except Exception as e:
+        print(f"[agento-notifier] Warning: could not read tracker file for {session_id}: {e}")
+    return None, None
+
+
+def post_to_slack(text: str, channel: str | None = None, thread_ts: str | None = None) -> None:
+    # Gather potential tokens in priority order
+    tokens = []
+    for var_name in ["SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_USER_TOKEN"]:
+        t = os.environ.get(var_name)
+        if t and t not in tokens:
+            tokens.append(t)
+
+    target_channel = channel if channel else SLACK_CHANNEL
+    if not tokens:
+        print(f"[agento-notifier] No Slack token in env, would have posted to {target_channel} (thread: {thread_ts}): {text}")
+        return
+
+    msg_payload = {"channel": target_channel, "text": text}
+    if thread_ts:
+        msg_payload["thread_ts"] = thread_ts
+    payload = json.dumps(msg_payload).encode()
+
+    last_err = None
+    for token in tokens:
+        req = urllib.request.Request(
+            "https://slack.com/api/chat.postMessage",
+            data=payload,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = json.loads(resp.read())
+            if body.get("ok"):
+                print(f"[agento-notifier] Posted to Slack ({target_channel}, thread: {thread_ts}): {text[:80]}")
+                return
+            else:
+                last_err = f"Slack error: {body.get('error')}"
+                print(f"[agento-notifier] Token starting with {token[:10]} failed: {body}")
+        except Exception as exc:
+            last_err = str(exc)
+            print(f"[agento-notifier] Request error with token starting with {token[:10]}: {exc}")
+
+    print(f"[agento-notifier] All tokens failed to post to Slack. Last error: {last_err}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -150,6 +178,57 @@ class Handler(BaseHTTPRequestHandler):
             event = {}
         msg_type = data.get("type", "notification")
 
+        # Extract channel and thread_ts from the payload
+        thread_ts = None
+        channel = None
+
+        # 1. Check if sessionKey contains :thread:<threadTs>
+        session_key = data.get("sessionKey") or ""
+        if ":thread:" in session_key:
+            parts = session_key.split(":thread:")
+            if len(parts) > 1:
+                thread_ts = parts[1]
+
+        # 2. Extract channel from 'to' or 'channel'
+        to_field = data.get("to")
+        chan_field = data.get("channel")
+        if to_field:
+            channel = to_field
+        elif chan_field and chan_field != "slack":
+            channel = chan_field
+
+        # 3. If msg_type == "message", extract from 'context'
+        context = data.get("context")
+        if isinstance(context, dict):
+            if not thread_ts:
+                thread_ts = context.get("slackThreadTs")
+            if not channel:
+                channel = context.get("slackChannelId")
+
+        # 4. If event is present, extract from event.data
+        if isinstance(event, dict):
+            event_data = event.get("data")
+            if isinstance(event_data, dict):
+                if not thread_ts:
+                    thread_ts = event_data.get("slackThreadTs")
+                if not channel:
+                    channel = event_data.get("slackChannelId")
+
+        # 5. Extract session_id to fallback on tracker file lookup
+        session_id = None
+        if msg_type == "message":
+            if isinstance(context, dict):
+                session_id = context.get("sessionId")
+        else:
+            session_id = event.get("sessionId")
+
+        if session_id:
+            tracker_channel, tracker_thread_ts = get_tracker_info(session_id)
+            if tracker_channel and not channel:
+                channel = tracker_channel
+            if tracker_thread_ts and not thread_ts:
+                thread_ts = tracker_thread_ts
+
         if msg_type == "message":
             text = f":robot_face: *agento* | {data.get('message', '') or ''}"
         else:
@@ -168,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                      "warning": ":warning:", "info": ":information_source:"}.get(priority, ":bell:")
             text = f"{emoji} *agento* `{event_type}` [{project}/{session}]{pr_part}\n{message}"
 
-        post_to_slack(text)
+        post_to_slack(text, channel=channel, thread_ts=thread_ts)
 
         # Recovery handlers - act on AO lifecycle events (non-blocking)
         event_type = event.get("type") or ""

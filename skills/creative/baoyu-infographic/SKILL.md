@@ -4,7 +4,7 @@ description: "Infographics: 21 layouts x 21 styles (信息图, 可视化)."
 version: 1.56.1
 author: 宝玉 (JimLiu)
 license: MIT
-platforms: [linux, macos]
+platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [infographic, visual-summary, creative, image-generation]
@@ -125,7 +125,7 @@ If a shortcut has **Prompt Notes**, append them to the generated prompt (Step 5)
 
 ```
 infographic/{topic-slug}/
-├── source.md
+├── source-{slug}.{ext}
 ├── analysis.md
 ├── structured-content.md
 ├── prompts/infographic.md

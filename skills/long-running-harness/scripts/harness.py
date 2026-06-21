@@ -4,8 +4,8 @@
 Usage:
   harness.py research   --task "..." --repo /path/to/repo [--project-id ID]
   harness.py plan       --task "..." --repo /path/to/repo
-  harness.py implement --repo /path/to/repo --todo-file .hermes/plans/todo.md
-  harness.py evaluate   --repo /path/to/repo --plan-file .hermes/plans/plan.md
+  harness.py implement --repo /path/to/repo --todo-file .smartclaw/plans/todo.md
+  harness.py evaluate   --repo /path/to/repo --plan-file .smartclaw/plans/plan.md
   harness.py run        --task "..." --repo /path/to/repo --project-id ID
 
 Phases:
@@ -37,8 +37,8 @@ def run_cmd(cmd: str, cwd: str | None = None, check: bool = True) -> subprocess.
 
 
 def ensure_plans_dir(repo: str) -> Path:
-    """Create .hermes/plans/ in the repo if it doesn't exist."""
-    plans = Path(repo) / ".hermes" / "plans"
+    """Create .smartclaw/plans/ in the repo if it doesn't exist."""
+    plans = Path(repo) / ".smartclaw" / "plans"
     plans.mkdir(parents=True, exist_ok=True)
     return plans
 
@@ -108,7 +108,7 @@ def phase_research(task: str, repo: str, project_id: str | None = None) -> Path:
 {repo}
 
 ## Instructions
-Read the relevant parts of this codebase deeply. Write your findings to `.hermes/plans/research.md`.
+Read the relevant parts of this codebase deeply. Write your findings to `.smartclaw/plans/research.md`.
 """
 
     print(f"[harness] Phase 1: RESEARCH — deep-reading codebase")
@@ -120,7 +120,7 @@ Read the relevant parts of this codebase deeply. Write your findings to `.hermes
     print(f"[harness] Next: review the prompt, then run:")
     print(f"  ao spawn harness-research -p {project_id or '<project-id>'}")
     print(f"  ao send <session> --file {task_file}")
-    print(f"[harness] After agent completes, review .hermes/plans/research.md")
+    print(f"[harness] After agent completes, review .smartclaw/plans/research.md")
     print(f"[harness] Add inline notes (prefixed with '> NOTE:') to research.md, then re-run this cycle if needed.")
 
     return plans_dir / "research.md"
@@ -150,14 +150,14 @@ def phase_plan(task: str, repo: str) -> Path:
 {research}
 
 ## Instructions
-Write a detailed implementation plan to `.hermes/plans/plan.md` and a granular todo list to `.hermes/plans/todo.md`.
+Write a detailed implementation plan to `.smartclaw/plans/plan.md` and a granular todo list to `.smartclaw/plans/todo.md`.
 """
 
     print(f"[harness] Phase 2: PLAN — writing implementation plan")
 
     task_file = write_artifact(plans_dir, "plan-task.md", prompt)
     print(f"[harness] Plan prompt written to: {task_file}")
-    print(f"[harness] After agent completes, review .hermes/plans/plan.md")
+    print(f"[harness] After agent completes, review .smartclaw/plans/plan.md")
     print(f"[harness] Add inline notes to plan.md, then re-run this cycle until satisfied.")
     print(f"[harness] When satisfied, proceed to 'implement' phase.")
 
@@ -268,7 +268,7 @@ def phase_evaluate(repo: str, plan_file: str) -> None:
 ```
 
 ## Instructions
-Evaluate the code changes against the plan specification. Write your evaluation to `.hermes/plans/eval_report.md`.
+Evaluate the code changes against the plan specification. Write your evaluation to `.smartclaw/plans/eval_report.md`.
 """
 
     print(f"[harness] Phase 4: EVALUATE — grading output against plan")
@@ -297,13 +297,13 @@ def phase_run(task: str, repo: str, project_id: str) -> None:
 
     # Remaining phases require human approval (annotation cycle)
     print(f"[harness] ─── Awaiting Human Review ───")
-    print(f"[harness] Review .hermes/plans/research.md")
+    print(f"[harness] Review .smartclaw/plans/research.md")
     print(f"[harness] Add notes, then run:")
     print(f"  harness.py plan --task '{task}' --repo {repo}")
     print()
     print(f"[harness] After plan is approved:")
-    print(f"  harness.py implement --repo {repo} --todo-file .hermes/plans/todo.md")
-    print(f"  harness.py evaluate --repo {repo} --plan-file .hermes/plans/plan.md")
+    print(f"  harness.py implement --repo {repo} --todo-file .smartclaw/plans/todo.md")
+    print(f"  harness.py evaluate --repo {repo} --plan-file .smartclaw/plans/plan.md")
 
 
 def main():
@@ -324,13 +324,13 @@ def main():
     # implement
     p_impl = subparsers.add_parser("implement", help="Implementation phase")
     p_impl.add_argument("--repo", required=True, help="Path to repo")
-    p_impl.add_argument("--todo-file", default=".hermes/plans/todo.md")
+    p_impl.add_argument("--todo-file", default=".smartclaw/plans/todo.md")
     p_impl.add_argument("--project-id", help="AO project ID")
 
     # evaluate
     p_eval = subparsers.add_parser("evaluate", help="Evaluation phase")
     p_eval.add_argument("--repo", required=True, help="Path to repo")
-    p_eval.add_argument("--plan-file", default=".hermes/plans/plan.md")
+    p_eval.add_argument("--plan-file", default=".smartclaw/plans/plan.md")
 
     # run (full pipeline)
     p_run = subparsers.add_parser("run", help="Full pipeline")

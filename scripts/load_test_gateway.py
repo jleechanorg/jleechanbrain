@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple load tester for OpenClaw gateway endpoints.
+"""Simple load tester for Hermes gateway endpoints.
 
 Supports:
 - health mode: GET /health
@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_URL = "http://127.0.0.1:18789"
-DEFAULT_CONFIG = Path.home() / ".smartclaw" / "openclaw.json"
+DEFAULT_URL = "http://127.0.0.1:8643"
+DEFAULT_CONFIG = Path.home() / ".smartclaw" / "config.yaml"
 
 
 @dataclass
@@ -46,7 +46,7 @@ def percentile(values: list[float], pct: float) -> float:
 def load_token(explicit_token: str | None) -> str:
     if explicit_token:
         return explicit_token
-    env_token = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "").strip()
+    env_token = os.environ.get("HERMES_GATEWAY_TOKEN", "").strip()
     if env_token:
         return env_token
     if DEFAULT_CONFIG.exists():
@@ -54,7 +54,7 @@ def load_token(explicit_token: str | None) -> str:
         token = str(data.get("gateway", {}).get("auth", {}).get("token", "")).strip()
         if token and not token.startswith("${"):
             return token
-    raise RuntimeError("Missing gateway token. Set OPENCLAW_GATEWAY_TOKEN or pass --token.")
+    raise RuntimeError("Missing gateway token. Set HERMES_GATEWAY_TOKEN or pass --token.")
 
 
 def build_health_request(base_url: str, token: str, timeout_s: float) -> urllib.request.Request:
@@ -167,7 +167,7 @@ def run_load(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Load test OpenClaw gateway.")
+    parser = argparse.ArgumentParser(description="Load test Hermes gateway.")
     parser.add_argument("--url", default=DEFAULT_URL, help="Gateway base URL.")
     parser.add_argument("--mode", choices=["health", "chat"], default="health")
     parser.add_argument("--requests", type=int, default=200)

@@ -1,6 +1,6 @@
 {
   "command": "PYTHONPATH=src python -m pytest tests/test_mem0_purge_smoke.py -v --tb=short",
-  "cwd": "/Users/jleechan/.worktrees/jleechanclaw/jc-996",
+  "cwd": "${HOME}/.worktrees/smartclaw/jc-996",
   "platform": "darwin",
   "python_version": "3.14",
   "result": {

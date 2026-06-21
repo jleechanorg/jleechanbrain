@@ -74,9 +74,9 @@ async function main() {
     process.env.MEM0_PKG_ROOT ||
     path.join(
       os.homedir(),
-      ".smartclaw",
+      ".hermes",
       "extensions",
-      "openclaw-mem0",
+      "hermes-mem0",
       "node_modules",
       "mem0ai",
     );
@@ -85,7 +85,7 @@ async function main() {
     throw new Error(`mem0 oss module not found: ${mem0OssModule}`);
   }
 
-  const outRoot = process.env.MEM0_OFFLINE_OUT || "/tmp/openclaw-mem0-offline";
+  const outRoot = process.env.MEM0_OFFLINE_OUT || "/tmp/hermes-mem0-offline";
   const runDir = path.join(outRoot, `${utcStamp()}-offline-50q`);
   fs.mkdirSync(runDir, { recursive: true });
   const latest = path.join(outRoot, "latest");
@@ -94,7 +94,7 @@ async function main() {
   } catch { }
   fs.symlinkSync(runDir, latest);
 
-  const slackDir = path.join(os.homedir(), ".smartclaw", "memory", "slack-history");
+  const slackDir = path.join(os.homedir(), ".hermes", "memory", "slack-history");
   const files = listMarkdownFiles(slackDir);
   const allText = files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
   const pairs = buildPairMap(allText);
@@ -121,7 +121,7 @@ async function main() {
         config: {
           host: process.env.MEM0_QDRANT_HOST || "127.0.0.1",
           port: Number(process.env.MEM0_QDRANT_PORT || "6333"),
-          collectionName: process.env.MEM0_QDRANT_COLLECTION || "openclaw_mem0",
+          collectionName: process.env.MEM0_QDRANT_COLLECTION || "hermes_mem0",
           embeddingModelDims: Number(process.env.MEM0_QDRANT_DIMS || "1536"),
           checkCompatibility:
             String(process.env.MEM0_QDRANT_CHECK_COMPAT || "false") !== "false",

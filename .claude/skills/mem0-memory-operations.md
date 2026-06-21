@@ -1,6 +1,6 @@
 ---
 name: mem0-memory-operations
-description: Operate and troubleshoot OpenClaw mem0 memory usage (stats, search, writes, ingest resume, namespace checks)
+description: Operate and troubleshoot hermes mem0 memory usage (stats, search, writes, ingest resume, namespace checks)
 type: reference
 scope: project
 ---
@@ -20,41 +20,41 @@ Use this runbook to safely operate memory retrieval and ingest without mixing be
 curl -sf http://127.0.0.1:6333/healthz
 
 # Base memory count
-openclaw mem0 stats
+hermes mem0 stats
 
 # Canary memory count
-openclaw mem0 stats --agent memqa
+hermes mem0 stats --agent memqa
 
 # Raw point count in vector store
-curl -sS http://127.0.0.1:6333/collections/openclaw_mem0 | jq '.result.points_count'
+curl -sS http://127.0.0.1:6333/collections/hermes_mem0 | jq '.result.points_count'
 ```
 
 ## Read Memories
 ```bash
 # Base namespace search
-openclaw mem0 search "<query>"
+hermes mem0 search "<query>"
 
 # Canary namespace search
-openclaw mem0 search "<query>" --agent memqa
+hermes mem0 search "<query>" --agent memqa
 
 # Scope-specific search
-openclaw mem0 search "<query>" --scope long-term
-openclaw mem0 search "<query>" --scope session
+hermes mem0 search "<query>" --scope long-term
+hermes mem0 search "<query>" --scope session
 ```
 
 ## Write Memories
 ```bash
 # Base namespace
-openclaw mem0 add "<fact>"
+hermes mem0 add "<fact>"
 
 # Canary namespace
-openclaw mem0 add "<fact>" --agent memqa
+hermes mem0 add "<fact>" --agent memqa
 ```
 
 ## Resume Bulk Ingest
 ```bash
 # Ensure backend is up
-docker start openclaw-mem0-qdrant >/dev/null 2>&1 || true
+docker start hermes-mem0-qdrant >/dev/null 2>&1 || true
 
 # Resume from checkpointed state
 cd "$(pwd)"
@@ -75,11 +75,11 @@ node -e 'const s=require(process.env.HOME+"/.smartclaw/mem0-ingest-all4/state.js
 ## Install / First-Time Setup
 ```bash
 # 1. Install the mem0 plugin (if not already installed)
-openclaw plugins install @mem0/openclaw-mem0
+hermes plugins install @mem0/hermes-mem0
 
 # 2. Ensure backends are running
 # Qdrant (via Docker):
-docker start openclaw-mem0-qdrant 2>/dev/null || docker run -d --name openclaw-mem0-qdrant \
+docker start hermes-mem0-qdrant 2>/dev/null || docker run -d --name hermes-mem0-qdrant \
   -p 6333:6333 -p 6334:6334 \
   -v $HOME/.smartclaw/qdrant_storage:/qdrant/storage \
   qdrant/qdrant
@@ -88,41 +88,41 @@ docker start openclaw-mem0-qdrant 2>/dev/null || docker run -d --name openclaw-m
 ollama serve  # if not running
 
 # 3. Rebuild native modules after Node version change
-cd $HOME/.smartclaw/extensions/openclaw-mem0
+cd $HOME/.smartclaw/extensions/hermes-mem0
 npm rebuild better-sqlite3 --build-from-source
 
 # 4. Patch mem0ai to suppress Qdrant version-check warning
 # (safe: both are 0.3.0, Qdrant server 1.17.0 vs client 1.13.0 — minor version diff >1)
 python3 -c "
-content = open('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/mem0ai/dist/oss/index.js').read()
+content = open('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/mem0ai/dist/oss/index.js').read()
 old = 'this.client = new import_js_client_rest.QdrantClient(params);'
 new = 'this.client = new import_js_client_rest.QdrantClient({ ...params, checkCompatibility: false });'
 if old in content:
     content = content.replace(old, new)
-    open('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/mem0ai/dist/oss/index.js', 'w').write(content)
+    open('$HOME/.smartclaw/extensions/hermes-mem0/node_modules/mem0ai/dist/oss/index.js', 'w').write(content)
     print('Patched: checkCompatibility=false')
 else:
     print('Already patched or unexpected content')
 "
 
 # 5. Verify
-openclaw mem0 stats
+hermes mem0 stats
 # Should show: Total memories: N (no Qdrant version warning, no duplicate plugin warning)
 ```
 
 ## Verify End-to-End
 ```bash
 # No warnings expected after patch:
-openclaw mem0 stats
+hermes mem0 stats
 
 # Real recall test:
-openclaw mem0 search "AO spawn session management"
+hermes mem0 search "AO spawn session management"
 # Should return relevant memories with scores >0.7
 ```
 
 ## Rules
 - Do not treat canary (`--agent memqa`) totals as production totals.
 - Do not assume 50Q pass rate equals successful historical backfill.
-- Use base `openclaw mem0 stats` + targeted recall checks to validate production memory.
+- Use base `hermes mem0 stats` + targeted recall checks to validate production memory.
 - After Node version upgrade: always rebuild `better-sqlite3` native module.
-- The `extensions/openclaw-mem0/` bundled copy was removed from smartclaw — use the globally installed npm package instead.
+- The `extensions/hermes-mem0/` bundled copy was removed from smartclaw — use the globally installed npm package instead.

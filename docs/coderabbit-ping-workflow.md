@@ -14,5 +14,5 @@
 ## References
 
 - AGENTS.md / CLAUDE.md: CodeRabbit Review Protocol
-- openclaw-config/SOUL.md: exact re-review prompt
+- hermes-config/SOUL.md: exact re-review prompt
 - worldarchitect.ai automation: comment-validation and PR monitor use `@coderabbitai` in review request bodies; `/coderabbit` command posts `@coderabbitai all good?` only when appropriate.

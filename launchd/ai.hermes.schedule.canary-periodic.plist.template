@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.hermes.schedule.canary-periodic</string>
+    <string>ai.smartclaw.schedule.canary-periodic</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -34,13 +34,13 @@
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>@HOME@/.hermes</string>
+    <string>@HOME@/.smartclaw</string>
 
     <key>StandardOutPath</key>
-    <string>@HOME@/.hermes/logs/canary-periodic.log</string>
+    <string>@HOME@/.smartclaw/logs/canary-periodic.log</string>
 
     <key>StandardErrorPath</key>
-    <string>@HOME@/.hermes/logs/canary-periodic.err.log</string>
+    <string>@HOME@/.smartclaw/logs/canary-periodic.err.log</string>
 
     <key>ProcessType</key>
     <string>Background</string>
