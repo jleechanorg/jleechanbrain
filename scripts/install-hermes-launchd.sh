@@ -59,14 +59,14 @@ echo ""
 # Step 1: Core infrastructure services (install-launchagents.sh)
 echo "[1/3] Installing core infrastructure services..."
 _infra="$REPO_ROOT/scripts/install-launchagents.sh"
-if [[ -x "$_infra" ]]; then
+if [[ -f "$_infra" ]]; then
   if [[ "$DRY_RUN" == "1" ]]; then
     _echo "  [dry-run] would run: CALLED_AS_PART_OF_CENTRAL=1 bash $_infra"
   else
     CALLED_AS_PART_OF_CENTRAL=1 bash "$_infra"
   fi
 else
-  echo "  ✗ install-launchagents.sh not found or not executable: $_infra" >&2
+  echo "  ✗ install-launchagents.sh not found: $_infra" >&2
 fi
 
 echo ""
@@ -74,7 +74,7 @@ echo ""
 # Step 2: Scheduled jobs (install-hermes-scheduled-jobs.sh)
 echo "[2/3] Installing scheduled launchd jobs (migrating from gateway cron)..."
 _sched="$REPO_ROOT/scripts/install-hermes-scheduled-jobs.sh"
-if [[ -x "$_sched" ]]; then
+if [[ -f "$_sched" ]]; then
   if [[ "$DRY_RUN" == "1" ]]; then
     _echo "  [dry-run] would run: $_sched"
   else

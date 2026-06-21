@@ -12,7 +12,11 @@ MONITOR_REPO_ROOT="$SCRIPT_DIR"
 # C0AJ3SD5C79 (design) as fallback channels for alerts and thread probes —
 # both bled ops alerts into non-ops channels when the plist env was unset.
 # shellcheck source=lib/slack_thread_lib.sh
-IS_SOURCED=1 source "$MONITOR_REPO_ROOT/lib/slack_thread_lib.sh"
+if [[ -f "$MONITOR_REPO_ROOT/lib/slack_thread_lib.sh" ]]; then
+  IS_SOURCED=1 source "$MONITOR_REPO_ROOT/lib/slack_thread_lib.sh"
+else
+  echo "[monitor-agent] WARNING: lib/slack_thread_lib.sh not found — Slack helpers unavailable" >&2
+fi
 LOG_FILE="${HERMES_MONITOR_LOG_FILE:-$MONITOR_REPO_ROOT/logs/monitor-agent.log}"
 LOG_DIR="$(dirname "$LOG_FILE")"
 LOCK_DIR="${HERMES_MONITOR_LOCK_DIR:-$MONITOR_REPO_ROOT/locks/monitor-agent.lock}"

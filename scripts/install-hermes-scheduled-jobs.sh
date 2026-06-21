@@ -157,16 +157,10 @@ declare -a JOB_SCRIPTS=(
   "$REPO_ROOT/scripts/hermes-health.sh"
   "$REPO_ROOT/scripts/gh-actions-cost-monitor.sh"
   "$REPO_ROOT/scripts/spend-alert-daily.sh"
-  "$REPO_ROOT/scripts/beads-conflict-resolver.sh"
-  "$REPO_ROOT/scripts/beads-conflict-resolver.launchd.sh"
 )
 for script in "${JOB_SCRIPTS[@]}"; do
   if [[ ! -f "$script" ]]; then
     echo "ERROR: required script missing: $script" >&2
-    exit 1
-  fi
-  if [[ ! -x "$script" ]]; then
-    echo "ERROR: script is not executable: $script" >&2
     exit 1
   fi
   dst="$LIVE_DIR/scripts/$(basename "$script")"

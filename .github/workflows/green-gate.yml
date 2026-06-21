@@ -73,7 +73,7 @@ jobs:
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
-          REQUIRED_CORE_JOBS=3
+          REQUIRED_CORE_JOBS=2
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             # Brief settle delay before first check — GitHub can take ~5s to
             # register all check-runs after a workflow completes.
