@@ -26,7 +26,7 @@ else
         sleep 1
         if ! launchctl load -w "$HOME/Library/LaunchAgents/${STAGING_LABEL}.plist" 2>/dev/null; then
             echo "  launchd load failed — starting gateway process directly..."
-            pkill -x hermes.*8644" 2>/dev/null || true
+            pkill -f "hermes.*${STAGING_PORT}" 2>/dev/null || true
             sleep 1
             HERMES_HOME="$HOME/.smartclaw" \
             HERMES_CONFIG_PATH="$HOME/.smartclaw/config.staging.yaml" \

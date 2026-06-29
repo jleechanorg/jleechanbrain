@@ -72,12 +72,16 @@ if [[ "${1:-}" == "--symlink-only" ]]; then
 fi
 
 if [[ "${1:-}" == "--eloop-skill-only" ]]; then
-    if [[ -f "$REPO_ROOT/skills/jleechanbrain-eloop.md" ]]; then
+    if [[ -f "$REPO_ROOT/skills/jleechanclaw-eloop.md" ]]; then
         mkdir -p "$HOME/.smartclaw/skills"
-        ln -sf "$REPO_ROOT/skills/jleechanbrain-eloop.md" "$HOME/.smartclaw/skills/jleechanbrain-eloop.md"
-        echo "OK: ~/.smartclaw/skills/jleechanbrain-eloop.md -> $REPO_ROOT/skills/jleechanbrain-eloop.md"
+        ln -sf "$REPO_ROOT/skills/jleechanclaw-eloop.md" "$HOME/.smartclaw/skills/jleechanclaw-eloop.md"
+        echo "OK: ~/.smartclaw/skills/jleechanclaw-eloop.md -> $REPO_ROOT/skills/jleechanclaw-eloop.md"
+    elif [[ -f "$REPO_ROOT/skills/smartclaw-eloop.md" ]]; then
+        mkdir -p "$HOME/.smartclaw/skills"
+        ln -sf "$REPO_ROOT/skills/smartclaw-eloop.md" "$HOME/.smartclaw/skills/smartclaw-eloop.md"
+        echo "OK: ~/.smartclaw/skills/smartclaw-eloop.md -> $REPO_ROOT/skills/smartclaw-eloop.md"
     else
-        echo "ERROR: missing $REPO_ROOT/skills/jleechanbrain-eloop.md" >&2
+        echo "ERROR: missing $REPO_ROOT/skills/jleechanclaw-eloop.md (or fallback smartclaw-eloop.md)" >&2
         exit 1
     fi
     exit 0
@@ -92,12 +96,18 @@ if [ -d "$REPO_ROOT/workspace-monitor" ]; then
 fi
 
 # jleechanbrain custom eloop — AO orchestratorRules references ~/.smartclaw/skills/jleechanbrain-eloop.md
-if [[ -f "$REPO_ROOT/skills/jleechanbrain-eloop.md" ]]; then
+if [[ -f "$REPO_ROOT/skills/jleechanclaw-eloop.md" ]]; then
     mkdir -p "$HOME/.smartclaw/skills"
-    ln -sf "$REPO_ROOT/skills/jleechanbrain-eloop.md" "$HOME/.smartclaw/skills/jleechanbrain-eloop.md" \
-        && echo "Symlink: ~/.smartclaw/skills/jleechanbrain-eloop.md -> $REPO_ROOT/skills/jleechanbrain-eloop.md"
+    ln -sf "$REPO_ROOT/skills/jleechanclaw-eloop.md" "$HOME/.smartclaw/skills/jleechanclaw-eloop.md" \
+        && echo "Symlink: ~/.smartclaw/skills/jleechanclaw-eloop.md -> $REPO_ROOT/skills/jleechanclaw-eloop.md"
 else
-    echo "WARNING: $REPO_ROOT/skills/jleechanbrain-eloop.md missing — ~/.smartclaw/skills/jleechanbrain-eloop.md not created (AO eloop path will be broken)" >&2
+    if [[ -f "$REPO_ROOT/skills/smartclaw-eloop.md" ]]; then
+        mkdir -p "$HOME/.smartclaw/skills"
+        ln -sf "$REPO_ROOT/skills/smartclaw-eloop.md" "$HOME/.smartclaw/skills/smartclaw-eloop.md" \
+            && echo "Symlink: ~/.smartclaw/skills/smartclaw-eloop.md -> $REPO_ROOT/skills/smartclaw-eloop.md"
+    else
+        echo "WARNING: no eloop skill found to link into ~/.smartclaw/skills" >&2
+    fi
 fi
 
 # Agent Orchestrator config — render ~/.agent-orchestrator.yaml and point

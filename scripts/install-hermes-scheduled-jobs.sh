@@ -165,10 +165,6 @@ for script in "${JOB_SCRIPTS[@]}"; do
     echo "ERROR: required script missing: $script" >&2
     exit 1
   fi
-  if [[ ! -x "$script" ]]; then
-    echo "ERROR: script is not executable: $script" >&2
-    exit 1
-  fi
   dst="$LIVE_DIR/scripts/$(basename "$script")"
   # When the repo lives at ~/.smartclaw, REPO_ROOT/scripts and LIVE_DIR/scripts are the same path;
   # BSD install(1) errors with "same file" and a non-zero exit.

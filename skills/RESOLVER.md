@@ -53,11 +53,6 @@ Routes user phrases to skill entries. Each section is a skill with its canonical
 **File:** `skills/daily-task-prep/SKILL.md`
 **Triggers:** daily task prep, prepare today's tasks, morning task list, today's tasks
 
-## download-campaign
-
-**File:** `skills/download-campaign/SKILL.md`
-**Triggers:** download campaign, fetch this campaign, pull from firestore, ingest campaign, get campaign by id, copy campaign X, batch download recent campaigns, scan last N days, scan for >50 entries, last 2 weeks of campaigns, walk a WA campaign, pull Vespera Thul, pull Itachi, download this gem, single campaign download, get the campaign
-
 ## dispatch-task
 
 **File:** `skills/dispatch-task/SKILL.md`
@@ -82,11 +77,6 @@ Routes user phrases to skill entries. Each section is a skill with its canonical
 
 **File:** `skills/humanizer/SKILL.md`
 **Triggers:** humanize, remove ai writing, make it sound human
-
-## llm-narration-format-clarifier
-
-**File:** `skills/llm-narration-format-clarifier/SKILL.md`
-**Triggers:** llm dropped, llm invents the format, narration drift, show both, show all, format hint needed, add a worked example, prompt is too vague, llm paraphrase, never abbreviate, the narrative is missing, the roll is missing, narration too terse, format hint, make the llm consistently format, /narration-clarify
 
 ## meeting-prep
 
