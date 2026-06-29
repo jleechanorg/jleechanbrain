@@ -13,7 +13,7 @@ IS_SOURCED=1 source "$LIB_DIR/slack_thread_lib.sh"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 REPOS=(
-  "jleechanorg/smartclaw"
+  "jleechanorg/jleechanbrain"
   "jleechanorg/worldarchitect.ai"
   "jleechanorg/agent-orchestrator"
   "jleechanorg/ai_universe"

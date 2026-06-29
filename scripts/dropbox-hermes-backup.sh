@@ -14,7 +14,7 @@ rsync -a --delete \
   --exclude='.DS_Store' \
   --exclude='workspace' \
   --exclude='workspace-*' \
-  --exclude='smartclaw' \
+  --exclude='jleechanbrain' \
   --exclude='credentials/whatsapp' \
   --exclude='*.lock' \
   --exclude='extensions/*/node_modules' \

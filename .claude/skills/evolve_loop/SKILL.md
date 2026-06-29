@@ -8,7 +8,7 @@ type: skill
 
 Autonomous self-improving loop that observes the AO ecosystem, measures zero-touch rate, diagnoses friction, creates beads for gaps, dispatches fixes via /claw, and records everything. Runs via `/loop 10m` for max 12 hours.
 
-**Notes (implementation):** Run **`/auton`** using `~/.claude/skills/auton/SKILL.md` (read CLAUDE.md, `agent-orchestrator.yaml`, SOUL.md first). **`ao-pr-poller` is deprecated** — never treat its absence as failure. Lifecycle launchd label may be `ai.agento.lifecycle-all` or `com.agentorchestrator.lifecycle-smartclaw` — verify with `launchctl list | rg -i lifecycle`. Harness-specific backlog eloop: `skills/smartclaw-eloop.md` (see also `.claude/skills/smartclaw-eloop/SKILL.md`).
+**Notes (implementation):** Run **`/auton`** using `~/.claude/skills/auton/SKILL.md` (read CLAUDE.md, `agent-orchestrator.yaml`, SOUL.md first). **`ao-pr-poller` is deprecated** — never treat its absence as failure. Lifecycle launchd label may be `ai.agento.lifecycle-all` or `com.agentorchestrator.lifecycle-jleechanbrain` — verify with `launchctl list | rg -i lifecycle`. Harness-specific backlog eloop: `skills/jleechanbrain-eloop.md` (see also `.claude/skills/jleechanbrain-eloop/SKILL.md`).
 
 ## AUTONOMOUS CONTINUATION — MANDATORY
 
@@ -54,7 +54,7 @@ Decision tree after Phase 2 (Measure):
 **1b. Check AO workers** — for each repo AO manages:
 - `jleechanorg/agent-orchestrator` (primary)
 - `jleechanorg/worldai_claw` (worldai)
-- `jleechanorg/smartclaw` (orchestration — deprecated but may have active workers)
+- `jleechanorg/jleechanbrain` (orchestration — deprecated but may have active workers)
 - Antigravity orchestrator (special — check launchd daemon status)
 
 ```bash
@@ -62,7 +62,7 @@ Decision tree after Phase 2 (Measure):
 tmux list-sessions 2>/dev/null | grep -E '(ao|jc|wa|cc|ra|wc)-[0-9]+'
 
 # Per-repo open PRs
-for repo in agent-orchestrator worldai_claw smartclaw; do
+for repo in agent-orchestrator worldai_claw jleechanbrain; do
   gh api "repos/jleechanorg/$repo/pulls?state=open&per_page=20" \
     --jq '.[]|"\(.number) \(.head.ref) \(.mergeable_state)"' 2>/dev/null
 done
@@ -90,7 +90,7 @@ for sess in $(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '(bb
   [ -z "$pr_num" ] && continue
   case "$sess" in
     *-ao-*) repo="jleechanorg/agent-orchestrator" ;;
-    *-jc-*) repo="jleechanorg/smartclaw" ;;
+    *-jc-*) repo="jleechanorg/jleechanbrain" ;;
     *-wa-*) repo="jleechanorg/worldarchitect.ai" ;;
     *-wc-*) repo="jleechanorg/worldai_claw" ;;
     *) continue ;;

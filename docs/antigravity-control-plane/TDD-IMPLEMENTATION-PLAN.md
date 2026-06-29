@@ -59,7 +59,7 @@ def test_job_schema_round_trip():
     job = Job(
         job_id="test-uuid",
         idempotency_key="abc123",
-        repo="jleechanorg/smartclaw",
+        repo="jleechanorg/jleechanbrain",
         objective="Test objective",
         priority=Priority.NORMAL,
     )
@@ -102,7 +102,7 @@ def test_enqueue_creates_job(tmp_path, monkeypatch):
     # Setup: mock sqlite db in tmp_path
     scheduler = Scheduler(db_path=tmp_path / "jobs.db")
     req = EnqueueRequest(
-        repo="jleechanorg/smartclaw",
+        repo="jleechanorg/jleechanbrain",
         objective="Test",
         priority=Priority.NORMAL,
         requestor="test",
@@ -116,7 +116,7 @@ def test_duplicate_enqueue_returns_existing(tmp_path):
     """Same idempotency key returns duplicate=True with existing job_id."""
     scheduler = Scheduler(db_path=tmp_path / "jobs.db")
     req = EnqueueRequest(
-        repo="jleechanorg/smartclaw",
+        repo="jleechanorg/jleechanbrain",
         objective="Test",
         priority=Priority.HIGH,
         requestor="test",
@@ -186,7 +186,7 @@ def test_dispatcher_polls_queued_jobs(tmp_path, monkeypatch):
     dispatcher = Dispatcher(scheduler=scheduler, ao_adapter=mock_adapter)
 
     job_resp = scheduler.enqueue(EnqueueRequest(
-        repo="jleechanorg/smartclaw",
+        repo="jleechanorg/jleechanbrain",
         objective="Test",
         priority=Priority.NORMAL,
         requestor="test",
@@ -198,7 +198,7 @@ def test_dispatcher_polls_queued_jobs(tmp_path, monkeypatch):
     assert job.state == JobState.DISPATCHED
     assert job.dispatched_at is not None
     assert job.worker_id is not None
-    assert mock_adapter.sent_messages[-1].body.repo == "jleechanorg/smartclaw"
+    assert mock_adapter.sent_messages[-1].body.repo == "jleechanorg/jleechanbrain"
 
 def test_dispatcher_enforces_per_repo_exclusivity(tmp_path, mock_adapter):
     """Two jobs for same repo: first dispatched, second waits."""
@@ -438,7 +438,7 @@ def test_full_loop_enqueue_to_dispatch(tmp_path, mock_ao_adapter):
 
     # Enqueue
     resp = scheduler.enqueue(EnqueueRequest(
-        repo="jleechanorg/smartclaw",
+        repo="jleechanorg/jleechanbrain",
         objective="Ping: confirm Antigravity control plane is working",
         priority=Priority.CRITICAL,
         requestor="smoke-test",
@@ -463,7 +463,7 @@ def test_full_loop_enqueue_to_dispatch(tmp_path, mock_ao_adapter):
 ```bash
 # Enqueue a job (CLI)
 PYTHONPATH=src python -m orchestration.antig_control_plane.cli enqueue \
-    --repo jleechanorg/smartclaw \
+    --repo jleechanorg/jleechanbrain \
     --objective "Run antigravity smoke test" \
     --priority high \
     --requestor "cli:jleechan"
@@ -471,7 +471,7 @@ PYTHONPATH=src python -m orchestration.antig_control_plane.cli enqueue \
 # List jobs
 PYTHONPATH=src python -m orchestration.antig_control_plane.cli list \
     --state queued \
-    --repo jleechanorg/smartclaw
+    --repo jleechanorg/jleechanbrain
 
 # Cancel a job
 PYTHONPATH=src python -m orchestration.antig_control_plane.cli cancel <job_id>

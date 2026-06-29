@@ -346,7 +346,7 @@ class Job:
     idempotency_key: str                 # SHA-256 of (repo, objective, priority, correlation_id)
 
     # Routing
-    repo: str                            # "owner/repo" e.g. "jleechanorg/smartclaw"
+    repo: str                            # "owner/repo" e.g. "jleechanorg/jleechanbrain"
     worktree_path: str | None             # None = control plane creates fresh worktree
     correlation_id: str | None           # groups related jobs (e.g. parent job id)
 
@@ -370,7 +370,7 @@ class Job:
     last_heartbeat_at: datetime | None = None
 
     # Worker assignment
-    worker_id: str | None = None         # e.g. "ao:worker:antig-smartclaw-1"
+    worker_id: str | None = None         # e.g. "ao:worker:antig-jleechanbrain-1"
 
     # Result
     outcome: str | None = None            # opaque worker result
@@ -594,9 +594,9 @@ CREATE INDEX idx_created ON jobs(created_at);</code></pre>
       <h2>JSONL Event Log</h2>
       <p>Each job also emits a structured event log to <code>antig_jobs/{job_id}/events.jsonl</code>:</p>
       <pre><code>{"ts": "2026-03-24T12:00:00Z", "event": "created", "state": "queued"}
-{"ts": "2026-03-24T12:00:10Z", "event": "dispatched", "state": "dispatched", "worker_id": "ao:worker:antig-smartclaw-1"}
+{"ts": "2026-03-24T12:00:10Z", "event": "dispatched", "state": "dispatched", "worker_id": "ao:worker:antig-jleechanbrain-1"}
 {"ts": "2026-03-24T12:00:15Z", "event": "started", "state": "running"}
-{"ts": "2026-03-24T12:45:00Z", "event": "completed", "state": "completed", "result_url": "https://github.com/jleechanorg/smartclaw/pull/383"}</code></pre>
+{"ts": "2026-03-24T12:45:00Z", "event": "completed", "state": "completed", "result_url": "https://github.com/jleechanorg/jleechanbrain/pull/383"}</code></pre>
     </section>
 
     <section id="worktree-naming-convention">
@@ -605,7 +605,7 @@ CREATE INDEX idx_created ON jobs(created_at);</code></pre>
       <div class="diagram">
         <pre>/tmp/{REPO_OWNER}-{REPO_NAME}-ag-{SHORT_JOB_ID}</pre>
       </div>
-      <p>e.g. <code>/tmp/jleechanorg-smartclaw-ag-a4f2b1</code></p>
+      <p>e.g. <code>/tmp/jleechanorg-jleechanbrain-ag-a4f2b1</code></p>
       <p>Branch naming: <code>antigravity/job-{job_id}</code> (truncated to 50 chars + sanitized)</p>
     </section>
 

@@ -8,7 +8,7 @@ type: workflow
 
 ## Purpose
 
-Keep `smartclaw` -> `smartclaw` export current by:
+Keep `jleechanbrain` -> `smartclaw` export current by:
 - classifying portable vs non-portable files,
 - regenerating `scripts/smartclaw-export-map.tsv`,
 - updating audit report `docs/SMARTCLAW_PORTABILITY_AUDIT.md`,

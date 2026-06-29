@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Workspace Observability Report
-# Weekly job that audits smartclaw workspace health across all dimensions:
+# Weekly job that audits jleechanbrain workspace health across all dimensions:
 # worktrees, workspace parity, backups, launchd services, sessions, and evidence.
 #
 # Output: structured report written to:
@@ -113,7 +113,7 @@ section "1. Worktree Inventory"
 WORKTREE_PR_LIST=""
 if GH_TOKEN_VALUE="$(resolve_gh_token)"; then
   export GH_TOKEN="$GH_TOKEN_VALUE"
-  WORKTREE_PR_LIST=$(run_with_timeout 10 gh api repos/jleechanorg/smartclaw/pulls 2>/dev/null || echo "")
+  WORKTREE_PR_LIST=$(run_with_timeout 10 gh api repos/jleechanorg/jleechanbrain/pulls 2>/dev/null || echo "")
 fi
 
 if [[ ! -d "$HOME/.worktrees" ]]; then
@@ -379,7 +379,7 @@ if ! GH_TOKEN_VALUE="$(resolve_gh_token)"; then
 else
   export GH_TOKEN="$GH_TOKEN_VALUE"
 
-  PR_LIST=$(run_with_timeout 15 gh api repos/jleechanorg/smartclaw/pulls 2>/dev/null || echo "[]")
+  PR_LIST=$(run_with_timeout 15 gh api repos/jleechanorg/jleechanbrain/pulls 2>/dev/null || echo "[]")
   PR_COUNT=$(echo "$PR_LIST" | jq length 2>/dev/null || echo 0)
   echo "Open PRs: **$PR_COUNT**" >> "$SECTIONS_FILE"
   echo "" >> "$SECTIONS_FILE"
@@ -398,7 +398,7 @@ else
   for num in $(echo "$PR_LIST" | jq -r '.[].number' 2>/dev/null); do
     pr_sha=$(echo "$PR_LIST" | jq -r ".[] | select(.number == $num) | .head.sha" 2>/dev/null || echo "")
     if [[ -z "$pr_sha" ]]; then continue; fi
-    status=$(run_with_timeout 10 gh api "repos/jleechanorg/smartclaw/commits/$pr_sha/status" 2>/dev/null | jq -r ".state" || echo "unknown")
+    status=$(run_with_timeout 10 gh api "repos/jleechanorg/jleechanbrain/commits/$pr_sha/status" 2>/dev/null | jq -r ".state" || echo "unknown")
     if [[ "$status" == "failure" ]]; then
       FAILED_CI="${FAILED_CI}${num} "
     fi

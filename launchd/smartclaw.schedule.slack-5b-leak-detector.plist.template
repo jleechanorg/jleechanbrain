@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.slack-5b-leak-detector</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/slack_5b_leak_detector.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>SLACK_USER_TOKEN</key>
+        <string>@SLACK_USER_TOKEN@</string>
+        <key>SLACK_5B_CHANNELS</key>
+        <string>C0AH3RY3DK6 C0BA4MCBPFB ${SLACK_CHANNEL_ID} ${SLACK_CHANNEL_ID}</string>
+        <key>SLACK_5B_ALERT_CHANNEL</key>
+        <string>${SLACK_CHANNEL_ID}</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>@HERMES_HOME@/logs/scheduled-jobs/slack-5b-leak-detector.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HERMES_HOME@/logs/scheduled-jobs/slack-5b-leak-detector.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

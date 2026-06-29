@@ -5,7 +5,7 @@
 #            staging PR merges, or after a manual staging-branch merge).
 #            Also callable manually after confirming staging is healthy.
 #
-# Design: 3-stage openclaw dev pipeline (orch-1ps epic).
+# Design: 3-stage hermes dev pipeline (orch-1ps epic).
 #   Stage 1: PR → merge to staging branch → ~/.smartclaw-staging/ picks up via worktree
 #   Stage 2: This script runs canary against staging gateway; merges staging→main if green
 #   Stage 3: CI gate (staging-canary.sh in GHA before merge) — orch-1ps.3
@@ -15,16 +15,16 @@
 set -euo pipefail
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-# Note: OPENCLAW_STAGING_DIR is used by staging-canary.sh for the staging config
+# Note: HERMES_STAGING_DIR is used by staging-canary.sh for the staging config
 # dir (~/.smartclaw/staging). This script uses the staging WORKTREE, which is a
 # different path (~/.smartclaw-staging/). The env var for this script's worktree
-# path is OPENCLAW_STAGING_WORKTREE (not OPENCLAW_STAGING_DIR).
-STAGING_WORKTREE="${OPENCLAW_STAGING_WORKTREE:-$HOME/.smartclaw-staging}"
+# path is HERMES_STAGING_WORKTREE (not HERMES_STAGING_DIR).
+STAGING_WORKTREE="${HERMES_STAGING_WORKTREE:-$HOME/.smartclaw-staging}"
 # Backward-compat alias — code below uses STAGING_WORKTREE throughout
 STAGING_DIR="$STAGING_WORKTREE"
 PROD_DIR="$HOME/.smartclaw"
-STAGING_CANARY="${OPENCLAW_STAGING_CANARY:-$HOME/.smartclaw/scripts/staging-canary.sh}"
-CANARY_PORT="${OPENCLAW_STAGING_CANARY_PORT:-18790}"
+STAGING_CANARY="${HERMES_STAGING_CANARY:-$HOME/.smartclaw/scripts/staging-canary.sh}"
+CANARY_PORT="${HERMES_STAGING_CANARY_PORT:-18790}"
 
 # ── Guard: staging must be a git worktree, not a plain directory ───────────────
 # A worktree has .git as a file pointing to the parent repo; a plain dir has no .git

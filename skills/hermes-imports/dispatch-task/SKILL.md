@@ -80,7 +80,7 @@ ao projects list        # shows all configured projects and their IDs
 br show ORCH-xxx        # bead description often names the repo/project
 ```
 
-Example IDs that sometimes appear in configs include `smartclaw`, `worldai`, `mctrl`, and `agent-orchestrator`. Always confirm the correct ID with `ao projects list` and the bead/repo context—do not pick one from this list by guesswork.
+Example IDs that sometimes appear in configs include `jleechanbrain`, `worldai`, `mctrl`, and `agent-orchestrator`. Always confirm the correct ID with `ao projects list` and the bead/repo context—do not pick one from this list by guesswork.
 
 If jleechan explicitly requests Codex (or another agent CLI), use the override flags your `ao spawn` supports (`ao spawn --help`); defaults live under `defaults.agent` in `agent-orchestrator.yaml`. Do not fall back to `sessions_spawn`.
 

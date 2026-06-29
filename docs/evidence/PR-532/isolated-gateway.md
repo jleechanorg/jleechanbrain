@@ -8,7 +8,7 @@
 ```bash
 export HERMES_STATE_DIR="$HOME/.smartclaw"
 export HERMES_CONFIG_PATH="$HOME/.smartclaw/config.yaml"
-cd ${HOME}/.worktrees/smartclaw/jc-1795
+cd ${HOME}/.worktrees/jleechanbrain/jc-1795
 hermes gateway run --bind loopback --port 18999 --force 2>/tmp/gw-pr532.err &
 GW_PID=$!
 sleep 12

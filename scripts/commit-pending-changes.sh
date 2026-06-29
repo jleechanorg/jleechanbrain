@@ -250,7 +250,7 @@ run_ao_fallback() {
   untracked="$(echo "$git_status" | grep '^??' | wc -l | tr -d ' ' || echo '?')"
   git_diff="$(cd "$REPO" && git diff --stat HEAD 2>/dev/null | tail -1 || echo 'none')"
 
-  local ao_task="Diagnose and fix the commit-pending-changes.sh failure in smartclaw.
+  local ao_task="Diagnose and fix the commit-pending-changes.sh failure in jleechanbrain.
 
 Error summary: $error_summary
 
@@ -273,8 +273,8 @@ Do NOT make arbitrary changes beyond the specific failing function."
     log "AO FALLBACK: spawning AO agent (non-blocking)..."
     local ao_output
     ao_output="$(ao spawn \
-      --repo jleechanorg/smartclaw \
-      --project smartclaw \
+      --repo jleechanorg/jleechanbrain \
+      --project jleechanbrain \
       --task "$ao_task" \
       --model minimax/MiniMax-M2.7 \
       2>&1)" && log "AO FALLBACK: agent spawned successfully" \

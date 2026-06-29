@@ -333,11 +333,11 @@
     <section id="adr-1-language--python-not-typescript">
     <h2>ADR-1: Language — Python (not TypeScript)</h2>
     <p><strong>Decision:</strong> The control plane is implemented in Python, not TypeScript.</p>
-    <p><strong>Context:</strong> smartclaw's orchestration layer is Python-first (<code>src/orchestration/</code>). TypeScript is used in <code>agent-orchestrator</code> (AO core), not in the harness. Python aligns with existing patterns: dataclasses, SQLite, pytest, and existing Slack integration (<code>src/orchestration/slack_util.py</code>).</p>
+    <p><strong>Context:</strong> jleechanbrain's orchestration layer is Python-first (<code>src/orchestration/</code>). TypeScript is used in <code>agent-orchestrator</code> (AO core), not in the harness. Python aligns with existing patterns: dataclasses, SQLite, pytest, and existing Slack integration (<code>src/orchestration/slack_util.py</code>).</p>
     <p><strong>Alternatives considered:</strong></p>
   <ul>
-    <li><strong>TypeScript</strong>: Consistent with AO core. But smartclaw has no TypeScript build pipeline, no <code>package.json</code>, no tsconfig. Adding these would be a large infrastructure change for the harness.</li>
-    <li><strong>Go</strong>: Fast, single binary. But less familiar to smartclaw patterns, no existing test infrastructure.</li>
+    <li><strong>TypeScript</strong>: Consistent with AO core. But jleechanbrain has no TypeScript build pipeline, no <code>package.json</code>, no tsconfig. Adding these would be a large infrastructure change for the harness.</li>
+    <li><strong>Go</strong>: Fast, single binary. But less familiar to jleechanbrain patterns, no existing test infrastructure.</li>
   </ul>
     <p><strong>Consequence:</strong> The AO adapter must translate between Python control plane and TypeScript AO workers. The MCP Mail JSON contract is the language-neutral boundary.</p>
     <p><strong>Review:</strong> If AO core moves to Python or a polyglot model, revisit this decision.</p>
@@ -345,7 +345,7 @@
     <section id="adr-2-location-in-repository--docs-for-design-srcorchestration-for-code">
     <h2>ADR-2: Location in Repository — `docs/` for design, `src/orchestration/` for code</h2>
     <p><strong>Decision:</strong> Design artifacts go in <code>docs/antigravity-control-plane/</code>. Runtime code goes in <code>src/orchestration/antig_control_plane/</code>.</p>
-    <p><strong>Context:</strong> smartclaw uses <code>docs/</code> for design documents and <code>src/orchestration/</code> for Python runtime code. This is already established.</p>
+    <p><strong>Context:</strong> jleechanbrain uses <code>docs/</code> for design documents and <code>src/orchestration/</code> for Python runtime code. This is already established.</p>
     <p><strong>Alternatives considered:</strong></p>
   <ul>
     <li><code>roadmap/</code>: Overcrowded (38 files), mixed status. <code>docs/</code> is cleaner for new design initiatives.</li>
@@ -362,7 +362,7 @@
   <ul>
     <li><strong>Control plane spawns AO workers directly</strong>: Would require control plane to understand AO's internal process model. Too tightly coupled.</li>
     <li><strong>Control plane exposes a REST API that AO polls</strong>: AO would need to be modified to poll. MCP Mail is already integrated.</li>
-    <li><strong>Control plane embeds AO worker code</strong>: Would create a fork of AO worker logic in smartclaw. Not maintainable.</li>
+    <li><strong>Control plane embeds AO worker code</strong>: Would create a fork of AO worker logic in jleechanbrain. Not maintainable.</li>
   </ul>
     <p><strong>Consequence:</strong> The MCP Mail message schema is the critical interface contract. It must be stable and versioned. Changes to the schema require coordinated updates to control plane and AO worker templates.</p>
     <p><strong>Review:</strong> If MCP Mail proves unreliable, revisit REST API polling as fallback.</p>
@@ -370,20 +370,20 @@
     <section id="adr-4-singleton-controller-strategy--os-flock">
     <h2>ADR-4: Singleton Controller Strategy — OS flock</h2>
     <p><strong>Decision:</strong> The control plane runs as a singleton using <code>flock(LOCK_EX | LOCK_NB)</code> on a lock file. No leader election, no distributed lock service.</p>
-    <p><strong>Context:</strong> smartclaw runs on a single macOS machine. The control plane coordinates Antigravity windows on that machine. There is no need for distributed coordination across multiple machines.</p>
+    <p><strong>Context:</strong> jleechanbrain runs on a single macOS machine. The control plane coordinates Antigravity windows on that machine. There is no need for distributed coordination across multiple machines.</p>
     <p><strong>Alternatives considered:</strong></p>
   <ul>
     <li><strong>Leader election via distributed lock (Redis, etcd)</strong>: Overkill for single-machine deployment. Adds external dependency.</li>
     <li><strong>Process ID file only</strong> (no flock): Race condition on crash. <code>flock</code> is atomic at the OS level.</li>
     <li><strong>Thread-based singleton</strong> (Python threading.Lock): Only prevents threads within the same process, not multiple processes.</li>
   </ul>
-    <p><strong>Consequence:</strong> If the machine runs multiple smartclaw instances (should never happen), the second instance will refuse to start with a clear error. Recovery from crash is instant — <code>flock</code> is released immediately on process exit.</p>
+    <p><strong>Consequence:</strong> If the machine runs multiple jleechanbrain instances (should never happen), the second instance will refuse to start with a clear error. Recovery from crash is instant — <code>flock</code> is released immediately on process exit.</p>
     <p><strong>Review:</strong> If multi-machine Antigravity orchestration is needed in the future, add distributed locking via Redis.</p>
     </section>
     <section id="adr-5-job-state-storage--sqlite--jsonl">
     <h2>ADR-5: Job State Storage — SQLite + JSONL</h2>
     <p><strong>Decision:</strong> Jobs stored in SQLite. Event logs and outcome ledger stored in append-only JSONL files.</p>
-    <p><strong>Context:</strong> smartclaw already uses SQLite + JSONL patterns (see <code>src/orchestration/webhook.py</code>). No new infrastructure needed.</p>
+    <p><strong>Context:</strong> jleechanbrain already uses SQLite + JSONL patterns (see <code>src/orchestration/webhook.py</code>). No new infrastructure needed.</p>
     <p><strong>Alternatives considered:</strong></p>
   <ul>
     <li><strong>PostgreSQL</strong>: Overkill for single-machine workload. Adds operational complexity.</li>

@@ -5,7 +5,7 @@
 	<key>Comment</key>
 	<string>Consolidated Hermes Lifecycle Manager - manages lifecycle workers for all projects.
 Replaces 2 separate plists:
-- com.agentorchestrator.lifecycle-smartclaw.plist
+- com.agentorchestrator.lifecycle-jleechanbrain.plist
 - com.agentorchestrator.lifecycle-worldarchitect.plist</string>
 	<key>EnvironmentVariables</key>
 	<dict>
@@ -16,7 +16,7 @@ Replaces 2 separate plists:
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>AO_LIFECYCLE_PROJECTS</key>
-		<string>smartclaw,worldarchitect</string>
+		<string>jleechanbrain,worldarchitect</string>
 	</dict>
 	<key>KeepAlive</key>
 	<true/>
@@ -29,7 +29,7 @@ Replaces 2 separate plists:
 		<string>source @HOME@/.bashrc
 
 # Lifecycle manager - spawns workers for each configured project
-PROJECTS="${AO_LIFECYCLE_PROJECTS:-smartclaw,worldarchitect}"
+PROJECTS="${AO_LIFECYCLE_PROJECTS:-jleechanbrain,worldarchitect}"
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
     echo "[lifecycle-manager] Starting worker for: $project"

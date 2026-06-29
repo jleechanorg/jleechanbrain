@@ -55,7 +55,7 @@ From onboarding session (2026-02-10):
 - Tests **E2E for Hermes** (character creation flows)
 
 ### GitHub Activity
-- Works on `jleechanorg/worldarchitect.ai` and `jleechanorg/smartclaw`
+- Works on `jleechanorg/worldarchitect.ai` and `jleechanorg/jleechanbrain`
 - Manages many PRs (5500+ range)
 - Recent focus: BYOK (Bring Your Own Key) implementation, MCP smoke tests
 

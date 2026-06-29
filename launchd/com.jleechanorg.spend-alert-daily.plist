@@ -6,7 +6,7 @@
     <string>com.jleechanorg.spend-alert-daily</string>
 
     <key>Comment</key>
-    <string>Repo: https://github.com/jleechanorg/smartclaw — Daily GH Actions / optional Gemini &amp; GCP spend (gh api billing). Install: cp scripts/spend-alert-daily.sh ~/.smartclaw/scripts/; cp launchd/com.jleechanorg.spend-alert-daily.plist ~/Library/LaunchAgents/; launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.jleechanorg.spend-alert-daily.plist</string>
+    <string>Repo: https://github.com/jleechanorg/jleechanbrain — Daily GH Actions / optional Gemini &amp; GCP spend (gh api billing). Install: cp scripts/spend-alert-daily.sh ~/.smartclaw/scripts/; cp launchd/com.jleechanorg.spend-alert-daily.plist ~/Library/LaunchAgents/; launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.jleechanorg.spend-alert-daily.plist</string>
 
     <key>ProgramArguments</key>
     <array>

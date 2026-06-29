@@ -15,7 +15,7 @@
 
 **Directory structure:**
 ```
-~/.smartclaw/          ← git repo root (smartclaw), Hermes staging
+~/.smartclaw/          ← git repo root (jleechanbrain), Hermes staging
 ~/.smartclaw/        ← symlink → ~/.smartclaw/ (backward compat)
 ~/.smartclaw_prod/     ← Hermes prod (separate runtime data)
 ```

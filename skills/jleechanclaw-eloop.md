@@ -1,16 +1,16 @@
 ---
-name: smartclaw-eloop
-description: Custom evolve loop for smartclaw orchestrator — drains dropped Slack thread backlog via /claw, fixes hermes issues, proposes new work items. Max 50 items, newest-first.
+name: jleechanbrain-eloop
+description: Custom evolve loop for jleechanbrain orchestrator — drains dropped Slack thread backlog via /claw, fixes hermes issues, proposes new work items. Max 50 items, newest-first.
 type: skill
 ---
 
-# smartclaw Custom Eloop
+# jleechanbrain Custom Eloop
 
-**Canonical paths:** repository `skills/smartclaw-eloop.md` (this file); after `scripts/bootstrap.sh`, also `~/.smartclaw/skills/smartclaw-eloop.md` (symlink). Claude Code entry: `.claude/skills/smartclaw-eloop/SKILL.md` (pointer to this file).
+**Canonical paths:** repository `skills/jleechanbrain-eloop.md` (this file); after `scripts/bootstrap.sh`, also `~/.smartclaw/skills/jleechanbrain-eloop.md` (symlink). Claude Code entry: `.claude/skills/jleechanbrain-eloop/SKILL.md` (pointer to this file).
 
 ## Purpose
 
-This is the evolve loop for the smartclaw AO orchestrator. On each poll cycle:
+This is the evolve loop for the jleechanbrain AO orchestrator. On each poll cycle:
 
 1. **Drain the dropped-thread backlog** — find Slack threads that got no response from Hermes, dispatch each as a `/claw` work item (newest first, max 50 total)
 2. **Fix hermes issues** — check for system health problems and dispatch fixes
@@ -113,7 +113,7 @@ For each dropped thread (newest first, stopping at `processedCount >= 50`):
    cat > /tmp/claw-backlog-${BEAD_ID}.txt <<'TASK'
    <full thread content and context>
    TASK
-   SPAWN_OUTPUT=$(ao spawn "$BEAD_ID" -p smartclaw 2>&1)
+   SPAWN_OUTPUT=$(ao spawn "$BEAD_ID" -p jleechanbrain 2>&1)
    SESSION_NAME=$(echo "$SPAWN_OUTPUT" | grep -oEi 'jc-[0-9]+' | tail -1)
    if [[ -z "$SESSION_NAME" ]]; then echo "ERROR: could not parse session name from spawn output: $SPAWN_OUTPUT"; return 1; fi
    ao send "$SESSION_NAME" --file /tmp/claw-backlog-${BEAD_ID}.txt
@@ -130,7 +130,7 @@ For each dropped thread (newest first, stopping at `processedCount >= 50`):
       json.dump(state, f)
   "
 
-5. **Respect concurrency**: Don't dispatch more than 3 new sessions per cycle (lifecycle-worker will queue the rest). Check active sessions only (exclude dead/stopped): `ao session ls -p smartclaw 2>/dev/null | grep -E '^\s*jc-[0-9]+\s' | grep -vE 'dead|stopped|done' | wc -l` — if result >= 5, skip dispatching this cycle.
+5. **Respect concurrency**: Don't dispatch more than 3 new sessions per cycle (lifecycle-worker will queue the rest). Check active sessions only (exclude dead/stopped): `ao session ls -p jleechanbrain 2>/dev/null | grep -E '^\s*jc-[0-9]+\s' | grep -vE 'dead|stopped|done' | wc -l` — if result >= 5, skip dispatching this cycle.
 
 ## Phase 4: Fix hermes issues
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap: post-clone setup for ~/.smartclaw/ (jleechanorg/smartclaw)
+# Bootstrap: post-clone setup for ~/.smartclaw/ (jleechanorg/jleechanbrain)
 # This script is idempotent — safe to re-run on an existing installation.
 # Requirements: bash 4+, jq, launchctl (macOS only for launchd install).
 # Note: bootstrap.sh uses `set -euo pipefail` — the installer call captures
@@ -72,12 +72,12 @@ if [[ "${1:-}" == "--symlink-only" ]]; then
 fi
 
 if [[ "${1:-}" == "--eloop-skill-only" ]]; then
-    if [[ -f "$REPO_ROOT/skills/smartclaw-eloop.md" ]]; then
+    if [[ -f "$REPO_ROOT/skills/jleechanbrain-eloop.md" ]]; then
         mkdir -p "$HOME/.smartclaw/skills"
-        ln -sf "$REPO_ROOT/skills/smartclaw-eloop.md" "$HOME/.smartclaw/skills/smartclaw-eloop.md"
-        echo "OK: ~/.smartclaw/skills/smartclaw-eloop.md -> $REPO_ROOT/skills/smartclaw-eloop.md"
+        ln -sf "$REPO_ROOT/skills/jleechanbrain-eloop.md" "$HOME/.smartclaw/skills/jleechanbrain-eloop.md"
+        echo "OK: ~/.smartclaw/skills/jleechanbrain-eloop.md -> $REPO_ROOT/skills/jleechanbrain-eloop.md"
     else
-        echo "ERROR: missing $REPO_ROOT/skills/smartclaw-eloop.md" >&2
+        echo "ERROR: missing $REPO_ROOT/skills/jleechanbrain-eloop.md" >&2
         exit 1
     fi
     exit 0
@@ -91,13 +91,13 @@ if [ -d "$REPO_ROOT/workspace-monitor" ]; then
     ln -sf "$REPO_ROOT/skills" "$REPO_ROOT/workspace-monitor/skills" && echo "Symlink: workspace-monitor/skills -> skills/"
 fi
 
-# smartclaw custom eloop — AO orchestratorRules references ~/.smartclaw/skills/smartclaw-eloop.md
-if [[ -f "$REPO_ROOT/skills/smartclaw-eloop.md" ]]; then
+# jleechanbrain custom eloop — AO orchestratorRules references ~/.smartclaw/skills/jleechanbrain-eloop.md
+if [[ -f "$REPO_ROOT/skills/jleechanbrain-eloop.md" ]]; then
     mkdir -p "$HOME/.smartclaw/skills"
-    ln -sf "$REPO_ROOT/skills/smartclaw-eloop.md" "$HOME/.smartclaw/skills/smartclaw-eloop.md" \
-        && echo "Symlink: ~/.smartclaw/skills/smartclaw-eloop.md -> $REPO_ROOT/skills/smartclaw-eloop.md"
+    ln -sf "$REPO_ROOT/skills/jleechanbrain-eloop.md" "$HOME/.smartclaw/skills/jleechanbrain-eloop.md" \
+        && echo "Symlink: ~/.smartclaw/skills/jleechanbrain-eloop.md -> $REPO_ROOT/skills/jleechanbrain-eloop.md"
 else
-    echo "WARNING: $REPO_ROOT/skills/smartclaw-eloop.md missing — ~/.smartclaw/skills/smartclaw-eloop.md not created (AO eloop path will be broken)" >&2
+    echo "WARNING: $REPO_ROOT/skills/jleechanbrain-eloop.md missing — ~/.smartclaw/skills/jleechanbrain-eloop.md not created (AO eloop path will be broken)" >&2
 fi
 
 # Agent Orchestrator config — render ~/.agent-orchestrator.yaml and point
@@ -175,7 +175,7 @@ fi
 
 # Optional: register GitHub webhook (requires GITHUB_REPO and Tailscale URL)
 _TAILSCALE_HOST="${TAILSCALE_HOST:-}"
-_GH_REPO="${GITHUB_REPO:-jleechanorg/smartclaw}"
+_GH_REPO="${GITHUB_REPO:-jleechanorg/jleechanbrain}"
 if [[ -n "$_TAILSCALE_HOST" ]]; then
     echo "Registering GitHub webhook on $_GH_REPO -> http://$_TAILSCALE_HOST:19888/webhook ..."
     _secret="$(python3 -c "import json,os; p=os.path.expanduser('~/.smartclaw/webhook.json'); d=json.load(open(p)); print(d.get('webhookSecret',''))")"

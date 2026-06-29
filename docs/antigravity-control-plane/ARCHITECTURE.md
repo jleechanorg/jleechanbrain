@@ -10,7 +10,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Antigravity Control Plane                        │
-│                     (smartclaw, singleton)                       │
+│                     (jleechanbrain, singleton)                       │
 │                                                                     │
 │  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌─────────────┐  │
 │  │Scheduler │  │ Global Lock │  │Dispatcher │  │Recovery Loop│  │
@@ -67,7 +67,7 @@ Receives job enqueue requests (CLI, API, or webhook) and inserts them into the j
 ```python
 @dataclass
 class EnqueueRequest:
-    repo: str                          # e.g. "jleechanorg/smartclaw"
+    repo: str                          # e.g. "jleechanorg/jleechanbrain"
     worktree_path: str | None         # None = create fresh worktree
     objective: str                    # natural language instruction
     priority: Priority                # CRITICAL | HIGH | NORMAL | LOW
@@ -141,8 +141,8 @@ Thin translation layer between the control plane and AO MCP Mail interface. Resp
     "body": {
         "job_id": "uuid",
         "idempotency_key": "sha256...",
-        "repo": "jleechanorg/smartclaw",
-        "worktree_path": "/tmp/smartclaw-ag-worktree",
+        "repo": "jleechanorg/jleechanbrain",
+        "worktree_path": "/tmp/jleechanbrain-ag-worktree",
         "objective": "Implement feature X in repo Y",
         "priority": "HIGH",
         "correlation_id": "parent-job-uuid",
@@ -158,7 +158,7 @@ Thin translation layer between the control plane and AO MCP Mail interface. Resp
     "outcome": "completed" | "failed" | "blocked",
     "result": { ... },  # opaque to control plane
     "completed_at": "2026-03-24T12:30:00Z",
-    "worker_id": "ao:worker:antig-smartclaw-1",
+    "worker_id": "ao:worker:antig-jleechanbrain-1",
     "error": str | None,
     "attempts": 1
 }
@@ -212,12 +212,12 @@ Records job outcomes and sends Slack notifications. Responsibilities:
 **Slack message format:**
 ```
 [Antigravity] JOB COMPLETED
-Repo: jleechanorg/smartclaw
+Repo: jleechanorg/jleechanbrain
 Job: Implement feature X
 Duration: 28m 14s
 Attempts: 1
-Worker: ao:worker:antig-smartclaw-1
-Result: https://github.com/jleechanorg/smartclaw/pull/XXX
+Worker: ao:worker:antig-jleechanbrain-1
+Result: https://github.com/jleechanorg/jleechanbrain/pull/XXX
 ```
 
 ---
@@ -245,7 +245,7 @@ The singleton controller enforces that **only one Antigravity control plane inst
           ┌─────────────────┼─────────────────┐
           │                 │                  │
        Repo A            Repo B             Repo C
-    (smartclaw)   (agent-orchestrator)  (other)
+    (jleechanbrain)   (agent-orchestrator)  (other)
           │                 │                  │
     Worker: antig-a    Worker: antig-b    Worker: antig-c
     Worktree: /tmp/   Worktree: /tmp/    Worktree: /tmp/
@@ -300,7 +300,7 @@ When the control plane restarts after a crash:
 
 ## Launchd Integration
 
-The control plane runs as a LaunchAgent (consistent with existing smartclaw patterns):
+The control plane runs as a LaunchAgent (consistent with existing jleechanbrain patterns):
 
 ```
 launchd/

@@ -9,7 +9,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd ~/projects_reference/smartclaw && scripts/ai-reviewer-stress-test.sh</string>
+        <string>cd ~/projects_reference/jleechanbrain && scripts/ai-reviewer-stress-test.sh</string>
     </array>
 
     <key>StartInterval</key>

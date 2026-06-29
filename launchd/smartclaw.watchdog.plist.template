@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.smartclaw.watchdog</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+    <string>/bin/bash</string>
+    <string>@HOME@/.smartclaw/scripts/hermes-watchdog.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>@HOME@/Library/Logs/hermes-watchdog.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>@HOME@/Library/Logs/hermes-watchdog.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- HERMES_HOME selects prod vs staging context. The script
+         hermes-watchdog.sh uses both HERMES_HOME and HERMES_PROD_HOME
+         (default: ~/.smartclaw_prod) to decide which gateway to probe. -->
+    <key>HERMES_HOME</key>
+    <string>@HOME@/.smartclaw_prod</string>
+
+    <!-- PR #681 / 2026-06-13 channel routing fix:
+         Pinning the noisy channel here is intentional — the script
+         blanks HERMES_WATCHDOG_ALERT_CHANNEL when it equals ${SLACK_CHANNEL_ID}
+         and falls through to HERMES_OPS_SLACK_CHANNEL. The umbrella
+         HERMES_OPS_SLACK_CHANNEL below is the actual prod ops channel
+         (#all-jleechan-ai = ${SLACK_CHANNEL_ID}). The wrapper
+         (scripts/launchd-env-wrapper.sh) plumbs this env through; the
+         plist value is the source of truth per the umbrella pattern
+         (PR #687, empty default). Mirror this plist in any deploy that
+         wants the same routing. -->
+    <key>HERMES_WATCHDOG_ALERT_CHANNEL</key>
+    <string>${SLACK_CHANNEL_ID}</string>
+
+    <!-- PR jleechan-ops-chan: the umbrella ops channel. The wrapper
+         (scripts/launchd-env-wrapper.sh) exports this with empty
+         default; the plist value (${SLACK_CHANNEL_ID} = #all-jleechan-ai) is
+         the actual prod ops channel. Updating this from the prior
+         C0AJ3SD5C79 (design channel) is the fix the umbrella pattern
+         is designed to enforce. -->
+    <key>HERMES_OPS_SLACK_CHANNEL</key>
+    <string>${SLACK_CHANNEL_ID}</string>
+  </dict>
+</dict>
+</plist>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy tracked user-scope harness files from smartclaw to ~/.claude/
+# Copy tracked user-scope harness files from jleechanbrain to ~/.claude/
 # Optional: keep global harness in sync with docs/harness/ after git pull.
 set -euo pipefail
 

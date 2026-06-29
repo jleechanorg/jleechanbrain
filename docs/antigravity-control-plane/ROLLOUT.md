@@ -22,12 +22,12 @@ v0 ────► v1 ────► v2 ────► v3
 
 ## v0 — Design Merge (THIS PR)
 
-**Goal:** Commit design artifacts to `jleechanorg/smartclaw` main.
+**Goal:** Commit design artifacts to `jleechanorg/jleechanbrain` main.
 
 ### Go Criteria
 
 - [ ] All 7 design documents written and reviewed
-- [ ] No conflicting decisions with existing smartclaw architecture
+- [ ] No conflicting decisions with existing jleechanbrain architecture
 - [ ] ORCH-ma4 and existing Antigravity skill referenced correctly
 - [ ] Branch `feat/antigravity-control-plane-design` opened as PR
 

@@ -37,7 +37,7 @@ class Job:
     idempotency_key: str                 # SHA-256 of (repo, objective, priority, correlation_id)
 
     # Routing
-    repo: str                            # "owner/repo" e.g. "jleechanorg/smartclaw"
+    repo: str                            # "owner/repo" e.g. "jleechanorg/jleechanbrain"
     worktree_path: str | None             # None = control plane creates fresh worktree
     correlation_id: str | None           # groups related jobs (e.g. parent job id)
 
@@ -61,7 +61,7 @@ class Job:
     last_heartbeat_at: datetime | None = None
 
     # Worker assignment
-    worker_id: str | None = None         # e.g. "ao:worker:antig-smartclaw-1"
+    worker_id: str | None = None         # e.g. "ao:worker:antig-jleechanbrain-1"
 
     # Result
     outcome: str | None = None            # opaque worker result
@@ -311,9 +311,9 @@ Each job also emits a structured event log to `antig_jobs/{job_id}/events.jsonl`
 
 ```jsonl
 {"ts": "2026-03-24T12:00:00Z", "event": "created", "state": "queued"}
-{"ts": "2026-03-24T12:00:10Z", "event": "dispatched", "state": "dispatched", "worker_id": "ao:worker:antig-smartclaw-1"}
+{"ts": "2026-03-24T12:00:10Z", "event": "dispatched", "state": "dispatched", "worker_id": "ao:worker:antig-jleechanbrain-1"}
 {"ts": "2026-03-24T12:00:15Z", "event": "started", "state": "running"}
-{"ts": "2026-03-24T12:45:00Z", "event": "completed", "state": "completed", "result_url": "https://github.com/jleechanorg/smartclaw/pull/383"}
+{"ts": "2026-03-24T12:45:00Z", "event": "completed", "state": "completed", "result_url": "https://github.com/jleechanorg/jleechanbrain/pull/383"}
 ```
 
 ---
@@ -326,7 +326,7 @@ When `worktree_path` is None, the control plane creates a worktree using:
 /tmp/{REPO_OWNER}-{REPO_NAME}-ag-{SHORT_JOB_ID}
 ```
 
-e.g. `/tmp/jleechanorg-smartclaw-ag-a4f2b1`
+e.g. `/tmp/jleechanorg-jleechanbrain-ag-a4f2b1`
 
 Branch naming: `antigravity/job-{job_id}` (truncated to 50 chars + sanitized)
 

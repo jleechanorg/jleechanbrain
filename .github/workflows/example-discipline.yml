@@ -1,0 +1,52 @@
+name: Example discipline
+
+# Runs tests/test_example_placeholder_discipline.sh on every PR push.
+# Asserts no real production credentials exist in examples/ or
+# docs/examples/ before a PR can merge. Complements the per-repo
+# .githooks/pre-commit hook (which is local-only) — this workflow
+# enforces the same check in fresh CI environments where the local
+# hook has not been installed.
+#
+# Why this exists:
+# The hook is installable via `bash scripts/install-hooks.sh`, but a
+# developer who clones the repo, skips the install, and pushes a leak
+# bypasses the hook entirely. This CI workflow closes that bypass.
+#
+# Triggers: every PR push + manual dispatch.
+# Fails the job on any discipline violation, blocking the PR's
+# Green Gate (gate 1) and Skeptic Gate (gate 7).
+#
+# Canonical spec: ~/.claude/CLAUDE.md "Example / seed / test fixture
+# credential discipline" section.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: example-discipline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  example_discipline:
+    name: example credential discipline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run example discipline test
+        env:
+          # The test reads no secrets, so the env-var stub is fine.
+          # Provided so any future --files path that needs a token
+          # can use it without a code change.
+          EXAMPLE_DISCIPLINE_BYPASS: "0"
+        run: |
+          set -euo pipefail
+          chmod +x tests/test_example_placeholder_discipline.sh
+          bash tests/test_example_placeholder_discipline.sh

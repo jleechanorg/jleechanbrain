@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# openclaw-staging-start.sh — Bring up OpenClaw staging gateway temporarily
-# Usage: bash openclaw-staging-start.sh [--wait]
+# hermes-staging-start.sh — Bring up Hermes staging gateway temporarily
+# Usage: bash hermes-staging-start.sh [--wait]
 #   --wait  : block until gateway is healthy (for CI/deployment pipelines)
 set -uo pipefail
 
 STAGING_LABEL="ai.smartclaw.staging"
-STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
+STAGING_PORT="${HERMES_STAGING_PORT:-8644}"
 MAX_WAIT="${MAX_WAIT:-30}"
-GATEWAY_BIN="${HOME}/.nvm/versions/node/v22.22.0/bin/openclaw"
+GATEWAY_BIN="${HOME}/.nvm/versions/node/v22.22.0/bin/hermes"
 
-echo "=== OpenClaw Staging Start ==="
+echo "=== Hermes Staging Start ==="
 echo "  Label : $STAGING_LABEL"
 echo "  Port  : $STAGING_PORT"
 
@@ -26,14 +26,14 @@ else
         sleep 1
         if ! launchctl load -w "$HOME/Library/LaunchAgents/${STAGING_LABEL}.plist" 2>/dev/null; then
             echo "  launchd load failed — starting gateway process directly..."
-            pkill -f "openclaw.*18810" 2>/dev/null || true
+            pkill -x hermes.*8644" 2>/dev/null || true
             sleep 1
-            OPENCLAW_STATE_DIR="$HOME/.smartclaw" \
-            OPENCLAW_CONFIG_PATH="$HOME/.smartclaw/openclaw.staging.json" \
-            OPENCLAW_GATEWAY_PORT="18810" \
+            HERMES_HOME="$HOME/.smartclaw" \
+            HERMES_CONFIG_PATH="$HOME/.smartclaw/config.staging.yaml" \
+            HERMES_GATEWAY_PORT="8644" \
             HOME="$HOME" \
             PATH="$GATEWAY_BIN:$PATH" \
-            nohup "$GATEWAY_BIN" gateway --port 18810 --allow-unconfigured \
+            nohup "$GATEWAY_BIN" gateway --port 8644 --allow-unconfigured \
                 >> "$HOME/.smartclaw/logs/staging-gateway.log" 2>> "$HOME/.smartclaw/logs/staging-gateway.err.log" &
         fi
     fi
@@ -58,4 +58,4 @@ fi
 echo "  Staging gateway started (background, port $STAGING_PORT)"
 echo "  Health check: curl http://127.0.0.1:${STAGING_PORT}/health"
 echo "  Logs: tail -f $HOME/.smartclaw/logs/staging-gateway.log"
-echo "  Stop:   bash openclaw-staging-stop.sh"
+echo "  Stop:   bash hermes-staging-stop.sh"

@@ -151,7 +151,7 @@ notifiers:
   mcp-mail:
     plugin: mcp-mail
     endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:8643/mcp}"
-    projectId: smartclaw
+    projectId: jleechanbrain
     agentId: ao-lifecycle
     to: ["jleechan"]
 

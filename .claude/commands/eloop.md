@@ -34,7 +34,7 @@ Decision tree after Phase 2 (Measure):
 **1b. Check AO workers** — for each repo AO manages:
 - `jleechanorg/agent-orchestrator` (primary)
 - `jleechanorg/worldarchitect` (worldai — GitHub repo is `worldarchitect`, not `worldai_claw`)
-- `jleechanorg/smartclaw` (orchestration — deprecated but may have active workers)
+- `jleechanorg/jleechanbrain` (orchestration — deprecated but may have active workers)
 - Antigravity orchestrator (special — check launchd daemon status)
 
 ```bash
@@ -42,7 +42,7 @@ Decision tree after Phase 2 (Measure):
 tmux list-sessions 2>/dev/null | grep -E '(ao|jc|wa|cc|ra|wc)-[0-9]+'
 
 # Per-repo open PRs — use GitHub repo names, not AO project slugs
-for gh_repo in jleechanorg/agent-orchestrator jleechanorg/worldarchitect jleechanorg/smartclaw; do
+for gh_repo in jleechanorg/agent-orchestrator jleechanorg/worldarchitect jleechanorg/jleechanbrain; do
   gh api "repos/$gh_repo/pulls?state=open&per_page=20" \
     --jq '.[]|"\(.number) \(.head.ref) \(.mergeable_state)"' 2>/dev/null
 done

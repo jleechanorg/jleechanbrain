@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Teach ao doctor to accept both the ao wrapper path and its resolved JS entrypoint.
 #
-# smartclaw launches lifecycle-workers through ~/bin/ao in some places and through
+# jleechanbrain launches lifecycle-workers through ~/bin/ao in some places and through
 # node-resolved dist/index.js in others. Older ao-doctor builds only recognized tokens
 # ending in /ao, so node-launched workers were falsely flagged as non-canonical.
 #

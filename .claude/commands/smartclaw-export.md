@@ -1,5 +1,5 @@
 ---
-description: Run portability audit and export smartclaw updates to smartclaw
+description: Run portability audit and export jleechanbrain updates to smartclaw
 type: workflow
 execution_mode: immediate
 ---

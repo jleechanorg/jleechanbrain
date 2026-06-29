@@ -125,4 +125,4 @@ hermes mem0 search "AO spawn session management"
 - Do not assume 50Q pass rate equals successful historical backfill.
 - Use base `hermes mem0 stats` + targeted recall checks to validate production memory.
 - After Node version upgrade: always rebuild `better-sqlite3` native module.
-- The `extensions/hermes-mem0/` bundled copy was removed from smartclaw — use the globally installed npm package instead.
+- The `extensions/hermes-mem0/` bundled copy was removed from jleechanbrain — use the globally installed npm package instead.
