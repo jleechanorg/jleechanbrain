@@ -1,6 +1,6 @@
 {
   "reviewer_timestamp": "2026-03-28T22:48:57Z",
-  "bundle_path": "/Users/jleechan/.hermes/docs/evidence/PR-417/iteration_001",
+  "bundle_path": "${HOME}/.hermes/docs/evidence/PR-417/iteration_001",
   "overall_verdict": "FAIL",
   "phases": {
     "structure": {
