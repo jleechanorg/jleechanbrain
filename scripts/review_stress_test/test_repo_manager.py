@@ -11,7 +11,7 @@ class TestRepoManager:
     """Manages the test repo for AI review stress testing."""
 
     TEST_REPO_OWNER = "jleechanorg"
-    TEST_REPO_NAME = "smartclaw-review-test"
+    TEST_REPO_NAME = "jleechanbrain-review-test"
     TEST_REPO_PATH = Path.home() / "projects_reference" / TEST_REPO_NAME
 
     def __init__(self, original_repo_path: str) -> None:

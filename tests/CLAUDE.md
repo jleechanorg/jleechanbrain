@@ -5,7 +5,7 @@ This directory contains unit and integration tests that use mocks, stubs, and mo
 ## How to Run
 
 ```bash
-cd ${HOME}/project_smartclaw/mctrl
+cd ${HOME}/project_jleechanbrain/mctrl
 python -m pytest tests/ -v --tb=short
 ```
 

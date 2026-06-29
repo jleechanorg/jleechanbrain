@@ -16,7 +16,7 @@ defaults:
     \ tests`\nThis distinguishes autonomous agent work from interactive human+AI sessions.\
     \ NEVER omit it.\n\n**MCP MAIL \u2014 MANDATORY PROTOCOL (non-negotiable):**\n\
     You MUST send MCP mail messages for ALL tasks:\n1. IMMEDIATELY on task start:\
-    \ mcp__mcp-agent-mail__send_message(project_key=\"smartclaw\", sender_name=\"\
+    \ mcp__mcp-agent-mail__send_message(project_key=\"jleechanbrain\", sender_name=\"\
     claude\", subject=\"Starting: <task>\", body_md=\"Starting work on <task>. Will\
     \ send updates every 5 min.\")\n2. Every 5 minutes: send progress update with\
     \ current status\n3. IMMEDIATELY on task complete/blocked: send final message\
@@ -35,7 +35,7 @@ defaults:
     \ POLLING PROTOCOL (at natural breakpoints):**\nHermes may send guidance via MCP\
     \ mail. Poll inbox at natural breakpoints:\n- After completing each subtask\n\
     - After CI check cycle completes\n- After each commit/push\n- After PR status\
-    \ update\nPoll command:\n`mcp__mcp-agent-mail__fetch_inbox(project_key=\"smartclaw\"\
+    \ update\nPoll command:\n`mcp__mcp-agent-mail__fetch_inbox(project_key=\"jleechanbrain\"\
     , agent_name=\"<your_session_name>\", limit=5)`\nHandling:\n- guidance from hermes:\
     \ apply guidance before continuing\n- abort: stop immediately and exit cleanly\n\
     - strategy_override: use provided strategy\n- urgent: handle urgent item first\n\
@@ -233,7 +233,7 @@ projects:
       \ fail and you determine they are pre-existing (failing on main before your\
       \ PR), do NOT silently stop or declare \"nothing to do\". Instead:\n1. Verify\
       \ the failure exists on main: `gh run list --branch main --repo jleechanorg/agent-orchestrator\
-      \ --limit 3`\n2. Send MCP mail to project_key=\"smartclaw\" with subject\
+      \ --limit 3`\n2. Send MCP mail to project_key=\"jleechanbrain\" with subject\
       \ \"Pre-existing CI failure: <check-name>\" and body describing the failure,\
       \ which check, and what you observed.\n3. Attempt to fix the failure on main\
       \ via a separate PR \u2014 create a new branch from main, fix the root cause,\
@@ -244,7 +244,7 @@ projects:
       \ fix PR or escalating. Never stop silently.\n\n**MCP MAIL BEFORE STOPPING \u2014\
       \ MANDATORY:**\nBefore ending any session (whether PR is green, blocked, or\
       \ you've determined nothing to do):\n1. Send MCP mail: mcp__mcp-agent-mail__send_message(project_key=\"\
-      smartclaw\", sender_name=\"agento\", subject=\"Session complete: <PR title>\"\
+      jleechanbrain\", sender_name=\"agento\", subject=\"Session complete: <PR title>\"\
       , body_md=\"<outcome summary, blockers, any pre-existing issues found>\")\n\
       2. Only then stop.\n"
     backfillAllPRs: true
@@ -439,8 +439,8 @@ projects:
     scm:
       plugin: github
     sessionPrefix: hl
-  smartclaw:
-    agentRules: "You are working in the smartclaw orchestration repo.\n\n**CI UNSTABLE\
+  jleechanbrain:
+    agentRules: "You are working in the jleechanbrain orchestration repo.\n\n**CI UNSTABLE\
       \ / FAILURE \u2014 ACT IMMEDIATELY, NEVER PAUSE:**\nWhen mergeable_state=unstable\
       \ OR any CI check shows FAILURE or in_progress:\n- Do NOT ask for permission.\
       \ Do NOT wait.\n- Immediately run: `gh run list --branch $(git branch --show-current)\
@@ -478,15 +478,15 @@ projects:
       \ [P0], [P1], or [P2]. P0 = stops autonomy. P1 = breaks green loop. P2 = improvement.\n"
     backfillAllPRs: true
     defaultBranch: main
-    name: smartclaw orchestration
-    path: ${HOME}/smartclaw
+    name: jleechanbrain orchestration
+    path: ${HOME}/jleechanbrain
     pruneWorktrees: false
-    repo: jleechanorg/smartclaw
+    repo: jleechanorg/jleechanbrain
     scm:
       plugin: github
     sessionPrefix: jc
     workspace: worktree
-    worktreeDir: ~/.worktrees/smartclaw
+    worktreeDir: ~/.worktrees/jleechanbrain
   mcp-mail:
     agentRules: 'You are working in the mcp_mail repo.
 

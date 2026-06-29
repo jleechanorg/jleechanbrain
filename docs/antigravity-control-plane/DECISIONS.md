@@ -9,11 +9,11 @@
 
 **Decision:** The control plane is implemented in Python, not TypeScript.
 
-**Context:** smartclaw's orchestration layer is Python-first (`src/orchestration/`). TypeScript is used in `agent-orchestrator` (AO core), not in the harness. Python aligns with existing patterns: dataclasses, SQLite, pytest, and existing Slack integration (`src/orchestration/slack_util.py`).
+**Context:** jleechanbrain's orchestration layer is Python-first (`src/orchestration/`). TypeScript is used in `agent-orchestrator` (AO core), not in the harness. Python aligns with existing patterns: dataclasses, SQLite, pytest, and existing Slack integration (`src/orchestration/slack_util.py`).
 
 **Alternatives considered:**
-- **TypeScript**: Consistent with AO core. But smartclaw has no TypeScript build pipeline, no `package.json`, no tsconfig. Adding these would be a large infrastructure change for the harness.
-- **Go**: Fast, single binary. But less familiar to smartclaw patterns, no existing test infrastructure.
+- **TypeScript**: Consistent with AO core. But jleechanbrain has no TypeScript build pipeline, no `package.json`, no tsconfig. Adding these would be a large infrastructure change for the harness.
+- **Go**: Fast, single binary. But less familiar to jleechanbrain patterns, no existing test infrastructure.
 
 **Consequence:** The AO adapter must translate between Python control plane and TypeScript AO workers. The MCP Mail JSON contract is the language-neutral boundary.
 
@@ -25,7 +25,7 @@
 
 **Decision:** Design artifacts go in `docs/antigravity-control-plane/`. Runtime code goes in `src/orchestration/antig_control_plane/`.
 
-**Context:** smartclaw uses `docs/` for design documents and `src/orchestration/` for Python runtime code. This is already established.
+**Context:** jleechanbrain uses `docs/` for design documents and `src/orchestration/` for Python runtime code. This is already established.
 
 **Alternatives considered:**
 - `roadmap/`: Overcrowded (38 files), mixed status. `docs/` is cleaner for new design initiatives.
@@ -46,7 +46,7 @@
 **Alternatives considered:**
 - **Control plane spawns AO workers directly**: Would require control plane to understand AO's internal process model. Too tightly coupled.
 - **Control plane exposes a REST API that AO polls**: AO would need to be modified to poll. MCP Mail is already integrated.
-- **Control plane embeds AO worker code**: Would create a fork of AO worker logic in smartclaw. Not maintainable.
+- **Control plane embeds AO worker code**: Would create a fork of AO worker logic in jleechanbrain. Not maintainable.
 
 **Consequence:** The MCP Mail message schema is the critical interface contract. It must be stable and versioned. Changes to the schema require coordinated updates to control plane and AO worker templates.
 
@@ -58,14 +58,14 @@
 
 **Decision:** The control plane runs as a singleton using `flock(LOCK_EX | LOCK_NB)` on a lock file. No leader election, no distributed lock service.
 
-**Context:** smartclaw runs on a single macOS machine. The control plane coordinates Antigravity windows on that machine. There is no need for distributed coordination across multiple machines.
+**Context:** jleechanbrain runs on a single macOS machine. The control plane coordinates Antigravity windows on that machine. There is no need for distributed coordination across multiple machines.
 
 **Alternatives considered:**
 - **Leader election via distributed lock (Redis, etcd)**: Overkill for single-machine deployment. Adds external dependency.
 - **Process ID file only** (no flock): Race condition on crash. `flock` is atomic at the OS level.
 - **Thread-based singleton** (Python threading.Lock): Only prevents threads within the same process, not multiple processes.
 
-**Consequence:** If the machine runs multiple smartclaw instances (should never happen), the second instance will refuse to start with a clear error. Recovery from crash is instant — `flock` is released immediately on process exit.
+**Consequence:** If the machine runs multiple jleechanbrain instances (should never happen), the second instance will refuse to start with a clear error. Recovery from crash is instant — `flock` is released immediately on process exit.
 
 **Review:** If multi-machine Antigravity orchestration is needed in the future, add distributed locking via Redis.
 
@@ -75,7 +75,7 @@
 
 **Decision:** Jobs stored in SQLite. Event logs and outcome ledger stored in append-only JSONL files.
 
-**Context:** smartclaw already uses SQLite + JSONL patterns (see `src/orchestration/webhook.py`). No new infrastructure needed.
+**Context:** jleechanbrain already uses SQLite + JSONL patterns (see `src/orchestration/webhook.py`). No new infrastructure needed.
 
 **Alternatives considered:**
 - **PostgreSQL**: Overkill for single-machine workload. Adds operational complexity.

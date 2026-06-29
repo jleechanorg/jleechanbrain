@@ -6,7 +6,7 @@ type: skill
 
 ## Purpose
 
-Produce a comprehensive status report for all PRs agento is handling in the `jleechanorg/smartclaw` repo. Display the report inline in the conversation AND post a summary to Slack `#ai-slack-test`.
+Produce a comprehensive status report for all PRs agento is handling in the `jleechanorg/jleechanbrain` repo. Display the report inline in the conversation AND post a summary to Slack `#ai-slack-test`.
 
 ---
 
@@ -17,13 +17,13 @@ Produce a comprehensive status report for all PRs agento is handling in the `jle
 Use the list endpoint only for number, branch, and title (the list endpoint does NOT return `mergeable`/`mergeable_state`):
 
 ```bash
-gh api "repos/jleechanorg/smartclaw/pulls?state=open&per_page=30&sort=updated" \
+gh api "repos/jleechanorg/jleechanbrain/pulls?state=open&per_page=30&sort=updated" \
   | jq -r '.[] | "\(.number)\t\(.head.ref)\t\(.title[:60])"'
 ```
 
 Also collect recently merged (last 12h):
 ```bash
-gh api "repos/jleechanorg/smartclaw/pulls?state=closed&per_page=15&sort=updated" \
+gh api "repos/jleechanorg/jleechanbrain/pulls?state=closed&per_page=15&sort=updated" \
   | jq -r '.[] | select(.merged_at != null) | "MERGED\t\(.number)\t\(.head.ref)\t\(.title[:60])"'
 ```
 Filter merged ones to last 12h by comparing `.merged_at` timestamp to current time.
@@ -34,22 +34,22 @@ For each open PR number NUM, fetch mergeability, CI, and reviews in one batch:
 
 ```bash
 # Mergeability + CI status + draft state
-gh pr view NUM --repo jleechanorg/smartclaw \
+gh pr view NUM --repo jleechanorg/jleechanbrain \
   --json number,mergeable,mergeStateStatus,statusCheckRollup,isDraft \
   | jq '{mergeable, mergeStateStatus, isDraft, checks: [.statusCheckRollup[] | {name, status, conclusion}]}'
 
 # Reviews
-gh api "repos/jleechanorg/smartclaw/pulls/NUM/reviews" \
+gh api "repos/jleechanorg/jleechanbrain/pulls/NUM/reviews" \
   | jq '[.[] | select(.user.login == "coderabbitai[bot]")] | last | {state, body_len: (.body | length)}'
-gh api "repos/jleechanorg/smartclaw/pulls/NUM/reviews" \
+gh api "repos/jleechanorg/jleechanbrain/pulls/NUM/reviews" \
   | jq '[.[] | select(.user.login == "cursor[bot]")] | last | {state}'
 
 # CodeRabbit issue comments (for two-path CR APPROVED check — path 2)
-gh api "repos/jleechanorg/smartclaw/issues/NUM/comments" \
+gh api "repos/jleechanorg/jleechanbrain/issues/NUM/comments" \
   | jq '[.[] | select(.user.login == "coderabbitai[bot]" and (.body | contains("all good") or contains("✅")))] | .[-1] | {author: .user.login, body: .body, created_at: .created_at}'
 
 # Evidence PASS comment check
-gh api "repos/jleechanorg/smartclaw/issues/NUM/comments" \
+gh api "repos/jleechanorg/jleechanbrain/issues/NUM/comments" \
   | jq -r '[.[] | .body | select(contains("**PASS** — evidence review: agent self-reviewed"))] | length'
 ```
 
@@ -92,7 +92,7 @@ Display a formatted report in the conversation:
 ## Agento Status Report — YYYY-MM-DD HH:MM
 
 ### Summary
-- Open PRs tracked: N (jleechanorg/smartclaw)
+- Open PRs tracked: N (jleechanorg/jleechanbrain)
 - GREEN (ready to merge): N
 - Not green: N
 - Merged (last 12h): N
@@ -112,7 +112,7 @@ Display a formatted report in the conversation:
 (paste ao status output or "(ao not available)")
 ```
 
-Link each PR number to its GitHub URL: `https://github.com/jleechanorg/smartclaw/pull/NUM`
+Link each PR number to its GitHub URL: `https://github.com/jleechanorg/jleechanbrain/pull/NUM`
 
 ### Step 6 — Post Slack summary via MCP
 
@@ -135,7 +135,7 @@ Keep the Slack message concise (under 40 lines). Use:
 
 ## Notes
 
-- Scope: `jleechanorg/smartclaw` only (not all jleechanorg repos).
+- Scope: `jleechanorg/jleechanbrain` only (not all jleechanorg repos).
 - The list endpoint (`pulls?state=open`) does NOT return `mergeable`/`mergeable_state` — always use `gh pr view NUM --json mergeable,mergeStateStatus` per-PR for those fields.
 - `mergeable` from `gh pr view --json` (GraphQL) is a **string**: "MERGEABLE", "CONFLICTING", or "UNKNOWN" — compare with `== "MERGEABLE"`, not `== true`. The REST endpoint (`gh api .../pulls/NUM`) returns boolean true/false/null.
 - `mergeStateStatus == UNSTABLE` means CI is failing, not a merge conflict — maps to `CI_FAILED`.

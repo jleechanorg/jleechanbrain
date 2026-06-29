@@ -51,7 +51,7 @@ jobs:
     needs: find-config-yaml
     if: |
       needs.find-config-yaml.outputs.found == 'true' &&
-      github.repository == 'jleechanorg/smartclaw' &&
+      github.repository == 'jleechanorg/jleechanbrain' &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: [self-hosted, hermes-staging]
     timeout-minutes: 25

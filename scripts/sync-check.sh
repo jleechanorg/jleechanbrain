@@ -1,5 +1,5 @@
 #!/bin/bash
-# sync-check.sh - Check and sync Hermes config between smartclaw, hermes_config, and ~/.smartclaw
+# sync-check.sh - Check and sync Hermes config between jleechanbrain, hermes_config, and ~/.smartclaw
 #
 # Usage: ./sync-check.sh [--fix]
 #   --fix: Apply fixes to ~/.smartclaw/workspace/ (hermes_config canonical location)
@@ -145,9 +145,9 @@ else
     echo -e "${GREEN}All policy files in sync${NC}"
 fi
 
-# Note about smartclaw
+# Note about jleechanbrain
 if [[ -d "$CLAUDE_REPO_DIR/src" ]]; then
     echo ""
-    echo "Note: smartclaw contains orchestration code only."
+    echo "Note: jleechanbrain contains orchestration code only."
     echo "Policy files are canonical in hermes_config (workspace)."
 fi

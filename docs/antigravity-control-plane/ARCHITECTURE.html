@@ -319,7 +319,7 @@
       <div class="diagram">
         <pre>┌─────────────────────────────────────────────────────────────────────┐
 │                    Antigravity Control Plane                        │
-│                     (smartclaw, singleton)                       │
+│                     (jleechanbrain, singleton)                       │
 │                                                                     │
 │  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌─────────────┐  │
 │  │Scheduler │  │ Global Lock │  │Dispatcher │  │Recovery Loop│  │
@@ -373,7 +373,7 @@
       <p><strong>API surface:</strong></p>
       <pre><code>@dataclass
 class EnqueueRequest:
-    repo: str                          # e.g. "jleechanorg/smartclaw"
+    repo: str                          # e.g. "jleechanorg/jleechanbrain"
     worktree_path: str | None         # None = create fresh worktree
     objective: str                    # natural language instruction
     priority: Priority                # CRITICAL | HIGH | NORMAL | LOW
@@ -437,8 +437,8 @@ class EnqueueResponse:
     "body": {
         "job_id": "uuid",
         "idempotency_key": "sha256...",
-        "repo": "jleechanorg/smartclaw",
-        "worktree_path": "/tmp/smartclaw-ag-worktree",
+        "repo": "jleechanorg/jleechanbrain",
+        "worktree_path": "/tmp/jleechanbrain-ag-worktree",
         "objective": "Implement feature X in repo Y",
         "priority": "HIGH",
         "correlation_id": "parent-job-uuid",
@@ -454,7 +454,7 @@ class EnqueueResponse:
     "outcome": "completed" | "failed" | "blocked",
     "result": { ... },  # opaque to control plane
     "completed_at": "2026-03-24T12:30:00Z",
-    "worker_id": "ao:worker:antig-smartclaw-1",
+    "worker_id": "ao:worker:antig-jleechanbrain-1",
     "error": str | None,
     "attempts": 1
 }</code></pre>
@@ -501,12 +501,12 @@ class EnqueueResponse:
       </ul>
       <p><strong>Slack message format:</strong></p>
       <pre><code>[Antigravity] JOB COMPLETED
-Repo: jleechanorg/smartclaw
+Repo: jleechanorg/jleechanbrain
 Job: Implement feature X
 Duration: 28m 14s
 Attempts: 1
-Worker: ao:worker:antig-smartclaw-1
-Result: https://github.com/jleechanorg/smartclaw/pull/XXX</code></pre>
+Worker: ao:worker:antig-jleechanbrain-1
+Result: https://github.com/jleechanorg/jleechanbrain/pull/XXX</code></pre>
     </section>
 
     <section id="single-controller-safety">
@@ -533,7 +533,7 @@ Result: https://github.com/jleechanorg/smartclaw/pull/XXX</code></pre>
           ┌─────────────────┼─────────────────┐
           │                 │                  │
        Repo A            Repo B             Repo C
-    (smartclaw)   (agent-orchestrator)  (other)
+    (jleechanbrain)   (agent-orchestrator)  (other)
           │                 │                  │
     Worker: antig-a    Worker: antig-b    Worker: antig-c
     Worktree: /tmp/   Worktree: /tmp/    Worktree: /tmp/
@@ -590,7 +590,7 @@ Result: https://github.com/jleechanorg/smartclaw/pull/XXX</code></pre>
 
     <section id="launchd-integration">
       <h2>Launchd Integration</h2>
-      <p>The control plane runs as a LaunchAgent (consistent with existing smartclaw patterns):</p>
+      <p>The control plane runs as a LaunchAgent (consistent with existing jleechanbrain patterns):</p>
       <div class="diagram">
         <pre>launchd/
   ai.smartclaw.antig-control-plane.plist   ← NEW</pre>

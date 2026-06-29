@@ -423,7 +423,7 @@ fi
       worldai-claw)       repo="jleechanorg/worldai_claw" ;;
       claude-commands)    repo="jleechanorg/claude-commands" ;;
       ralph)              repo="jleechanorg/ralph" ;;
-      smartclaw)       repo="jleechanorg/smartclaw" ;;
+      jleechanbrain)       repo="jleechanorg/jleechanbrain" ;;
       ai-universe-living-blog) repo="jleechanorg/ai_universe_living_blog" ;;
       *)                  repo="" ;;
     esac

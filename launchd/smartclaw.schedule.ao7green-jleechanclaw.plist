@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.smartclaw.schedule.ao7green-smartclaw</string>
+    <string>ai.smartclaw.schedule.ao7green-jleechanbrain</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -18,13 +18,13 @@
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>AO_MONITOR_REPO</key>
-        <string>jleechanorg/smartclaw</string>
+        <string>jleechanorg/jleechanbrain</string>
         <key>AO_MONITOR_PROJECT</key>
-        <string>smartclaw</string>
+        <string>jleechanbrain</string>
         <key>AO_MONITOR_CHANNEL</key>
         <string>${SLACK_CHANNEL_ID}</string>
         <key>AO_MONITOR_LOG</key>
-        <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.log</string>
+        <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-jleechanbrain.log</string>
     </dict>
 
     <key>StartInterval</key>
@@ -38,7 +38,7 @@
     <string>/dev/null</string>
 
     <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.err</string>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-jleechanbrain.err</string>
 
     <key>ProcessType</key>
     <string>Background</string>

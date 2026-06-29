@@ -9,7 +9,7 @@ set -m  # enable job control so background workers get their own process groups
 # Configuration - output bug reports to /tmp to avoid polluting the repo
 # with large agent outputs; script itself stays in scripts/
 BUG_REPORTS_DIR="/tmp/hermes/bug_reports"
-REPOS=("jleechanorg/smartclaw" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
+REPOS=("jleechanorg/jleechanbrain" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
 DAYS_LOOKBACK=2
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${TIMESTAMP}.md"

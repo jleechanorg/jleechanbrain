@@ -32,10 +32,10 @@ from outcome_ledger import OutcomeLedger, StressTestResult
 
 
 # Config
-ORIGINAL_REPO = "jleechanorg/smartclaw"
-ORIGINAL_REPO_PATH = Path.home() / "projects_reference" / "smartclaw"
+ORIGINAL_REPO = "jleechanorg/jleechanbrain"
+ORIGINAL_REPO_PATH = Path.home() / "projects_reference" / "jleechanbrain"
 TEST_REPO_OWNER = "jleechanorg"
-TEST_REPO_NAME = "smartclaw-review-test"
+TEST_REPO_NAME = "jleechanbrain-review-test"
 TARGET_LINES = 5000
 MAX_AGENTO_RETRIES = 3
 REVIEW_WAIT_MIN = 30

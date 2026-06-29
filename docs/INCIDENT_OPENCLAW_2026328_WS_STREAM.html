@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Incident: OpenClaw 2026.3.28 ws-stream Protocol Regression</title>
+<title>Incident: Hermes 2026.3.28 ws-stream Protocol Regression</title>
 <style>
 :root { --bg: #1a1a2e; --fg: #e0e0e0; --accent: #e94560; --accent2: #0f3460; --card: #16213e; --border: #2a2a4a; --code-bg: #0d1117; --link: #58a6ff; --success: #3fb950; --warn: #d29922; --error: #f85149; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,7 +45,7 @@ strong { color: #fff; }
 <a href="#prevention">Prevention</a>
 </nav>
 <main>
-<h1>Incident: OpenClaw 2026.3.28 ws-stream Protocol Regression</h1>
+<h1>Incident: Hermes 2026.3.28 ws-stream Protocol Regression</h1>
 <div class="meta">
 <span>Date: 2026-03-29</span>
 <span>Severity: <span class="severity-p0">P0</span></span>
@@ -54,19 +54,19 @@ strong { color: #fff; }
 </div>
 
 <h2 id="summary">Summary</h2>
-<p>OpenClaw 2026.3.28 introduced a protocol version mismatch in the embedded agent WebSocket stream (<code>ws-stream</code>) that caused all WebSocket upgrade attempts to fail with HTTP 500. The constant retry storm (367 failed connections/day) starved the Node.js event loop, causing Slack Socket Mode pong timeouts and dropped Slack replies.</p>
+<p>Hermes 2026.3.28 introduced a protocol version mismatch in the embedded agent WebSocket stream (<code>ws-stream</code>) that caused all WebSocket upgrade attempts to fail with HTTP 500. The constant retry storm (367 failed connections/day) starved the Node.js event loop, causing Slack Socket Mode pong timeouts and dropped Slack replies.</p>
 
 <h2 id="timeline">Timeline</h2>
 <table>
 <tr><th>Time (Pacific)</th><th>Event</th></tr>
 <tr><td>~14:11</td><td>ws-stream 500 errors begin (first observed in gateway log)</td></tr>
-<tr><td>~14:54</td><td>OpenClaw package modified (upgrade to 2026.3.28 completed)</td></tr>
+<tr><td>~14:54</td><td>Hermes package modified (upgrade to 2026.3.28 completed)</td></tr>
 <tr><td>16:58:35</td><td>Slack Socket Mode pong timeout — WebSocket declared dead</td></tr>
 <tr><td>16:58:37</td><td>4x "Failed to send a message as the client has no active connection"</td></tr>
 <tr><td>16:58:40</td><td>User message in #ai-slack-test gets :eyes: but no reply</td></tr>
 <tr><td>16:59:48</td><td>Gateway auto-restarted</td></tr>
 <tr><td>17:02-17:10</td><td>ws-stream 500s and pong timeouts continue post-restart</td></tr>
-<tr><td>~17:45</td><td>Downgraded to OpenClaw 2026.3.24</td></tr>
+<tr><td>~17:45</td><td>Downgraded to Hermes 2026.3.24</td></tr>
 <tr><td>18:15</td><td>Gateway restarted with 2026.3.24</td></tr>
 <tr><td>18:25</td><td>First successful Slack reply verified</td></tr>
 <tr><td>18:31</td><td>Second Slack reply verified — incident resolved</td></tr>
@@ -75,7 +75,7 @@ strong { color: #fff; }
 <h2 id="root-cause">Root Cause</h2>
 
 <h3>Primary: @agentclientprotocol/sdk version mismatch</h3>
-<p>OpenClaw 2026.3.28 upgraded <code>@agentclientprotocol/sdk</code> from <strong>0.16.1</strong> to <strong>0.17.0</strong>.</p>
+<p>Hermes 2026.3.28 upgraded <code>@agentclientprotocol/sdk</code> from <strong>0.16.1</strong> to <strong>0.17.0</strong>.</p>
 <ul>
 <li>Server protocol version: <strong>1.17.0</strong> (from SDK 0.17.0)</li>
 <li>Embedded agent client protocol: <strong>1.13.0</strong> (from the Codex Responses API stream)</li>
@@ -91,7 +91,7 @@ strong { color: #fff; }
 
 <h2 id="resolution">Resolution</h2>
 <ol>
-<li>Downgraded OpenClaw: 2026.3.28 → 2026.3.24</li>
+<li>Downgraded Hermes: 2026.3.28 → 2026.3.24</li>
 <li>Rebuilt better-sqlite3 using nvm's Node 22 node-gyp</li>
 <li>Updated <code>meta.lastTouchedVersion</code> to 2026.3.24</li>
 <li>Cleaned up plist conflict</li>
@@ -108,9 +108,9 @@ strong { color: #fff; }
 
 <h2 id="lessons-learned">Lessons Learned</h2>
 <ol>
-<li><strong>Check SDK versions before upgrading</strong>: <code>npm view openclaw@&lt;version&gt; dependencies | grep agentclientprotocol</code></li>
+<li><strong>Check SDK versions before upgrading</strong>: <code>npm view hermes@&lt;version&gt; dependencies | grep agentclientprotocol</code></li>
 <li><strong><code>checkCompatibility</code> is NOT a valid top-level config key</strong> — it only exists in mem0 vectorStore config. Setting it at gateway/agents level crashes the gateway.</li>
-<li><strong>The gateway plist Node binary matters</strong>: <code>openclaw doctor</code> creates a plist using whatever <code>node</code> is in PATH. Always check before rebuilding native modules.</li>
+<li><strong>The gateway plist Node binary matters</strong>: <code>hermes doctor</code> creates a plist using whatever <code>node</code> is in PATH. Always check before rebuilding native modules.</li>
 <li><strong><code>npm rebuild</code> doesn't always recompile</strong>: Use <code>node-gyp rebuild</code> directly when prebuilt binaries don't match.</li>
 <li><strong>ws-stream retries don't stop after session completion</strong>: A completed session's retry loop continues indefinitely — upstream bug.</li>
 </ol>

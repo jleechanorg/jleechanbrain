@@ -670,7 +670,7 @@ Ask Hermes to fix via agento
 
 ### Repos Scanned
 
-- `jleechanorg/smartclaw`
+- `jleechanorg/jleechanbrain`
 - `jleechanorg/worldarchitect.ai`
 - `jleechanorg/ai_universe`
 - `jleechanorg/beads`

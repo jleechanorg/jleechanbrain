@@ -53,7 +53,7 @@ Before the pipeline works, the following must be true:
 | Node.js (nvm v22.22.0) | `~/.nvm/versions/node/v22.22.0/bin/node --version` |
 | `~/.smartclaw/` cloned | `ls ~/.smartclaw/config.yaml` |
 | `~/.smartclaw_prod/` created | `ls ~/.smartclaw_prod/` |
-| Git remote points to jleechanorg/smartclaw | `git remote get-url origin` (must contain `smartclaw`) |
+| Git remote points to jleechanorg/jleechanbrain | `git remote get-url origin` (must contain `jleechanbrain`) |
 
 ---
 
@@ -64,7 +64,7 @@ Run in order. Each step is idempotent — safe to re-run.
 ### Step 1: Clone the repo
 
 ```bash
-git clone https://github.com/jleechanorg/smartclaw.git ~/.smartclaw
+git clone https://github.com/jleechanorg/jleechanbrain.git ~/.smartclaw
 ```
 
 ### Step 2: Bootstrap

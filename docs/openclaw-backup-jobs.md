@@ -1,11 +1,11 @@
-# OpenClaw ~/.smartclaw Backup Automation
+# Hermes ~/.smartclaw Backup Automation
 
 This repository includes a recurring backup workflow for `~/.smartclaw` that runs on:
 
 - `launchd` (24/7 Apple scheduler)
 
 Guardrail:
-- Forbidden: system `crontab` edits for OpenClaw jobs.
+- Forbidden: system `crontab` edits for Hermes jobs.
 - Required: launchd scheduling for repo-managed recurring jobs.
 
 Backups are written into this repository as redacted snapshots under:
@@ -23,16 +23,16 @@ The backup script mirrors `~/.smartclaw` contents and performs in-band redaction
 
 ## Files added
 
-- `scripts/backup-openclaw-full.sh` — creates redacted snapshot and commits when changed
-- `scripts/run-openclaw-backup.sh` — wrapper with timestamped logging
-- `scripts/openclaw-backup.plist.template` — `launchd` job template
-- `scripts/install-openclaw-backup-jobs.sh` — installs launchd schedules and removes legacy OpenClaw crontab entries
+- `scripts/backup-hermes-full.sh` — creates redacted snapshot and commits when changed
+- `scripts/run-hermes-backup.sh` — wrapper with timestamped logging
+- `scripts/hermes-backup.plist.template` — `launchd` job template
+- `scripts/install-hermes-backup-jobs.sh` — installs launchd schedules and removes legacy Hermes crontab entries
 
 ## Install recurring jobs
 
 ```bash
-cd ~/.smartclaw/workspace/openclaw
-./scripts/install-openclaw-backup-jobs.sh
+cd ~/.smartclaw/workspace/hermes
+./scripts/install-hermes-backup-jobs.sh
 ```
 
 This creates:
@@ -45,11 +45,11 @@ This creates:
 # launchd status
 launchctl print gui/$(id -u)/com.smartclaw.backup
 # run once now
-./scripts/run-openclaw-backup.sh
+./scripts/run-hermes-backup.sh
 ```
 
 ## Logs
 
-- `~/Library/Logs/openclaw-backup/openclaw-backup.log`
-- `~/Library/Logs/openclaw-backup/stdout.log`
-- `~/Library/Logs/openclaw-backup/stderr.log`
+- `~/Library/Logs/hermes-backup/hermes-backup.log`
+- `~/Library/Logs/hermes-backup/stdout.log`
+- `~/Library/Logs/hermes-backup/stderr.log`

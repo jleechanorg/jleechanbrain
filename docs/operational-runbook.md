@@ -177,7 +177,7 @@ hermes has rich built-in capabilities. Use them:
 
 | Want to change | Edit this |
 |---|---|
-| smartclaw behavior / decision-making | `SOUL.md` (at repo root = `~/.smartclaw/SOUL.md`) |
+| jleechanbrain behavior / decision-making | `SOUL.md` (at repo root = `~/.smartclaw/SOUL.md`) |
 | Tool allow/deny list | `TOOLS.md` or `config.yaml` |
 | Memory, history, compaction settings | `config.yaml` (memorySearch, dmHistoryLimit, compaction) |
 | Cron / scheduled tasks (Slack, backup, memory) | `cron/` (at repo root) |

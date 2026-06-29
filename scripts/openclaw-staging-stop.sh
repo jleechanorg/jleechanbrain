@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# openclaw-staging-stop.sh — Bring down OpenClaw staging gateway
-# Usage: bash openclaw-staging-stop.sh
+# hermes-staging-stop.sh — Bring down Hermes staging gateway
+# Usage: bash hermes-staging-stop.sh
 set -uo pipefail
 
 STAGING_LABEL="ai.smartclaw.staging"
-STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
+STAGING_PORT="${HERMES_STAGING_PORT:-8644}"
 TIMEOUT="${STOP_TIMEOUT:-10}"
 
-echo "=== OpenClaw Staging Stop ==="
+echo "=== Hermes Staging Stop ==="
 echo "  Label : $STAGING_LABEL"
 echo "  Port  : $STAGING_PORT"
 

@@ -1,90 +1,257 @@
 ---
 name: browserclaw
-description: Capture browser traffic with Playwright and generate Python client + MCP tool artifacts from HAR sessions.
+description: Use the browserclaw CLI to capture browser traffic, infer API endpoints, generate Python clients, OR decrypt + inject Chrome cookies for session reuse. Use when asked to reverse-engineer a website, generate an API client from a HAR, or reuse a logged-in Chrome session in a Playwright browser.
+agent_scope: Any AI agent (Codex, Claude Code, Hermes, AO)
 ---
 
 # browserclaw
 
-Use this skill when the user wants to inspect a site's browser APIs without a browser extension.
+## What this skill covers
 
-## Workflow
+The `browserclaw` CLI (a single Python binary installed via `pip install -e .`) has two halves:
 
-1. Capture traffic:
+1. **Traffic capture + client generation** — record a Chromium session to a HAR, infer the API endpoints, emit a `requests`-based Python client + MCP tool definitions.
+2. **Cookie decrypt + inject** (introduced in PR [#6](https://github.com/jleechanorg/browserclaw/pull/6)) — read the user's *logged-in* cookies out of the local Chrome/Brave/Edge SQLite DB, decrypt the AES-128 ciphertext using the macOS Keychain password, and inject them into a fresh Playwright Chrome so an agent can act as that user without re-authenticating.
+
+This file documents the **cookies** subcommands. The capture / infer / generate flow is documented in `~/.claude/skills/browserclaw/SKILL.md` (legacy) and the upstream `browserclaw/SKILL.md`.
+
+## When to use `cookies decrypt` + `cookies inject`
+
+Use this pair when:
+
+- The site is behind a login that requires MFA / SSO / WebAuthn (programmatic re-auth is impractical).
+- The user has Chrome open and already logged into the target site.
+- You need a Playwright session that **appears as the user** — same cookies, same session, same auth tokens.
+- A token rotation / `invalid_auth` incident requires you to read what cookies Chrome currently has so you can decide whether to re-decrypt or escalate.
+
+Do **not** use this for:
+
+- Sites you do not have permission to access. The skill trusts the user's local keychain; if you are not the user, this is unauthorized access.
+- Bypassing 2FA, CAPTCHAs, or anti-bot protections. The skill reuses an existing logged-in session — it does not break new ones.
+- Linux/Windows browsers. The PBKDF2 + Keychain parameters are macOS-only (salt `saltysalt`, iterations `1003`, IV = 16 spaces). Linux Chromium uses `peanuts` / 1 iteration and is not supported by this CLI yet.
+
+## Prerequisites
 
 ```bash
-browserclaw capture --url <url> --output generated/capture.har --manual
+# From a checked-out browserclaw worktree or installed wheel
+pip install -e '.[dev]'
+python -m playwright install chromium
+# cryptography>=42.0.0 is the only new dep introduced by PR #6
 ```
 
-2. Infer a catalog:
+- macOS only (uses `security find-generic-password` against the Login keychain).
+- Chrome (default) or Brave / Edge with explicit `--keychain-service` / `--keychain-account` flags.
+- The user must have already logged into the target site in Chrome at least once (the SQLite Cookies DB must contain the encrypted values).
+- Chrome must have been closed OR the file must be readable — the CLI copies the DB to a temp file before opening, so live read is safe even while Chrome is running, but a value that exists *only* in Chrome's in-memory cache may not yet be flushed to disk.
+
+## Subcommand: `browserclaw cookies decrypt`
+
+Read the local Chrome Cookies SQLite DB, decrypt every cookie value with the Keychain-derived AES key, and write a Playwright-compatible JSON.
+
+### Synopsis
 
 ```bash
-browserclaw infer --har generated/capture.har --output generated/catalog.json
+browserclaw cookies decrypt \
+  --db ~/Library/Application\ Support/Google/Chrome/Default/Cookies \
+  --output ./cookies.json \
+  [--domain-filter '%slack.com%'] \
+  [--keychain-service 'Chrome Safe Storage'] \
+  [--keychain-account 'Chrome'] \
+  [--summary]
 ```
 
-3. Generate artifacts:
+### Arguments
+
+| Flag | Type | Default | Required | Purpose |
+|---|---|---|---|---|
+| `--db` | path | — | yes | Absolute path to the Chromium-format Cookies SQLite. The CLI copies it to a temp file before opening, so passing the live Chrome-locked path is safe. |
+| `--output`, `-o` | path | — | yes | Destination for the decrypted JSON (Playwright `storage_state` shape: `{"cookies": [...], "origins": []}`). |
+| `--domain-filter` | str | `%` | no | SQL `LIKE` pattern against `host_key`. Use `%slack.com%` to grab only Slack cookies, `%.google.com%` to grab all subdomains. |
+| `--keychain-service` | str | `Chrome Safe Storage` | no | Override for Brave (`Brave Safe Storage`) or Edge (`Microsoft Edge Safe Storage`). |
+| `--keychain-account` | str | `Chrome` | no | Override for Brave (`Brave`) or Edge (`Microsoft Edge`). |
+| `--summary` | flag | off | no | Print a one-line `domain name len=N` per cookie instead of full values. Use when debugging to avoid logging tokens. |
+
+### Outputs
+
+- Writes `--output` as a Playwright storage_state JSON: `{"cookies": [{"name","value","domain","path","expires","secure","httpOnly","sameSite"}, ...], "origins": []}`.
+- Prints either the JSON summary (default) or the per-cookie summary lines (`--summary`).
+- Exit code `0` on success, non-zero on `CookieDecryptError` (missing DB, empty file, no `meta.version` row, Keychain lookup failure).
+
+### Example — extract Slack cookies for an agent run
 
 ```bash
-browserclaw generate --catalog generated/catalog.json --output-dir generated/site
+browserclaw cookies decrypt \
+  --db ~/Library/Application\ Support/Google/Chrome/Default/Cookies \
+  --output /tmp/slack-cookies.json \
+  --domain-filter '%slack.com%' \
+  --summary
+# Wrote 26 cookies to /tmp/slack-cookies.json
+#   .slack.com                          d                     len=  225
+#   .slack.com                          d-s                   len=   35
+#   .slack.com                          b                     len=   18
+#   .slack.com                          lc                    len=   31
+#   .slack.com                          oi                    len=   17
 ```
 
-4. Optional one-shot:
+### Example — Brave browser
 
 ```bash
-browserclaw reverse --url <url> --output-dir generated/site --manual
+browserclaw cookies decrypt \
+  --db ~/Library/Application\ Support/BraveSoftware/Brave-Browser/Default/Cookies \
+  --output /tmp/brave-cookies.json \
+  --keychain-service 'Brave Safe Storage' \
+  --keychain-account 'Brave'
 ```
 
-## Critical Gotcha: Chrome Profile Isolation
+### Edge cases / failure modes
 
-**`--user-data-dir` creates a fully isolated browser profile.** This means:
-- The debug Chrome has ZERO cookies/auth from your regular Chrome session
-- Copying `~/.chatgpt_codex_auth_state.json` or `OAuth Token` between profile directories does NOT log you in
-- The debug Chrome stays logged out even if your real Chrome is logged into the same site
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `CookieDecryptError: Cookie DB not found` | Wrong path or the browser is not installed | Confirm path with `ls "$HOME/Library/Application Support/Google/Chrome/Default/Cookies"` |
+| `CookieDecryptError: Cookie DB is empty` | Chrome is currently writing to it; live copy is zero bytes | Quit Chrome fully, then re-run |
+| `CookieDecryptError: is not a Chromium Cookies DB (no meta.version row)` | Wrong file — it's not a Chromium Cookies SQLite | Check `--db` is a `Cookies` file, not `Cookies-journal` or `Login Data` |
+| `Keychain lookup failed for service='Chrome Safe Storage' account='Chrome'` | User clicked "Deny" on the keychain prompt, or the entry was removed | Open Keychain Access.app, search for `Chrome Safe Storage`, ensure it exists; re-run and click "Always Allow" |
+| Output JSON has 0 cookies | `--domain-filter` is too narrow, or the user is not logged into that site in this profile | Drop `--domain-filter` to `%`, or switch `--db` to the correct profile (`Profile 1`, `Profile 2`, …) |
 
-**If you need auth from your real Chrome session**, launch the debug Chrome WITHOUT `--user-data-dir`:
+## Subcommand: `browserclaw cookies inject`
+
+Open a Playwright Chrome (or `chromium`), inject the cookies from a previously-decrypted JSON, navigate to a target URL, and optionally screenshot / dump page text.
+
+### Synopsis
+
 ```bash
-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=9223 "https://chatgpt.com/codex"
+browserclaw cookies inject \
+  --cookies ./cookies.json \
+  --goto https://app.slack.com/client \
+  [--browser-channel chrome] \
+  [--headless] \
+  [--wait-after-load 5] \
+  [--screenshot /tmp/slack-home.png] \
+  [--print-text 500]
 ```
-This uses your actual Chrome profile at `~/Library/Application Support/Google/Chrome/Default`, preserving all cookies and session state.
 
-**If you must use an isolated profile**, you must authenticate inside that debug window (manual login or use browserclaw's login flow with credentials).
+### Arguments
 
-## Non-Interactive Mode (No TTY)
+| Flag | Type | Default | Required | Purpose |
+|---|---|---|---|---|
+| `--cookies` | path | — | yes | Path to a cookies JSON. Either the output of `cookies decrypt` or any Playwright `storage_state` file. |
+| `--goto` | URL | — | yes | Where to navigate after injection. Must be a URL whose domain matches the cookies (cookies are domain-scoped). |
+| `--browser-channel` | str | `chrome` | no | Playwright channel. Use `chrome` for the real installed Chrome, `chromium` for the headless test build, `msedge` for Edge. |
+| `--headless` | flag | off | no | Run without a visible window. Combine with `--screenshot` for evidence capture. |
+| `--wait-after-load` | float | `5.0` | no | Seconds to wait after `page.goto` returns, before printing diagnostics. Increase for SPAs that hydrate slowly. |
+| `--screenshot` | path | off | no | If set, save a full-page screenshot after navigation. Great for evidence + Slack thread attachments. |
+| `--print-text` | int | `0` | no | If `> 0`, print the first N characters of `document.body.innerText` after navigation. Useful for verifying the page loaded as the expected user. |
 
-If running in a non-interactive context (cron, script, agent session), bypass the `--manual` TTY prompt by passing an empty steps file:
+### Outputs
+
+- Opens (or spawns) a real browser window — visible by default unless `--headless`.
+- Prints the final URL, page title, and any `--print-text` content to stdout.
+- Writes screenshot to `--screenshot` path if provided.
+- Exit code `0` on successful navigation; non-zero if Playwright cannot launch, cookies JSON is empty, or `page.goto` errors.
+
+### Example — drive Slack web as the user
+
 ```bash
-browserclaw capture --url <url> --output capture.har --manual=false --steps /tmp/empty_steps.json
-```
-Where `/tmp/empty_steps.json` contains `[]` (empty JSON array). This tells browserclaw "no manual steps" without prompting stdin.
-
-## Connecting Playwright to an Already-Running Debug Chrome
-
-Instead of launching a new browser, connect Playwright to a Chrome already running with `--remote-debugging-port`:
-```python
-from playwright.async_api import async_playwright
-
-playwright = await async_playwright().start()
-browser = await playwright.chromium.connect_over_cdp("http://localhost:9223")
-# Find your page among browser.contexts[].pages
+browserclaw cookies inject \
+  --cookies /tmp/slack-cookies.json \
+  --goto https://app.slack.com/client \
+  --browser-channel chrome \
+  --wait-after-load 5 \
+  --print-text 800 \
+  --screenshot /tmp/slack-home.png
 ```
 
-This is useful for monitoring a human's browser session or capturing traffic from an existing authenticated state.
+### Example — headless evidence capture
 
-## Raw WebSocket CDP Client (Python stdlib only)
+```bash
+browserclaw cookies inject \
+  --cookies /tmp/slack-cookies.json \
+  --goto https://app.slack.com/client \
+  --browser-channel chromium \
+  --headless \
+  --wait-after-load 3 \
+  --screenshot ./evidence/slack-after-login.png
+```
 
-If `websocket`/`websockets` packages aren't available, Chrome DevTools Protocol (CDP) can be driven with pure Python stdlib:
-- `socket` for TCP connection
-- `base64` for WebSocket key exchange
-- `hashlib` + `hmac` for WebSocket digest
-- `struct` for frame parsing/unpacking
-- `threading` + `queue` for async event dispatch
+### Edge cases / failure modes
 
-Chrome masks server→client frames with a 4-byte mask key (frame byte index 2). Unmask by XORing each byte with the mask key.
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `No cookies found in <path>` | JSON is empty or has no `cookies` key | Re-run `cookies decrypt` and confirm the file has `{"cookies": [...]}` |
+| Navigation lands on login page despite valid cookies | Domain mismatch — `--goto` is on a domain that does not match the cookie's `host_key` | Use a URL whose host matches at least one cookie domain |
+| `BrowserType.launch: Executable doesn't exist` | Playwright browsers not installed | `python -m playwright install chrome` (or `chromium`) |
+| Page is blank | SPA not yet hydrated when `--wait-after-load` expired | Increase `--wait-after-load` to `8`–`15` for SPAs |
+| Session expires within seconds | Cookie `expires` is in the past or the site re-validates the session on every navigation | Re-decrypt (`cookies decrypt`); some sites rotate session tokens on page load |
 
-WS URL format: `ws://localhost:9223/devtools/page/<page-id>`
+## Security implications (READ BEFORE USING)
 
-## Guardrails
+Cookie decryption is **sensitive**. The keychain password unlocks every cookie Chrome has stored for the user — Slack `d` tokens, GitHub `user_session`, Google `SID`, banking sessions, etc. Operators MUST:
 
-- Manual auth only
-- No stealth or bypass features
-- Keep generated artifacts reviewable before use
+1. **Treat decrypted cookies like raw passwords.** Do not log full cookie values to Slack, GitHub PR comments, gist attachments, or any external surface. Prefer `--summary` when sharing evidence.
+2. **Never commit the output JSON.** Add `cookies.json` and `*-cookies.json` to `.gitignore` immediately. Delete after use with `shred -u cookies.json` if the disk is encrypted, otherwise `rm` is sufficient on APFS.
+3. **Run in a private context.** If you invoke this from an AO worker, treat the worker session as if it has root-level access to the user's identity. Do not dispatch this skill into shared / multi-tenant AO lanes.
+4. **Respect the trust model.** This skill reads only the *current user's own* Chrome profile, using *that user's* macOS Keychain. It does not (and cannot) read another user's cookies without their Keychain password. Do not extend it to do so.
+5. **No bypass claims.** This skill does not bypass 2FA, CAPTCHA, or anti-bot systems. It reuses an existing logged-in session. Do not advertise it as a "login bypass."
+6. **Audit logging.** Every invocation should appear in the agent's session log. If you are dispatching this via AO, include `--summary` output in the worker report and never the raw cookie values.
 
+## Trust model diagram
+
+```text
+┌──────────────┐    security find-generic-password   ┌──────────────────┐
+│  user        │ ─────────────────────────────────▶ │  macOS Keychain   │
+│  (you)       │ ◀─────── "Chrome Safe Storage" ─── │  Login keychain   │
+└──────┬───────┘                                      └──────────────────┘
+       │ grants access once per session
+       ▼
+┌──────────────┐    PBKDF2-HMAC-SHA1 (1003 iters)   ┌──────────────────┐
+│ browserclaw  │ ─────────────────────────────────▶ │  AES-128-CBC key  │
+│ cookies.py   │                                      └────────┬─────────┘
+└──────┬───────┘                                               │
+       │ reads Cookies SQLite (copy to tmp)                   │
+       ▼                                                       ▼
+┌──────────────┐   v10 || AES(plaintext)                  ┌──────────────┐
+│   cookies    │ ──────decrypt──────────────────────────▶ │  JSON output │
+│   .json      │                                          │  (Playwright) │
+└──────────────┘                                          └──────────────┘
+```
+
+## Test script
+
+A bash regression test lives at `tests/test_browserclaw_skill.sh` (this repo). It verifies:
+
+1. This SKILL.md exists and is non-empty.
+2. `browserclaw cookies decrypt` is documented with a real example.
+3. `browserclaw cookies inject` is documented with a real example.
+4. The security warning section is present.
+5. The installed `browserclaw` CLI exposes the `cookies` subcommand (real binary surface, not just docs).
+6. An `--help` invocation of `cookies decrypt` returns exit code 0.
+
+Run it from this repo:
+
+```bash
+bash tests/test_browserclaw_skill.sh
+```
+
+## Eval criteria — "working" looks like
+
+- `browserclaw cookies decrypt --db <path> --output /tmp/c.json --domain-filter '%slack.com%'` exits 0 and writes a JSON with `>=1` cookie for an actively-used Slack profile.
+- `browserclaw cookies inject --cookies /tmp/c.json --goto https://app.slack.com/client --browser-channel chromium --headless --wait-after-load 5 --screenshot /tmp/proof.png` exits 0, writes a non-zero PNG, and prints a non-empty `--print-text` if requested.
+- End-to-end (decrypt → inject → screenshot) is captured as evidence for PR /es layer-2 verification on PR [#6](https://github.com/jleechanorg/browserclaw/pull/6).
+
+## Cross-references
+
+- Source repo: [github.com/jleechanorg/browserclaw](https://github.com/jleechanorg/browserclaw)
+- PR introducing the feature: [#6 — feat(cookies): Chrome cookie decrypt + Playwright inject for reuse of logged-in sessions](https://github.com/jleechanorg/browserclaw/pull/6)
+- Module source: `src/browserclaw/cookies.py` (dataclasses, AES decrypt, Keychain lookup, JSON I/O)
+- CLI source: `src/browserclaw/cli.py` (argparse for `cookies decrypt` / `cookies inject`)
+- Tests (10 cases, all green on macOS): `tests/test_cookies_decrypt.py`
+- Reference Chromium source: `os_crypt_mac.mm` (PBKDF2 params, AES key derivation)
+- Inspiration: [pycookiecheat](https://github.com/n8henrie/pycookiecheat) (MIT) — adapted for Python 3.11+ and DB v24+ SHA256(host) prefix.
+- Related Hermes skills: `~/.claude/skills/browser-testing` (Playwright MCP for localhost UI testing, headless) — use this skill for **session-less** UI testing, not for "act as user X" flows.
+
+## Version / metadata
+
+- Last updated: 2026-06-18
+- browserclaw version: 0.1.0 (cookies added in commit `9320bc0` on branch `feat/cookie-decrypt-inject`)
+- Tracking PR: [#6](https://github.com/jleechanorg/browserclaw/pull/6)
+- Hermes skill location: `skills/browserclaw/SKILL.md` (this file); also mirrored at `~/.claude/skills/browserclaw/SKILL.md`

@@ -45,7 +45,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # Detect which config files changed in this PR using git diff.
-      # config.yaml is gitignored in smartclaw so sparse-checkout can't
+      # config.yaml is gitignored in jleechanclaw so sparse-checkout can't
       # fetch it — git diff --name-only against base branch finds it regardless.
       - name: Find changed config files in PR
         id: find_config

@@ -72,7 +72,7 @@ Run AO commands from:
 cd ~/.smartclaw
 ```
 
-`ao` reads `agent-orchestrator.yaml` from the current directory. In this setup, the canonical config is `~/.smartclaw/agent-orchestrator.yaml` (includes project `smartclaw`). Running from unrelated directories can fail with:
+`ao` reads `agent-orchestrator.yaml` from the current directory. In this setup, the canonical config is `~/.smartclaw/agent-orchestrator.yaml` (includes project `jleechanbrain`). Running from unrelated directories can fail with:
 `No agent-orchestrator.yaml found. Run ao init to create one.`
 
 ## Available projects (from agent-orchestrator.yaml)
@@ -85,7 +85,7 @@ cd ~/.smartclaw
 - `worldai-pr5955` — WorldArchitect PR #5955 (jleechanorg/worldarchitect.ai, branch: feat/claw-native-hermes-dispatch)
 - `worldai-claw-pr57` — worldai_claw PR #57
 - `worldai-claw-agento` — worldai_claw agento clone
-- `smartclaw-main` — jleechanorg/smartclaw main (also used for PR work)
+- `jleechanbrain-main` — jleechanorg/jleechanbrain main (also used for PR work)
 
 **If PR has no matching project:** Run `cat ~/.smartclaw/agent-orchestrator.yaml` to see current list, add a new entry following the existing pattern, then spawn. Base repo path for new worldarchitect.ai PRs: clone fresh to `~/.worktrees/worldai-pr<N>-repo`.
 

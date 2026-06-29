@@ -10,7 +10,7 @@
 
 ## What This Is
 
-A **singleton super-orchestrator** that drives Google Antigravity IDE across multiple repositories and worktrees, coordinated from `jleechanorg/smartclaw` (the Hermes harness), with Agent Orchestrator (AO) workers dispatched via MCP Mail.
+A **singleton super-orchestrator** that drives Google Antigravity IDE across multiple repositories and worktrees, coordinated from `jleechanorg/jleechanbrain` (the Hermes harness), with Agent Orchestrator (AO) workers dispatched via MCP Mail.
 
 Antigravity is a GUI-based AI coding environment on macOS. The Antigravity skill already enables single-session control via Peekaboo CLI against the Manager window. This design extends that into a **multi-repo, multi-worker control plane** with durable job queuing, global locking, and AO integration.
 
@@ -33,12 +33,12 @@ The Antigravity skill (`~/.claude/skills/antigravity-computer-use/SKILL.md`) pro
 
 | Constraint | Rationale |
 |---|---|
-| Control plane lives in `smartclaw`, not `agent-orchestrator` | smartclaw is the harness/home; agent-orchestrator is AO-core only |
+| Control plane lives in `jleechanbrain`, not `agent-orchestrator` | jleechanbrain is the harness/home; agent-orchestrator is AO-core only |
 | Antigravity is controlled via Peekaboo, not native API | No native Antigravity API confirmed; Peekaboo is the established automation layer |
 | Singleton controller — never two writers | Antigravity Manager window is single-threaded from the user's perspective |
 | AO workers are stateless job executors | AO workers receive job payloads via MCP Mail, execute against Antigravity UI, report results |
 | Jobs are opaque to the control plane | Control plane routes and coordinates; AO workers own the execution logic |
-| All state in SQLite + JSONL | Consistent with existing smartclaw patterns (see `src/orchestration/webhook.py`) |
+| All state in SQLite + JSONL | Consistent with existing jleechanbrain patterns (see `src/orchestration/webhook.py`) |
 | Design-only PR; no runtime code in v0 | Sonnet workers build the implementation in follow-up phases |
 
 ---
@@ -52,22 +52,22 @@ The Antigravity skill (`~/.claude/skills/antigravity-computer-use/SKILL.md`) pro
 
 ---
 
-## Why the Control Plane Lives in smartclaw
+## Why the Control Plane Lives in jleechanbrain
 
-smartclaw is the **harness repo** — the home for all orchestration, automation, and coordination logic that operates across projects. It already contains:
+jleechanbrain is the **harness repo** — the home for all orchestration, automation, and coordination logic that operates across projects. It already contains:
 
 - `src/orchestration/` — Python orchestration layer (webhook, evidence, merge gate, AO integration)
 - `~/.smartclaw/cron/jobs.json` — scheduled jobs via Hermes gateway cron (live definitions, not tracked in repo)
 - `skills/` — agent skills (including the Antigravity shim)
 - `launchd/` — macOS launch agent templates
 
-The Antigravity control plane fits this mission: coordinate multi-repo work across the harness environment. AO provides the worker execution infrastructure; smartclaw provides the **coordination and policy layer**.
+The Antigravity control plane fits this mission: coordinate multi-repo work across the harness environment. AO provides the worker execution infrastructure; jleechanbrain provides the **coordination and policy layer**.
 
 ---
 
 ## Why the AO Adapter Is Thin
 
-The AO adapter is the MCP Mail bridge between the smartclaw control plane and AO workers. It is intentionally thin because:
+The AO adapter is the MCP Mail bridge between the jleechanbrain control plane and AO workers. It is intentionally thin because:
 
 1. **AO owns worker lifecycle** — spawning, supervising, respawning. The control plane should not replicate this.
 2. **AO has its own event model** — AO workers emit events; the adapter translates them to control plane events.
@@ -93,7 +93,7 @@ The thick boundary is at **MCP Mail messages**: well-defined JSON schemas for jo
 ## What Lives Where
 
 ```
-smartclaw/
+jleechanbrain/
   docs/antigravity-control-plane/    ← NEW (this design)
     OVERVIEW.md                       this file
     ARCHITECTURE.md                   component design, safety model, routing

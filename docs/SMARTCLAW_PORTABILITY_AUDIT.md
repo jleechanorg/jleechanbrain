@@ -1,11 +1,11 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-05-26 10:46:41 PDT
+Generated: 2026-06-28 23:16:46 PDT
 
 ## Summary
 
-- Candidate files evaluated: 1208
-- Included in export map: 1190
+- Candidate files evaluated: 1295
+- Included in export map: 1277
 - Excluded as non-portable/private/runtime: 18
 
 ## Selection Rules
@@ -23,6 +23,7 @@ Non-portable paths are excluded when they contain:
 
 - `.claude/commands/agento_report.md`
 - `.claude/commands/agentor.md`
+- `.claude/commands/auto.md`
 - `.claude/commands/checkpoint.md`
 - `.claude/commands/claw.md`
 - `.claude/commands/coderabbit.md`
@@ -31,6 +32,7 @@ Non-portable paths are excluded when they contain:
 - `.claude/commands/eloop.md`
 - `.claude/commands/er.md`
 - `.claude/commands/evidence_review.md`
+- `.claude/commands/finish.md`
 - `.claude/commands/harness.md`
 - `.claude/commands/history.md`
 - `.claude/commands/learn.md`
@@ -40,16 +42,18 @@ Non-portable paths are excluded when they contain:
 - `.claude/commands/roadmap.md`
 - `.claude/commands/smartclaw-export.md`
 - `.claude/skills/agento_report.md`
+- `.claude/skills/claw-dispatch/SKILL.md`
 - `.claude/skills/evolve_loop/SKILL.md`
-- `.claude/skills/smartclaw-eloop/SKILL.md`
+- `.claude/skills/hermes-models.md`
+- `.claude/skills/jleechanbrain-eloop/SKILL.md`
 - `.claude/skills/mem0-memory-operations.md`
 - `.claude/skills/nextsteps.md`
-- `.claude/skills/hermes-harness/SKILL.md`
-- `.claude/skills/hermes-models.md`
+- `.claude/skills/openclaw-harness/SKILL.md`
 - `.claude/skills/second-opinion-mcp-auth.md`
 - `.claude/skills/smartclaw-portability-export.md`
 - `.claude/skills/staging-prod-pipeline/SKILL.md`
 - `.github/workflows/coderabbit-ping-on-push.yml`
+- `.github/workflows/example-discipline.yml`
 - `.github/workflows/green-gate.yml`
 - `.github/workflows/skeptic-cron.yml`
 - `.github/workflows/staging-canary-full.yml`
@@ -67,8 +71,8 @@ Non-portable paths are excluded when they contain:
 - `docs/HARNESS_ENGINEERING.md`
 - `docs/HUMAN_CHANNEL_BRIDGE.html`
 - `docs/HUMAN_CHANNEL_BRIDGE.md`
-- `docs/INCIDENT_HERMES_2026328_WS_STREAM.html`
-- `docs/INCIDENT_HERMES_2026328_WS_STREAM.md`
+- `docs/INCIDENT_OPENCLAW_2026328_WS_STREAM.html`
+- `docs/INCIDENT_OPENCLAW_2026328_WS_STREAM.md`
 - `docs/ORCHESTRATION_RESEARCH_2026.md`
 - `docs/ORCHESTRATION_SYSTEM_DESIGN.html`
 - `docs/ORCHESTRATION_SYSTEM_DESIGN.md`
@@ -77,10 +81,6 @@ Non-portable paths are excluded when they contain:
 - `docs/SMARTCLAW_PORTABILITY_AUDIT.md`
 - `docs/STAGING_PIPELINE.html`
 - `docs/STAGING_PIPELINE.md`
-- `docs/SWITCH_TO_HERMES.html`
-- `docs/SWITCH_TO_HERMES.md`
-- `docs/ZOE_AGENT_SWARM_REFERENCE.md`
-- `docs/antigravity-control-plane/.stale-comments-resolved`
 - _...truncated; see `scripts/smartclaw-export-map.tsv` for full list._
 
 ## Excluded Files (sample)

@@ -822,15 +822,15 @@ else
   echo "  • skipping ai.smartclaw.antig-cmux-loop (launchd is macOS-only)"
 fi
 
-# --- ao7green-smartclaw (drive smartclaw PRs to 7-green every 30 min) ---
+# --- ao7green-jleechanbrain (drive jleechanbrain PRs to 7-green every 30 min) ---
 if [[ "$OS" == "macos" ]]; then
-  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-smartclaw.plist"
+  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.smartclaw.schedule.ao7green-jleechanbrain.plist"
   AO7GREEN_LAUNCHD_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.launchd.sh"
   AO7GREEN_MONITOR_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.sh"
   AO7GREEN_REPLACED_CRON_ID="64f2399d-33f4-4451-be87-05350d2b2590"
   if [[ -f "$AO7GREEN_JLEECHANCLAW_PLIST" ]]; then
     if [[ ! -f "$AO7GREEN_LAUNCHD_SCRIPT" || ! -f "$AO7GREEN_MONITOR_SCRIPT" ]]; then
-      echo "  • skipping ao7green-smartclaw (monitor scripts missing under $REPO_DIR/scripts)" >&2
+      echo "  • skipping ao7green-jleechanbrain (monitor scripts missing under $REPO_DIR/scripts)" >&2
     else
       mkdir -p "$HERMES_HOME_DIR/scripts"
       _ao7green_launchd_dst="$HERMES_HOME_DIR/scripts/ao7green-pr-monitor.launchd.sh"
@@ -843,9 +843,9 @@ if [[ "$OS" == "macos" ]]; then
       fi
       chmod +x "$_ao7green_launchd_dst" "$_ao7green_monitor_dst"
       install_plist "$AO7GREEN_JLEECHANCLAW_PLIST"
-      echo "  ✓ ai.smartclaw.schedule.ao7green-smartclaw installed"
+      echo "  ✓ ai.smartclaw.schedule.ao7green-jleechanbrain installed"
       # Disable the replaced gateway cron job directly in jobs.json by ID.
-      # ao7green-smartclaw is handled here and is not migrated via
+      # ao7green-jleechanbrain is handled here and is not migrated via
       # install-hermes-scheduled-jobs.sh MIGRATED_JOBS.
       _live_cron_jobs="$HERMES_HOME_DIR/cron/jobs.json"
       if [[ -f "$_live_cron_jobs" ]]; then
@@ -868,14 +868,14 @@ if [[ "$OS" == "macos" ]]; then
             .jobs = ((.jobs // []) | map(if .id == $id then .enabled = false else . end))
           ' "$_live_cron_jobs" >"$_tmp_jobs"; then
             mv "$_tmp_jobs" "$_live_cron_jobs"
-            echo "  - disabled gateway cron $AO7GREEN_REPLACED_CRON_ID (ao7green-smartclaw now launchd)"
+            echo "  - disabled gateway cron $AO7GREEN_REPLACED_CRON_ID (ao7green-jleechanbrain now launchd)"
             _gw_pid="$(pgrep -f 'hermes.*gateway' | head -n1 || true)"
             if [[ -n "$_gw_pid" ]]; then
               kill -HUP "$_gw_pid" 2>/dev/null || true
             fi
           else
             rm -f "$_tmp_jobs"
-            echo "  ! warning: failed to disable gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs; ao7green-smartclaw may run twice until it is disabled manually" >&2
+            echo "  ! warning: failed to disable gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs; ao7green-jleechanbrain may run twice until it is disabled manually" >&2
           fi
 
           if command -v flock >/dev/null 2>&1; then
@@ -883,12 +883,12 @@ if [[ "$OS" == "macos" ]]; then
             rm -f "$_lock_file"
           fi
         else
-          echo "  ! warning: jq not installed; could not disable replaced gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs. ao7green-smartclaw may run twice until the cron job is disabled manually." >&2
+          echo "  ! warning: jq not installed; could not disable replaced gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs. ao7green-jleechanbrain may run twice until the cron job is disabled manually." >&2
         fi
       fi
     fi
   else
-    echo "  • skipping ao7green-smartclaw plist not found"
+    echo "  • skipping ao7green-jleechanbrain plist not found"
   fi
 fi
 

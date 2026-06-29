@@ -16,7 +16,7 @@ $ bash /tmp/phase1e_test.sh
 --- /tmp/hermes/.claw-track-orch-sga ---
 ISSUE_ID=orch-sga
 SESSION_NAME=jc-925
-PROJECT_ID=smartclaw
+PROJECT_ID=jleechanbrain
 SPAWNED_AT=2026-03-26T21:15:00Z
 TASK_FILE=/tmp/hermes/claw-task-eloop-system-audit.md
 STATUS=spawned

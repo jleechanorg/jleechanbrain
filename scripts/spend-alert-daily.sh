@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Multi-source spend alert (launchd): GitHub Actions (billing API), optional Gemini & GCP.
-# Canonical copy: https://github.com/jleechanorg/smartclaw (use gh CLI; no browser).
+# Canonical copy: https://github.com/jleechanorg/jleechanbrain (use gh CLI; no browser).
 #
 # Daily thresholds (incremental MTD delta since last successful run):
 #   - GitHub Actions:  SPEND_ALERT_GH_DAILY_USD   (default 10)

@@ -1,6 +1,6 @@
 # Harness layers (user vs repository)
 
-This directory holds **tracked copies** of **user-scope** harness text so PRs can review drift between `~/.claude/` and the smartclaw repo.
+This directory holds **tracked copies** of **user-scope** harness text so PRs can review drift between `~/.claude/` and the jleechanbrain repo.
 
 | File | Install target | Purpose |
 |------|----------------|---------|

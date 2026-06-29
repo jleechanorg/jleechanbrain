@@ -30,7 +30,7 @@ from pathlib import Path
 
 DEFAULT_REPOS: dict[str, str] = {
     "worldarchitect.ai": "~/projects/worldarchitect.ai",
-    "smartclaw": "~/project_smartclaw/smartclaw",
+    "jleechanbrain": "~/project_jleechanbrain/jleechanbrain",
     "worldai_claw": "~/project_worldaiclaw/worldai_claw",
 }
 MEMORY_DIR = Path("~/.smartclaw/memory").expanduser()

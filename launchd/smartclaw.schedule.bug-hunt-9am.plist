@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/project_smartclaw/smartclaw/scripts/bug-hunt-daily.sh</string>
+        <string>${HOME}/project_jleechanbrain/jleechanbrain/scripts/bug-hunt-daily.sh</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -65,7 +65,7 @@
     <string>${HOME}/.smartclaw/logs/bug-hunt-daily.error.log</string>
     
     <key>WorkingDirectory</key>
-    <string>${HOME}/project_smartclaw/smartclaw</string>
+    <string>${HOME}/project_jleechanbrain/jleechanbrain</string>
     
     <key>ProcessType</key>
     <string>Background</string>

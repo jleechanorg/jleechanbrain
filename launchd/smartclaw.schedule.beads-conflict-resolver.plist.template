@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.beads-conflict-resolver</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>@HOME@/.smartclaw/scripts/beads-conflict-resolver.launchd.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/beads-conflict-resolver.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/beads-conflict-resolver.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>TZ</key>
+      <string>America/Los_Angeles</string>
+      <key>PATH</key>
+      <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>HOME</key>
+      <string>@HOME@</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+  </dict>
+</plist>

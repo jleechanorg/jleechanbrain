@@ -83,7 +83,7 @@ flowchart LR
 **Files**: N/A (git infrastructure)
 
 **What it does**:
-- A long-lived `staging` branch exists in `jleechanorg/smartclaw`
+- A long-lived `staging` branch exists in `jleechanorg/jleechanbrain`
 - `~/.smartclaw-staging/` is a git worktree checked out to the `staging` branch
 - When the staging branch is updated (via PR merge, not direct push), `~/.smartclaw-staging/` updates via the worktree mechanism when `staging-promote.sh` next runs — it merges the updated `origin/staging` into the local worktree
 - Manual fallback remains valid if needed: `git -C ~/.smartclaw-staging pull`

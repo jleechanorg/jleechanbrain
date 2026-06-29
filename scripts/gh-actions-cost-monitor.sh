@@ -18,7 +18,7 @@ DAILY_THRESHOLD=5.00
 
 # Repos to monitor
 REPOS=(
-    "jleechanorg/smartclaw"
+    "jleechanorg/jleechanbrain"
     "jleechanorg/worldai_claw"
     "jleechanorg/worldarchitect.ai"
 )
@@ -93,7 +93,7 @@ create_gh_issue() {
     local title="$1"
     local body="$2"
 
-    gh api repos/jleechanorg/smartclaw/issues --method POST \
+    gh api repos/jleechanorg/jleechanbrain/issues --method POST \
         -f title="$title" \
         -f body="$body" \
         -f labels='["cost-alert","automated"]' >> "$LOG_FILE" 2>&1 || {
