@@ -1250,6 +1250,52 @@ if command -v hermes >/dev/null 2>&1; then
     warn "Slack send probe via hermes slack send unavailable or failed: $(printf '%s\n' "$slack_out" | head -1)"
   fi
 
+  # 1b. Slack RECEIVE probe — the send probe above only exercises chat.postMessage
+  # (requires chat:write scope) and passes even when the Slack app's "Enable Events"
+  # toggle is OFF at api.slack.com. Socket Mode can stay connected with a live
+  # ping/pong heartbeat while zero inbound events are ever delivered — this exact
+  # failure silently dropped 100% of messages for 24h+ (2026-07-03, hermes_pc) and
+  # recurred from an identical 2026-05-11 staging incident with no automated check
+  # added after the first occurrence. This probe posts a self-mentioning marker
+  # message and confirms the gateway actually logs it as processed.
+  if [[ "${HERMES_DOCTOR_SKIP_SLACK_RECEIVE_PROBE:-0}" == "1" ]]; then
+    warn "Slack receive probe skipped (HERMES_DOCTOR_SKIP_SLACK_RECEIVE_PROBE=1)"
+  elif [[ -z "${slack_bot_token:-}" ]] || [[ ! -f "${slack_bot_body:-/nonexistent}" ]]; then
+    warn "Slack receive probe skipped — bot token or auth.test response unavailable"
+  else
+    _receive_bot_uid="$(jq -r '.user_id // empty' "$slack_bot_body" 2>/dev/null)"
+    _receive_log="${LIVE_HERMES}/logs/gateway.log"
+    if [[ -z "$_receive_bot_uid" ]]; then
+      warn "Slack receive probe skipped — could not resolve bot user_id from auth.test"
+    elif [[ ! -f "$_receive_log" ]]; then
+      warn "Slack receive probe skipped — gateway.log not found at $_receive_log"
+    else
+      _receive_marker="doctor-receive-probe-$(date +%s)-$$"
+      _receive_start_line="$(wc -l < "$_receive_log" 2>/dev/null || echo 0)"
+      curl -sS --max-time 10 -X POST \
+        -H "Authorization: Bearer $slack_bot_token" \
+        -H 'Content-Type: application/json' \
+        -d "$(jq -n --arg ch "$SLACK_PROBE_TARGET" --arg uid "$_receive_bot_uid" --arg m "$_receive_marker" \
+          '{channel: $ch, text: ("<@" + $uid + "> [doctor.sh receive-probe " + $m + "] gateway liveness check — ignore")}')" \
+        'https://slack.com/api/chat.postMessage' >/dev/null 2>&1
+      _receive_found=0
+      _receive_waited=0
+      while [[ "$_receive_waited" -lt 25 ]]; do
+        if tail -n "+$((_receive_start_line + 1))" "$_receive_log" 2>/dev/null | grep -q "$_receive_marker"; then
+          _receive_found=1
+          break
+        fi
+        sleep 2
+        _receive_waited=$((_receive_waited + 2))
+      done
+      if [[ "$_receive_found" -eq 1 ]]; then
+        pass "Slack receive probe: gateway logged inbound event within ${_receive_waited}s (Event Subscriptions live)"
+      else
+        fail "Slack receive probe: no inbound event in gateway.log within 25s — Socket Mode may be connected but 'Enable Events' is OFF at https://api.slack.com/apps/<APP_ID>/event-subscriptions, or gateway is not processing messages (check for a stale gateway.lock / competing process)"
+      fi
+    fi
+  fi
+
   # 2. Gateway inference — real end-to-end LLM round-trip
   # Uses a longer timeout (60s) since cold-start LLM calls can be slow.
   # rc=124 = timed out — demote to WARN (gateway is healthy, model is just cold).
