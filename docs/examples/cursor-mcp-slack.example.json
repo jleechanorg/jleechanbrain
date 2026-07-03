@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "slack": {
-      "command": "/Users/jleechan/go/bin/slack-mcp-server",
+      "command": "${HOME}/go/bin/slack-mcp-server",
       "env": {
         "SLACK_MCP_XOXB_TOKEN": "xoxb-replace-with-HERMES_SLACK_BOT_TOKEN",
         "SLACK_MCP_ADD_MESSAGE_TOOL": "true"

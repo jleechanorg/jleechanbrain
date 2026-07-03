@@ -1272,26 +1272,34 @@ if command -v hermes >/dev/null 2>&1; then
     else
       _receive_marker="doctor-receive-probe-$(date +%s)-$$"
       _receive_start_line="$(wc -l < "$_receive_log" 2>/dev/null || echo 0)"
-      curl -sS --max-time 10 -X POST \
+      _receive_send_resp="$(curl -sS --max-time 10 -X POST \
         -H "Authorization: Bearer $slack_bot_token" \
         -H 'Content-Type: application/json' \
         -d "$(jq -n --arg ch "$SLACK_PROBE_TARGET" --arg uid "$_receive_bot_uid" --arg m "$_receive_marker" \
           '{channel: $ch, text: ("<@" + $uid + "> [doctor.sh receive-probe " + $m + "] gateway liveness check — ignore")}')" \
-        'https://slack.com/api/chat.postMessage' >/dev/null 2>&1
-      _receive_found=0
-      _receive_waited=0
-      while [[ "$_receive_waited" -lt 25 ]]; do
-        if tail -n "+$((_receive_start_line + 1))" "$_receive_log" 2>/dev/null | grep -q "$_receive_marker"; then
-          _receive_found=1
-          break
+        -w $'\n%{http_code}' \
+        'https://slack.com/api/chat.postMessage' 2>&1 || true)"
+      _receive_send_status="$(printf '%s' "$_receive_send_resp" | tail -n1)"
+      _receive_send_body="$(printf '%s' "$_receive_send_resp" | sed '$d')"
+      if [[ "${_receive_send_status:-}" == "200" ]] && printf '%s' "$_receive_send_body" | grep -q '"ok":true'; then
+        _receive_found=0
+        _receive_waited=0
+        while [[ "$_receive_waited" -lt 25 ]]; do
+          if tail -n "+$((_receive_start_line + 1))" "$_receive_log" 2>/dev/null | grep -q "$_receive_marker"; then
+            _receive_found=1
+            break
+          fi
+          sleep 2
+          _receive_waited=$((_receive_waited + 2))
+        done
+        if [[ "$_receive_found" -eq 1 ]]; then
+          pass "Slack receive probe: gateway logged inbound event within ${_receive_waited}s (Event Subscriptions live)"
+        else
+          fail "Slack receive probe: no inbound event in gateway.log within 25s — Socket Mode may be connected but 'Enable Events' is OFF at https://api.slack.com/apps/<APP_ID>/event-subscriptions, or gateway is not processing messages (check for a stale gateway.lock / competing process)"
         fi
-        sleep 2
-        _receive_waited=$((_receive_waited + 2))
-      done
-      if [[ "$_receive_found" -eq 1 ]]; then
-        pass "Slack receive probe: gateway logged inbound event within ${_receive_waited}s (Event Subscriptions live)"
       else
-        fail "Slack receive probe: no inbound event in gateway.log within 25s — Socket Mode may be connected but 'Enable Events' is OFF at https://api.slack.com/apps/<APP_ID>/event-subscriptions, or gateway is not processing messages (check for a stale gateway.lock / competing process)"
+        _receive_send_error="$(printf '%s' "$_receive_send_body" | jq -r '.error // "unknown error"' 2>/dev/null || echo "unknown error")"
+        warn "Slack receive probe: chat.postMessage failed (HTTP ${_receive_send_status:-unknown}, error: $_receive_send_error) — send never succeeded, skipping 25s event wait"
       fi
     fi
   fi
