@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly thread auto-park at 03:00 local (jleechanclaw thread_lifecycle)
+# Mirrors the launchd plist `ai.hermes.schedule.slack-thread-auto-park`
+# cadence (03:00 daily). 03:00 chosen by the original plist because it's
+# a maintenance task, not urgent — runs before the 08:00 daily digest
+# rollup so the digest sees fresh state.
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=jleechanclaw-slack-thread-auto-park.service
+
+[Install]
+WantedBy=timers.target

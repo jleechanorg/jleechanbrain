@@ -1,0 +1,29 @@
+[Unit]
+Description=jleechanclaw daily #agent-digest rollup (slack_catchup)
+# Linux-side mirror of ai.hermes.schedule.slack-digest-rollup.
+# Runs scripts/jleechanclaw_slack_catchup_daily.sh which imports
+# orchestration.slack_catchup from the jleechanclaw checkout and
+# posts a tiered digest to #agent-digest.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/jleechan/project_jleechanclaw/jleechanclaw
+# EnvironmentFile= sources HERMES_SLACK_BOT_TOKEN + ANTHROPIC_API_KEY
+# from the systemd-managed env file (NEVER a .env file). The wrapper
+# script fails fast if either is empty so we don't wait 30s for a
+# LLM call to error out.
+EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy.env
+ExecStart=%h/.local/bin/jleechanclaw_slack_catchup_daily.sh
+StandardOutput=append:%h/.hermes/logs/slack-digest-rollup.log
+StandardError=append:%h/.hermes/logs/slack-digest-rollup.err
+User=jleechan
+Group=jleechan
+# LLM call + multi-channel scan can take 1-3 minutes. Cap at 10 min
+# to match the repo's 10-min/600s timeout integrity policy.
+TimeoutStartSec=600
+
+[Install]
+# NOT enabled by default — installer decides. Listed here for symmetry
+# with the timer file.

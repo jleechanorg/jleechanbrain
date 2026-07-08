@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily #agent-digest rollup at 08:00 local (jleechanclaw slack_catchup)
+# Mirrors the launchd plist `ai.hermes.schedule.slack-digest-rollup`
+# cadence (08:00 daily). 08:00 chosen so the digest lands in operator
+# inboxes at start-of-day across timezones; weekend activity still
+# surfaces in Monday's digest because there's no Weekday filter.
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=jleechanclaw-slack-digest-rollup.service
+
+[Install]
+WantedBy=timers.target
