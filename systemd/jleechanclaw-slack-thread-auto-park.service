@@ -1,0 +1,27 @@
+[Unit]
+Description=jleechanclaw thread auto-park (nightly, 48h threshold)
+# Linux-side mirror of ai.hermes.schedule.slack-thread-auto-park.
+# Runs scripts/jleechanclaw_thread_lifecycle.sh which imports
+# orchestration.thread_lifecycle from the jleechanclaw checkout
+# (see jleechanbrain scripts/jleechanclaw_*.sh for the rationale).
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/project_jleechanclaw/jleechanclaw
+# EnvironmentFile= sources ~/.bashrc-sourced env (HERMES_SLACK_BOT_TOKEN
+# + ANTHROPIC_API_KEY). NEVER write tokens to a .env file under
+# ~/.config/systemd/user/*.service — that's the secrets-no-env rule.
+EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy-tokens.conf
+ExecStart=%h/.local/bin/jleechanclaw_thread_lifecycle.sh
+StandardOutput=append:%h/.hermes/logs/slack-thread-auto-park.log
+StandardError=append:%h/.hermes/logs/slack-thread-auto-park.err
+# Lock the runtime to the user; reject any privilege escalation.
+User=jleechan
+Group=jleechan
+# Cap runtime so a stuck process can't pin the timer forever.
+TimeoutStartSec=300
+# Do not restart on its own — the timer fires it again next day if needed.
+# Restart=on-failure would re-run the script in the same OnCalendar slot,
+# violating the ThrottleInterval= contract of the launchd original.
