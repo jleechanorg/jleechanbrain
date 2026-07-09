@@ -59,7 +59,7 @@ done
 # grep-based literal extraction would miss.
 regenerate_needed=1
 if [[ -f "$ENV_FILE" ]]; then
-  if grep -q '^HERMES_SLACK_BOT_TOKEN=$' "$ENV_FILE" || grep -q '^ANTHROPIC_API_KEY=$' "$ENV_FILE"; then
+  if grep -q '^HERMES_SLACK_BOT_TOKEN=$' "$ENV_FILE"; then
     echo "  token file exists but contains an empty value — regenerating: $ENV_FILE"
   else
     echo "  token file exists and looks populated, leaving untouched: $ENV_FILE"
@@ -71,12 +71,22 @@ if [[ "$regenerate_needed" -eq 1 ]]; then
   HERMES_SLACK_BOT_TOKEN="$(bash -ic 'printf %s "$HERMES_SLACK_BOT_TOKEN"' 2>/dev/null || true)"
   ANTHROPIC_API_KEY="$(bash -ic 'printf %s "$ANTHROPIC_API_KEY"' 2>/dev/null || true)"
 
-  if [[ -z "$HERMES_SLACK_BOT_TOKEN" || -z "$ANTHROPIC_API_KEY" ]]; then
-    echo "  FATAL: could not resolve non-empty tokens via 'bash -ic'." >&2
-    echo "    HERMES_SLACK_BOT_TOKEN empty: $([[ -z "$HERMES_SLACK_BOT_TOKEN" ]] && echo yes || echo no)" >&2
-    echo "    ANTHROPIC_API_KEY empty:      $([[ -z "$ANTHROPIC_API_KEY" ]] && echo yes || echo no)" >&2
-    echo "    Check that ~/.bashrc exports both (directly or via indirection) for an interactive, non-login shell." >&2
+  # HERMES_SLACK_BOT_TOKEN is mandatory — the digest cannot post without it.
+  if [[ -z "$HERMES_SLACK_BOT_TOKEN" ]]; then
+    echo "  FATAL: could not resolve a non-empty HERMES_SLACK_BOT_TOKEN via 'bash -ic'." >&2
+    echo "    Check that ~/.bashrc exports it (directly or via indirection) for an interactive, non-login shell." >&2
     exit 1
+  fi
+  # ANTHROPIC_API_KEY is optional — llm_call_util falls back to the
+  # `claude -p` CLI subprocess when the SDK has no key (the digest wrapper
+  # extends PATH so the CLI resolves under systemd). Warn, don't abort:
+  # a box with only claude-CLI subscription auth is a supported deploy.
+  if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+    echo "  WARN: ANTHROPIC_API_KEY resolved empty — tier classification will use the claude CLI fallback (requires 'claude' on PATH)." >&2
+    if ! bash -ic 'command -v claude' >/dev/null 2>&1; then
+      echo "  FATAL: no ANTHROPIC_API_KEY AND no 'claude' CLI found — the LLM classifier has no working path." >&2
+      exit 1
+    fi
   fi
 
   printf 'HERMES_SLACK_BOT_TOKEN=%s\nANTHROPIC_API_KEY=%s\n' \

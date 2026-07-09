@@ -15,7 +15,8 @@
 #     ~/.bashrc via the systemd EnvironmentFile= directive. Never
 #     hardcoded in the service file (secrets-no-env / secrets-no-plist
 #     policy).
-#   ANTHROPIC_API_KEY (required for LLM tier classification) — same.
+#   ANTHROPIC_API_KEY (optional — SDK path for LLM tier classification;
+#     when empty, llm_call_util falls back to the `claude -p` CLI) — same.
 #   SLACK_DIGEST_CHANNEL (optional override; default C0BFBCGN3HD =
 #     #agent-digest per slack_catchup.py DEFAULT_DIGEST_CHANNEL).
 #
@@ -50,10 +51,16 @@ if [[ -z "${HERMES_SLACK_BOT_TOKEN:-}" ]]; then
   err "HERMES_SLACK_BOT_TOKEN is empty — systemd EnvironmentFile= must source it from ~/.bashrc (NEVER from a .env file)"
   exit 1
 fi
+# ANTHROPIC_API_KEY is OPTIONAL: llm_call_util.call_llm falls back to the
+# `claude -p` CLI subprocess when the SDK has no key (verified live on
+# hermes-pc, which has no Anthropic key — only claude CLI subscription
+# auth). Warn so the journal explains the slower path, but do not abort.
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-  err "ANTHROPIC_API_KEY is empty — slack_catchup's LLM tier classifier will fail without it"
-  exit 1
+  log "WARN: ANTHROPIC_API_KEY is empty — tier classification will use the claude CLI subprocess fallback (slower)"
 fi
+# The claude CLI fallback needs `claude` on PATH; systemd user units get a
+# minimal PATH that excludes npm-global and ~/.local/bin, so extend it here.
+export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH"
 
 LOCK_DIR="${TMPDIR:-/tmp}/hermes-jleechanclaw-slack-catchup-daily.lock"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
