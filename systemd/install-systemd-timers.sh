@@ -7,13 +7,18 @@
 # `systemctl --user daemon-reload` is the cost of being explicit).
 #
 # What it does:
-#   1. Symlinks scripts/jleechanclaw_*.sh from the jleechenbrain repo
+#   1. Symlinks scripts/jleechanclaw_*.sh from the jleechanbrain repo
 #      into ~/.local/bin (so the systemd unit's ExecStart= path
 #      resolves regardless of where the repo is checked out).
-#   2. Writes the env file at
-#      ~/.config/systemd/user/jleechanbrain-deploy.env from
-#      ~/.bashrc-sourced HERMES_SLACK_BOT_TOKEN + ANTHROPIC_API_KEY.
-#      NEVER reads/writes a .env file (secrets-no-env policy).
+#   2. Writes the token file at
+#      ~/.config/systemd/user/jleechanbrain-deploy-tokens.conf from
+#      ~/.bashrc-sourced HERMES_SLACK_BOT_TOKEN + ANTHROPIC_API_KEY,
+#      resolved via an INTERACTIVE shell (bash -ic) so ~/.bashrc's
+#      interactive guard doesn't skip the token exports and any
+#      variable-indirection exports (e.g. HERMES_SLACK_BOT_TOKEN=
+#      "$HERMES_PC_SLACK_BOT_TOKEN") are expanded. Fails loudly (exit 1)
+#      if either resolves empty rather than writing a broken file.
+#      NEVER writes a `.env`-named file (secrets-no-env policy).
 #   3. Copies the .service + .timer units into
 #      ~/.config/systemd/user/.
 #   4. Runs `systemctl --user daemon-reload`.
@@ -27,7 +32,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 LOCAL_BIN="$HOME/.local/bin"
-ENV_FILE="$SYSTEMD_USER_DIR/jleechanbrain-deploy.env"
+ENV_FILE="$SYSTEMD_USER_DIR/jleechanbrain-deploy-tokens.conf"
 
 mkdir -p "$SYSTEMD_USER_DIR" "$LOCAL_BIN"
 
@@ -40,17 +45,44 @@ for script in \
   echo "  symlinked: $LOCAL_BIN/$name -> $script"
 done
 
-# --- 2. Source bashrc for tokens, write the systemd env file ---
+# --- 2. Source bashrc for tokens, write the systemd token file ---
 # This is the ONLY step that writes a file containing tokens; it
-# lands in ~/.config/systemd/user/ (a non-.env path) so the
-# secrets-no-env policy is honored.
-if [[ ! -f "$ENV_FILE" ]]; then
-  bash -c 'source ~/.bashrc 2>/dev/null; : "${HERMES_SLACK_BOT_TOKEN:=}"; : "${ANTHROPIC_API_KEY:=}"; printf "HERMES_SLACK_BOT_TOKEN=%s\nANTHROPIC_API_KEY=%s\n" "$HERMES_SLACK_BOT_TOKEN" "$ANTHROPIC_API_KEY"' \
-    > "$ENV_FILE"
+# lands in ~/.config/systemd/user/*.conf (never a `.env`-named path)
+# so the secrets-no-env policy is honored.
+#
+# `bash -c '...'` runs a NON-interactive shell — ~/.bashrc's standard
+# interactive guard (`case $- in *i*) ;; *) return;; esac`) returns
+# BEFORE the token exports, so both vars would resolve empty. Use
+# `bash -ic` instead: an interactive shell auto-sources ~/.bashrc,
+# passes the guard, AND expands variable-indirection exports (e.g.
+# `export HERMES_SLACK_BOT_TOKEN="$HERMES_PC_SLACK_BOT_TOKEN"`) that a
+# grep-based literal extraction would miss.
+regenerate_needed=1
+if [[ -f "$ENV_FILE" ]]; then
+  if grep -q '^HERMES_SLACK_BOT_TOKEN=$' "$ENV_FILE" || grep -q '^ANTHROPIC_API_KEY=$' "$ENV_FILE"; then
+    echo "  token file exists but contains an empty value — regenerating: $ENV_FILE"
+  else
+    echo "  token file exists and looks populated, leaving untouched: $ENV_FILE"
+    regenerate_needed=0
+  fi
+fi
+
+if [[ "$regenerate_needed" -eq 1 ]]; then
+  HERMES_SLACK_BOT_TOKEN="$(bash -ic 'printf %s "$HERMES_SLACK_BOT_TOKEN"' 2>/dev/null || true)"
+  ANTHROPIC_API_KEY="$(bash -ic 'printf %s "$ANTHROPIC_API_KEY"' 2>/dev/null || true)"
+
+  if [[ -z "$HERMES_SLACK_BOT_TOKEN" || -z "$ANTHROPIC_API_KEY" ]]; then
+    echo "  FATAL: could not resolve non-empty tokens via 'bash -ic'." >&2
+    echo "    HERMES_SLACK_BOT_TOKEN empty: $([[ -z "$HERMES_SLACK_BOT_TOKEN" ]] && echo yes || echo no)" >&2
+    echo "    ANTHROPIC_API_KEY empty:      $([[ -z "$ANTHROPIC_API_KEY" ]] && echo yes || echo no)" >&2
+    echo "    Check that ~/.bashrc exports both (directly or via indirection) for an interactive, non-login shell." >&2
+    exit 1
+  fi
+
+  printf 'HERMES_SLACK_BOT_TOKEN=%s\nANTHROPIC_API_KEY=%s\n' \
+    "$HERMES_SLACK_BOT_TOKEN" "$ANTHROPIC_API_KEY" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
-  echo "  wrote env file: $ENV_FILE (mode 0600)"
-else
-  echo "  env file exists, leaving untouched: $ENV_FILE"
+  echo "  wrote token file: $ENV_FILE (mode 0600)"
 fi
 
 # --- 3. Install the .service + .timer units ---

@@ -9,11 +9,11 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/jleechan/project_jleechanclaw/jleechanclaw
+WorkingDirectory=%h/project_jleechanclaw/jleechanclaw
 # EnvironmentFile= sources ~/.bashrc-sourced env (HERMES_SLACK_BOT_TOKEN
 # + ANTHROPIC_API_KEY). NEVER write tokens to a .env file under
 # ~/.config/systemd/user/*.service — that's the secrets-no-env rule.
-EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy.env
+EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy-tokens.conf
 ExecStart=%h/.local/bin/jleechanclaw_thread_lifecycle.sh
 StandardOutput=append:%h/.hermes/logs/slack-thread-auto-park.log
 StandardError=append:%h/.hermes/logs/slack-thread-auto-park.err

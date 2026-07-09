@@ -24,13 +24,13 @@
 #
 # Exit codes:
 #   0 = digest built + posted (or dry-run)
-#   1 = invocation error (missing JLEEANCHAWL_HOME / src dir)
+#   1 = invocation error (missing JLEECHANCLAW_HOME / src dir)
 #   2 = module error (import / runtime / post failure)
 #   rc=1 from module = "no channels configured" — still rc=0 from
 #   launcher (config gap is the module's surface, not ours).
 set -euo pipefail
 
-JLEEANCHAWL_HOME="${JLEEANCHAWL_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
+JLEECHANCLAW_HOME="${JLEECHANCLAW_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
 LOG_DIR="${LOG_DIR:-/home/jleechan/.hermes/logs}"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/slack-digest-rollup.log"
@@ -39,8 +39,8 @@ ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 log() { printf '[%s] %s\n' "$(ts)" "$*" | tee -a "$LOG_FILE" >&2; }
 err() { printf '[%s] ERROR: %s\n' "$(ts)" "$*" | tee -a "$ERR_FILE" >&2; }
 
-if [[ ! -d "$JLEEANCHAWL_HOME/src/orchestration" ]]; then
-  err "JLEEANCHAWL_HOME/src/orchestration not found at $JLEEANCHAWL_HOME/src/orchestration — set JLEEANCHAWL_HOME or check the checkout"
+if [[ ! -f "$JLEECHANCLAW_HOME/src/orchestration/slack_catchup.py" ]]; then
+  err "orchestration/slack_catchup.py not found at $JLEECHANCLAW_HOME/src/orchestration/slack_catchup.py — set JLEECHANCLAW_HOME to a checkout with the merged triage module (PR #740), or check the checkout is not on a stale branch missing it"
   exit 1
 fi
 
@@ -62,14 +62,14 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-export PYTHONPATH="$JLEEANCHAWL_HOME/src"
+export PYTHONPATH="$JLEECHANCLAW_HOME/src"
 export TZ="${TZ:-America/Los_Angeles}"
 # PYTHON_BIN must be a single executable path (no spaces) — see the
 # thread_lifecycle wrapper for the rc=127 rationale. /usr/bin/python3
 # is the default; override via env to use a venv.
 PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
 
-log "=== start (jleechanclaw_home=$JLEEANCHAWL_HOME digest_channel=${SLACK_DIGEST_CHANNEL:-default-#agent-digest} hours=${HOURS:-24}) ==="
+log "=== start (jleechanclaw_home=$JLEECHANCLAW_HOME digest_channel=${SLACK_DIGEST_CHANNEL:-default-#agent-digest} hours=${HOURS:-24}) ==="
 
 # Default --hours 24 to match the plist.
 ARGS=("$@")

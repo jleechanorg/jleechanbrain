@@ -9,12 +9,12 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/jleechan/project_jleechanclaw/jleechanclaw
+WorkingDirectory=%h/project_jleechanclaw/jleechanclaw
 # EnvironmentFile= sources HERMES_SLACK_BOT_TOKEN + ANTHROPIC_API_KEY
 # from the systemd-managed env file (NEVER a .env file). The wrapper
 # script fails fast if either is empty so we don't wait 30s for a
 # LLM call to error out.
-EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy.env
+EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy-tokens.conf
 ExecStart=%h/.local/bin/jleechanclaw_slack_catchup_daily.sh
 StandardOutput=append:%h/.hermes/logs/slack-digest-rollup.log
 StandardError=append:%h/.hermes/logs/slack-digest-rollup.err

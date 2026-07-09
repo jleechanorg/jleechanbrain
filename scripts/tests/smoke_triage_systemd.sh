@@ -25,7 +25,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"  # scripts/
 WORKTREE="${WORKTREE:-$(cd "$HERE/.." && pwd)}"  # worktree root
 
-JLEEANCHAWL_HOME="${JLEEANCHAWL_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
+JLEECHANCLAW_HOME="${JLEECHANCLAW_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
 SANDBOX="$(mktemp -d -t triage-systemd-smoke-XXXXXX)"
 mkdir -p "$SANDBOX/logs" "$SANDBOX/.local/bin"
 
@@ -35,8 +35,8 @@ mkdir -p "$SANDBOX/logs" "$SANDBOX/.local/bin"
 # feature branch without thread_lifecycle.py (the auto-park module
 # was added in PR #742 and is not in every WIP branch). Fall back to
 # any merged worktree.
-if [[ ! -d "$JLEEANCHAWL_HOME/src/orchestration/thread_lifecycle.py" \
-   || ! -d "$JLEEANCHAWL_HOME/src/orchestration/slack_catchup.py" ]]; then
+if [[ ! -f "$JLEECHANCLAW_HOME/src/orchestration/thread_lifecycle.py" \
+   || ! -f "$JLEECHANCLAW_HOME/src/orchestration/slack_catchup.py" ]]; then
   for candidate in \
     /tmp/jleechanclaw-deploy \
     /tmp/jleechanclaw-auo0 \
@@ -46,8 +46,8 @@ if [[ ! -d "$JLEEANCHAWL_HOME/src/orchestration/thread_lifecycle.py" \
     /tmp/jleechanclaw-thread-lifecycle; do
     if [[ -f "$candidate/src/orchestration/thread_lifecycle.py" \
        && -f "$candidate/src/orchestration/slack_catchup.py" ]]; then
-      echo "  NOTE: using fallback JLEEANCHAWL_HOME=$candidate (default lacks triage modules)"
-      JLEEANCHAWL_HOME="$candidate"
+      echo "  NOTE: using fallback JLEECHANCLAW_HOME=$candidate (default lacks triage modules)"
+      JLEECHANCLAW_HOME="$candidate"
       break
     fi
   done
@@ -57,10 +57,10 @@ cleanup() { rm -rf "$SANDBOX"; }
 trap cleanup EXIT
 
 # Stub the jleechanclaw checkout in the sandbox by symlinking the
-# real one. This lets the wrapper resolve $JLEEANCHAWL_HOME/src
+# real one. This lets the wrapper resolve $JLEECHANCLAW_HOME/src
 # without copying the tree.
 SANDBOX_JC="$SANDBOX/jleechanclaw"
-ln -sf "$JLEEANCHAWL_HOME" "$SANDBOX_JC"
+ln -sf "$JLEECHANCLAW_HOME" "$SANDBOX_JC"
 
 # Stub /usr/bin/env python3 with a passthrough so the wrapper can
 # resolve `$PYTHON_BIN` to the system python.
@@ -73,9 +73,9 @@ fi
 
 # Minimal fake HERMES_HOME-style log dir the wrapper will write to.
 export LOG_DIR="$SANDBOX/logs"
-export HERMES_SLACK_BOT_TOKEN="${HERMES_SLACK_BOT_TOKEN:-xoxb-FAKE-TOKEN-FOR-SMOKE-TEST-0123456789}"
-export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-FAKE-KEY-FOR-SMOKE-TEST-0123456789}"
-export JLEEANCHAWL_HOME="$SANDBOX_JC"
+export HERMES_SLACK_BOT_TOKEN="${HERMES_SLACK_BOT_TOKEN:-FAKE-SLACK-BOT-TOKEN-FOR-SMOKE-TEST}"
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-FAKE-ANTHROPIC-KEY-FOR-SMOKE-TEST}"
+export JLEECHANCLAW_HOME="$SANDBOX_JC"
 
 pass() { printf "  \033[32mPASS\033[0m  %s\n" "$1"; }
 fail() { printf "  \033[31mFAIL\033[0m  %s\n" "$1"; FAIL=1; }

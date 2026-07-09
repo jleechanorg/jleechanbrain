@@ -23,7 +23,7 @@
 #   the same model hermes-agent already uses for jleechanclaw deps
 #   (see ~/.hermes/scripts/ for symlinks into the jleechanclaw clone).
 #
-#   JLEEANCHAWL_HOME env var overrides the default checkout path for
+#   JLEECHANCLAW_HOME env var overrides the default checkout path for
 #   dev / CI use.
 #
 # What this does NOT do:
@@ -40,11 +40,11 @@
 #
 # Exit codes:
 #   0 = success (including "no threads parked")
-#   1 = invocation error (missing JLEEANCHAWL_HOME / no src dir)
+#   1 = invocation error (missing JLEECHANCLAW_HOME / no src dir)
 #   2 = module error
 set -euo pipefail
 
-JLEEANCHAWL_HOME="${JLEEANCHAWL_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
+JLEECHANCLAW_HOME="${JLEECHANCLAW_HOME:-/home/jleechan/project_jleechanclaw/jleechanclaw}"
 LOG_DIR="${LOG_DIR:-/home/jleechan/.hermes/logs}"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/slack-thread-auto-park.log"
@@ -53,8 +53,8 @@ ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 log() { printf '[%s] %s\n' "$(ts)" "$*" | tee -a "$LOG_FILE" >&2; }
 err() { printf '[%s] ERROR: %s\n' "$(ts)" "$*" | tee -a "$ERR_FILE" >&2; }
 
-if [[ ! -d "$JLEEANCHAWL_HOME/src/orchestration" ]]; then
-  err "JLEEANCHAWL_HOME/src/orchestration not found at $JLEEANCHAWL_HOME/src/orchestration — set JLEEANCHAWL_HOME or check the checkout"
+if [[ ! -f "$JLEECHANCLAW_HOME/src/orchestration/thread_lifecycle.py" ]]; then
+  err "orchestration/thread_lifecycle.py not found at $JLEECHANCLAW_HOME/src/orchestration/thread_lifecycle.py — set JLEECHANCLAW_HOME to a checkout with the merged triage module (PR #742), or check the checkout is not on a stale branch missing it"
   exit 1
 fi
 
@@ -65,7 +65,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-export PYTHONPATH="$JLEEANCHAWL_HOME/src"
+export PYTHONPATH="$JLEECHANCLAW_HOME/src"
 export TZ="${TZ:-America/Los_Angeles}"
 # Use the system Python — no venv in the brain repo. PYTHONPATH points
 # at the jleechanclaw src tree, which is what `-m orchestration.X` needs.
@@ -75,7 +75,7 @@ export TZ="${TZ:-America/Los_Angeles}"
 # to use a venv or a non-system interpreter.
 PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
 
-log "=== start (jleechanclaw_home=$JLEEANCHAWL_HOME args='$*') ==="
+log "=== start (jleechanclaw_home=$JLEECHANCLAW_HOME args='$*') ==="
 
 MODULE_RC=0
 "$PYTHON_BIN" -m orchestration.thread_lifecycle "$@" 2>>"$ERR_FILE" | tee -a "$LOG_FILE" || MODULE_RC=$?
