@@ -17,9 +17,6 @@ EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy-tokens.conf
 ExecStart=%h/.local/bin/jleechanclaw_thread_lifecycle.sh
 StandardOutput=append:%h/.hermes/logs/slack-thread-auto-park.log
 StandardError=append:%h/.hermes/logs/slack-thread-auto-park.err
-# Lock the runtime to the user; reject any privilege escalation.
-User=jleechan
-Group=jleechan
 # Cap runtime so a stuck process can't pin the timer forever.
 TimeoutStartSec=300
 # Do not restart on its own — the timer fires it again next day if needed.

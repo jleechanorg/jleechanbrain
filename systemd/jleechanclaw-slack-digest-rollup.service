@@ -18,8 +18,6 @@ EnvironmentFile=-%h/.config/systemd/user/jleechanbrain-deploy-tokens.conf
 ExecStart=%h/.local/bin/jleechanclaw_slack_catchup_daily.sh
 StandardOutput=append:%h/.hermes/logs/slack-digest-rollup.log
 StandardError=append:%h/.hermes/logs/slack-digest-rollup.err
-User=jleechan
-Group=jleechan
 # LLM call + multi-channel scan can take 1-3 minutes. Cap at 10 min
 # to match the repo's 10-min/600s timeout integrity policy.
 TimeoutStartSec=600
