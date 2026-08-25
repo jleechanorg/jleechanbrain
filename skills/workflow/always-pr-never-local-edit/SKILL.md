@@ -1,13 +1,13 @@
 ---
 name: always-pr-never-local-edit
-version: 1.0.0
-description: Never just make local edits and stop. Always create a GH issue + bead, dispatch via ao spawn for a PR, and skillify the pattern. Local exploration is fine; local edits without a PR are a process violation.
+version: 1.1.0
+description: Never just make local edits and stop. Always create a GH issue + bead, delegate to claude-code-claudem for a PR (or to AO only when /af is explicit), and skillify the pattern. Local exploration is fine; local edits without a PR are a process violation.
 ---
 
 # always-pr-never-local-edit
 
 ## Trigger
-Any time you find yourself editing files locally (outside an ao worktree) without a PR in progress.
+Any time you find yourself editing files locally (outside an ao worktree or a fresh feature worktree) without a PR in progress.
 
 ## Rule
 
@@ -15,7 +15,7 @@ Any time you find yourself editing files locally (outside an ao worktree) withou
 
 1. **Investigate locally** — read files, search code, understand the problem. This is fine.
 2. **Create GH issue + bead** — `gh issue create` + `br create`. Mandatory before any edits.
-3. **Dispatch via `ao spawn`** — let the worker do the edits in its own worktree and create a PR.
+3. **Delegate to `claude-code-claudem` on a clean worktree** (default) — `git worktree add … origin/main -b feat/…` then `bash -lic 'claudem -p "<task>"' --max-turns <N>`. Use `ao spawn` only when the user explicitly typed `/af` or `/auto-factory`.
 4. **Skillify the pattern** — if you learned something reusable, create/update a skill.
 
 ### What counts as "local edits and stop"
@@ -54,5 +54,5 @@ If you catch yourself making local edits:
 1. Stop immediately
 2. `git stash` or `git checkout -- .` to undo
 3. Create the GH issue + bead
-4. Dispatch via `ao spawn` with the full task description
+4. Delegate via `bash -lic 'claudem -p "<task>"' --max-turns <N>` on a clean worktree (default) — OR via `ao spawn` only when the user explicitly typed `/af` or `/auto-factory`
 5. Don't resume local edits

@@ -27,13 +27,13 @@ pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # Extract the Stage 4.5 block from deploy.sh: from "Stage 4.5: Policy Sync"
-# up to (but not including) "Stage 5: Canary Check". This is the standalone
+# up to (but not including) "Stage 4.6: Skills sync". This is the standalone
 # logic we want to test, free of banner/git-pull/restart/canary noise.
 extract_stage45() {
   awk '
     /# ── Stage 4\.5:/ { capturing = 1 }
+    /# ── Stage 4\.6:/ { exit }
     capturing { print }
-    /# ── Stage 5:/ { exit }
   ' "$DEPLOY_SH"
 }
 
@@ -53,6 +53,7 @@ set -euo pipefail
 REPO_DIR="$staging_dir"
 PROD_DIR="$prod_dir"
 SKIP_SYNC=0
+SINGLE_DIR_MODE=0
 ts()      { date '+%Y-%m-%d %H:%M:%S'; }
 section() { echo ""; echo "=== \$1 ==="; echo "\$(ts)"; echo ""; }
 die()     { echo "DEPLOY FAILED: \$1" >&2; exit 1; }
@@ -167,6 +168,7 @@ set -euo pipefail
 REPO_DIR="$fx3/staging"
 PROD_DIR="$fx3/prod"
 SKIP_SYNC=1
+SINGLE_DIR_MODE=0
 ts()      { date '+%Y-%m-%d %H:%M:%S'; }
 section() { echo ""; echo "=== \$1 ==="; echo "\$(ts)"; echo ""; }
 die()     { echo "DEPLOY FAILED: \$1" >&2; exit 1; }

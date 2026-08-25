@@ -29,11 +29,14 @@ elif command -v mailx >/dev/null 2>&1; then
   have_mail_cmd=true
 fi
 
-# Source .bashrc to pick up EMAIL_USER / EMAIL_PASS if set there
-# (launchd agents don't inherit shell env vars)
+# Source .bashrc to pick up EMAIL_USER / EMAIL_PASS if set there.
+# Guard nounset because interactive profiles commonly reference optional vars
+# that are not present in launchd/non-interactive environments.
 if [[ -f "$HOME/.bashrc" ]]; then
+  set +u
   # shellcheck disable=SC1090
   source "$HOME/.bashrc" 2>/dev/null || true
+  set -u
 fi
 
 if [[ -n "${EMAIL_USER:-}" ]] && [[ -n "${EMAIL_PASS:-}" ]]; then
@@ -57,8 +60,12 @@ send_via_smtp() {
   local to="$EMAIL_TO"
   local subject="$SUBJECT"
   local body="$BODY"
+  export EMAIL_USER="$user"
+  export EMAIL_PASS="$pass"
+  export EMAIL_FROM="$from"
+  export EMAIL_TO="$to"
 
-  python3 - <<'PYEOF'
+  python3 - "$subject" "$body" <<'PYEOF'
 import smtplib
 import os
 import sys
@@ -92,16 +99,18 @@ PYEOF
   return $?
 }
 
-# Try mail command first (no credentials needed), then SMTP
-if [[ "$have_mail_cmd" == "true" ]]; then
-  if send_via_mail_cmd; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert sent via mail command" >> /tmp/hermes-email-alerts.log
+# Prefer authenticated SMTP when credentials are configured. Local mail can
+# exit successfully while still not delivering externally on a workstation.
+if [[ "$have_smtp" == "true" ]]; then
+  if send_via_smtp; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert sent via SMTP" >> /tmp/hermes-email-alerts.log
     exit 0
   fi
 fi
 
-if [[ "$have_smtp" == "true" ]]; then
-  if send_via_smtp; then
+if [[ "$have_mail_cmd" == "true" ]]; then
+  if send_via_mail_cmd; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Email alert sent via mail command" >> /tmp/hermes-email-alerts.log
     exit 0
   fi
 fi

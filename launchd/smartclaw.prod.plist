@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>GATEWAY_ALLOW_ALL_USERS</key>
+		<string>true</string>
+		<key>HERMES_HOME</key>
+		<string>${HOME}/.smartclaw</string>
+		<key>HERMES_LOG_LEVEL</key>
+		<string>INFO</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>SLACK_ALLOW_BOTS</key>
+		<string>all</string>
+		<key>SLACK_LOOP_BLOCK_BOTS</key>
+		<string>B0AEHUEA0JK,B0APE1TT42F</string>
+		<key>SLACK_LOOP_BLOCK_NAMES</key>
+		<string>hermes,hermes_staging,hermes staging,hermes-staging</string>
+		<key>SLACK_LOOP_BLOCK_USERS</key>
+		<string>U0AEZC7RX1Q,U0APZAB0DUZ</string>
+		<key>SLACK_REQUIRE_MENTION</key>
+		<string>false</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>ai.smartclaw.prod</string>
+	<key>Nice</key>
+	<integer>-5</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>${HOME}/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+		<string>${HOME}/.local/bin/hermes</string>
+		<string>gateway</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>${HOME}/.smartclaw/logs/gateway.error.log</string>
+	<key>StandardOutPath</key>
+	<string>${HOME}/.smartclaw/logs/gateway.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>WorkingDirectory</key>
+	<string>${HOME}/.smartclaw</string>
+</dict>
+</plist>

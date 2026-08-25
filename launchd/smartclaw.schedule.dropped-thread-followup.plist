@@ -22,7 +22,7 @@
     </dict>
 
     <key>StartInterval</key>
-    <integer>14400</integer>
+    <integer>1800</integer>
 
     <key>RunAtLoad</key>
     <true/>
@@ -32,6 +32,19 @@
 
     <key>StandardErrorPath</key>
     <string>${HOME}/.smartclaw/logs/dropped-thread-followup.err</string>
+
+    <key>KeepAlive</key>
+    <dict>
+        <!-- 2026-07-04 fix: silent launchd death (last exit 0, log frozen 9h, no cron fires).
+             SuccessfulExit=false makes launchd restart the job on any 0-exit termination,
+             which is the symptom we saw. Without this, launchd treats a 0-exit silent
+             finish as "successfully completed" and never schedules another tick. -->
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
 
     <key>ProcessType</key>
     <string>Background</string>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.auto-resolve-easy-prs</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@REPO_ROOT@/scripts/auto-resolve-easy-prs.launchd.sh</string>
+    </array>
+
+    <!-- Run every 20 minutes -->
+    <key>StartInterval</key>
+    <integer>1200</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>${HOME}/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <key>AO_PROJECT</key>
+        <string>jleechanbrain</string>
+        <key>AGENT</key>
+        <string>minimax</string>
+        <key>REPO</key>
+        <string>jleechanorg/worldarchitect.ai</string>
+        <key>CHANNEL_ID</key>
+        <string>${SLACK_CHANNEL_ID}</string>
+        <key>MAX_PRS</key>
+        <string>7</string>
+        <key>WORK_ORDER_FILE</key>
+        <string>@HOME@/.smartclaw/logs/easy-prs-work-order.txt</string>
+        <key>SPAWN_LOG</key>
+        <string>@HOME@/.smartclaw/logs/easy-prs-spawn.log</string>
+        <key>SLACK_BOT_TOKEN</key>
+        <string>@SLACK_BOT_TOKEN@</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/auto-resolve-easy-prs.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/auto-resolve-easy-prs.error.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle at the run interval (20 min) to prevent pile-up on long ticks -->
+    <key>ThrottleInterval</key>
+    <integer>1200</integer>
+</dict>
+</plist>

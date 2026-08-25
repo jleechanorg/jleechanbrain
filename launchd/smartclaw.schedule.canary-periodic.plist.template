@@ -16,9 +16,15 @@
         <string>--json</string>
     </array>
 
-    <!-- Run every 10 minutes -->
-    <key>StartInterval</key>
-    <integer>600</integer>
+<!-- DISABLED 2026-06-22 per user directive ("let's not do slack tests anymore").
+         Canary-periodic was firing every 10min, posting
+         "canary-<ts>-<pid> Respond with exactly: ack-<hex>" via xoxp user token to
+         ${SLACK_CHANNEL_ID}, polluting #ai-slack-test. To re-enable: (1) get explicit
+         approval from Jeffrey, (2) bump StartInterval to >=3600 (hourly),
+         (3) move target channel off #ai-slack-test, (4) gate on a feature flag
+         so deploy.sh does not re-enable it. -->
+    <key>Disabled</key>
+    <true/>
 
     <key>RunAtLoad</key>
     <false/>

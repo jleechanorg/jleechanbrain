@@ -1,0 +1,27 @@
+=== GREEN: channel scan for GREEN_MARKER_B1 (thread_ts field = verdict) ===
+{
+ "ts": "1786944758.620739",
+ "user": "U0AEZC7RX1Q",
+ "thread_ts": "<ABSENT = CHANNEL ROOT>",
+ "text": "GREEN_MARKER_B1 progress narration"
+}
+{
+ "ts": "1786944724.494969",
+ "user": "U09GH5BR3QU",
+ "thread_ts": "1786944724.494969",
+ "text": "[rg GREEN test - ignore] Two steps: (1) run `sleep 15` with the termin"
+}
+
+=== GREEN: thread view of root 1786944724.494969 ===
+   1786944724.494969 | [rg GREEN test - ignore] Two steps: (1) run `sleep 15` with the termin
+   1786944741.047989 | On it — running sleep 15 and loading the Slack post schema in parallel
+   1786944741.097069 | :computer: terminal
+```
+sleep 15
+```
+   1786944757.145419 | :gear: tool_describe: "mcp__slack__conversations_add_message"
+:gear: m
+   1786944772.466269 | Quick verification — checking whether the post landed in-thread per Sl
+   1786944790.496499 | Both steps complete.
+
+*Step 1:​* `sleep 15` ran via terminal — exit co

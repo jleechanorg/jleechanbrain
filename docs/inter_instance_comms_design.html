@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inter-Instance Comms Design (orch-6tms+orch-fnpe)</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+           font-size: 15px; line-height: 1.65; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+    h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; padding-bottom: 0.3rem;
+         border-bottom: 1px solid var(--border); color: var(--accent2); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.5rem; color: var(--accent4); }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px;
+            font-size: 0.88em; font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+          padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--table-header); padding: 0.5rem 0.75rem;
+         text-align: left; border: 1px solid var(--border); color: var(--accent); }
+    td { padding: 0.45rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    .warning { background: rgba(247,129,102,0.1); border-left: 3px solid var(--accent3);
+               padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .info { background: rgba(88,166,255,0.1); border-left: 3px solid var(--accent);
+            padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .done { color: var(--accent2); font-weight: 600; }
+    .not-migrated { color: var(--accent3); font-weight: 600; }
+    .section-divider { margin: 2rem 0; border: none; border-top: 1px dashed var(--border); }
+    .checklist-item { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.25rem 0; }
+    .checklist-item input { accent-color: var(--accent2); }
+    .updated { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+    blockquote { border-left: 3px solid var(--accent4); padding-left: 1rem; margin: 0.75rem 0;
+                 color: var(--text-muted); }
+    hr { margin: 2rem 0; border: none; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="container">
+<h1>Inter-Instance Communications Design</h1>
+<p><strong>Status:</strong> design draft (2026-07-07)
+<strong>Owners:</strong> orch-6tms + orch-fnpe (jleechanorg/jleechanbrain)
+<strong>Repo context:</strong> jleechanbrain / sidekick / multi-agent orchestration layer above Claude Code sessions</p>
+<p>This document grounds the inter-instance comms protocol in <strong>two real production incidents</strong> from 2026-07-07:</p>
+<ol>
+<li><strong>Multi-sidekick collision</strong> — two parallel sidekick orchestrators running the same hardening mission.</li>
+<li><strong>STATE.md Edit-conflict</strong> — independent teammates writing to the same sidekick state file without locking.</li>
+</ol>
+<p>It is intended as the canonical answer to “how do sidekicks, AO workers, and Hermes daemons avoid stepping on each other?”</p>
+<h2>TL;DR</h2>
+<ul>
+<li><strong>All long-running missions get a single owner</strong> (a <code>orch-*</code> bead) and a single persistent sidekick.</li>
+<li><strong>State checkpoints are the source of truth</strong>, not chat history.</li>
+<li><strong>File-based state uses owner-tag + append-only journal</strong>, never shared rewritable files.</li>
+<li><strong>Git branches are per-mission worktrees</strong>, never the host checkout.</li>
+<li><strong>Token busses and Slack bridges carry bounded payloads only</strong>; LLM-on-LLM routing is forbidden (ZFC).</li>
+</ul>
+<h2>Why this matters</h2>
+<p>On 2026-07-07 at 13:00 UTC, a hardening sprint budgeted 12h ran four lanes in parallel:
+<code>orch-kgfp</code>, <code>orch-beks</code>, <code>orch-auo0</code>, plus a docs lane combining <code>orch-6tms</code> and <code>orch-fnpe</code>. Two distinct incidents surfaced:</p>
+<h3>Incident A — Multi-sidekick collision</h3>
+<p>Two sidekick orchestrators inherited the same <code>orch-hrdn</code> mission bead via respawn and began dispatching the same four coder lanes. Each spawned its own pair-coder, both produced independent branches diverging from the same parent (the second branch name was not preserved in the captured reflog — only the surviving <code>feat/slack-gate-failopen-breaker</code> shows up in <code>git branch -a</code>; the second was rejected during <code>git push</code> and never made it to a remote-tracking ref). The collision was only visible because the second sidekick’s branch push was rejected with “Everything up-to-date” against the first’s prior push. <strong>Time wasted: ~40 min of coder dispatch + 10 min of git push diagnostics.</strong></p>
+<h3>Incident B — STATE.md Edit-conflict</h3>
+<p>The first sidekick wrote <code>/tmp/sidekick-hardening/STATE.md</code>. A teammate then appended via <code>cat &gt;&gt;</code> against the same shared file. A second sidekick respawn tried to overwrite with <code>Write</code> — harness <code>File has not been read yet</code> blocked it. The required workaround (read-then-write) burns a round-trip and is fragile under tight time budgets. <strong>Time wasted: ~3 min and a re-attempt per respawn.</strong></p>
+<p>The shared <code>/tmp/&lt;repo&gt;/sidekick/STATE.md</code> (single-file namespacing) was the
+root cause; this doc previously recommended that exact path. See the
+[learnings-2026-07] retro entry (PR #8191) for the corrected recommendation:
+<strong>per-mission path</strong> <code>/tmp/&lt;project&gt;/sidekick/&lt;mission&gt;/STATE.md</code> — one file
+per mission eliminates clobber races between concurrent sidekicks.</p>
+<p>Both incidents share a root cause: <strong>no single-writer invariant on mission-critical shared state.</strong></p>
+<h2>Protocol (per the parent CLAUDE.md zero-framework-cognition rule)</h2>
+<h3>1. Mission ownership is one-bead, one-sidekick</h3>
+<ul>
+<li>One durable mission bead (e.g. <code>orch-hrdn</code>) per workload.</li>
+<li>One persistent sidekick owns that bead at a time. Respawn picks the same identity; if a second sidekick tries to claim, the durable bead <code>status</code> field rejects the second claim.</li>
+<li>Sub-lanes (e.g. <code>orch-kgfp</code>) are children of the mission bead, not co-equal orchestrators. Their dispatch is mediated by the owner sidekick.</li>
+</ul>
+<h3>2. State checkpointing</h3>
+<p>Each sidekick checks state to <code>/tmp/&lt;project&gt;/sidekick/&lt;mission&gt;/STATE.md</code>
+(per-mission path, see [learnings-2026-07] retro entry under PR #8191 —
+the previous <code>/tmp/&lt;repo&gt;/sidekick/STATE.md</code> shared-file pattern raced
+under concurrent sidekicks) at <strong>every green unit of work</strong>, not at
+end-of-turn. Format:</p>
+<pre><code class="language-markdown"># &lt;mission&gt; state
+## Branch inventory
+| Workspace | Branch | Remote HEAD | Local HEAD | Diff | Notes |
+## Progress Log
+- &lt;ISO-8601 UTC&gt;: &lt;what changed + why&gt;
+</code></pre>
+<ul>
+<li><strong>Single writer.</strong> Only the owning sidekick writes to STATE.md. Consumers read.</li>
+<li><strong>Append-only journal section</strong> (<code>## Progress Log</code>) tolerates concurrent <code>cat &gt;&gt;</code> from teammates during handoff. Full-file rewrites require owner takeover.</li>
+<li><strong>Heartbeat.</strong> A <code>last_heartbeat</code> ISO-8601 line allows a watchdog to detect a stalled sidekick within 5 min.</li>
+</ul>
+<h3>3. Per-mission worktrees</h3>
+<p>Each lane gets a dedicated worktree:</p>
+<ul>
+<li>Path: <code>/tmp/&lt;owner&gt;-&lt;lane&gt;-&lt;run-id&gt;</code> (deterministic, allows re-discovery).</li>
+<li>Branch: <code>feat/&lt;scope&gt;-&lt;lane-short&gt;</code> or <code>refactor/&lt;scope&gt;-&lt;lane-short&gt;</code>.</li>
+<li>Branch tips pushed to <code>origin/&lt;branch&gt;</code> at <strong>every green unit</strong>, never left local.</li>
+<li><strong>Host checkout is sacred.</strong> No lane edits files in the user’s primary worktree.</li>
+</ul>
+<h3>4. Pair-coding discipline</h3>
+<ul>
+<li>Coder + verifier are independent agents (separate CLI engines by preference: one Claude, one Codex or Gemini).</li>
+<li>Verifier is <strong>prompted to refute</strong>, not bless.</li>
+<li>Refutations are first-class: a single refutation blocks PR-open until resolved.</li>
+<li>Verifier verdict is recorded in the PR conversation (issue comment), not in chat ephemeral state.</li>
+</ul>
+<h3>5. Cross-model /advice before merge</h3>
+<p><code>/advice</code> fans out to Opus subagent + <code>/research</code> + <code>/secondo</code> (multi-model). Final verdict is recorded on the PR. A “needs more eyes” verdict is <strong>not</strong> a refutation — only CONCERN-level findings block.</p>
+<h3>6. Forbidden patterns (explicit non-goals)</h3>
+<ul>
+<li><strong>No keyword/regex classification of LLM-routed messages</strong> (ZFC).</li>
+<li><strong>No per-mission in-process cache</strong> (multi-instance Cloud Run, no session affinity).</li>
+<li><strong>No Live Slack posts from coders</strong> — only the bridge daemon (Hermes) posts, on explicit hook-fire.</li>
+<li><strong>No <code>git commit</code> on detached HEAD</strong> — harness-level guard.</li>
+<li><strong>No edits to <code>~/.openclaw/</code> or hermes <code>.env</code> files</strong> — <code>/hermes_secrets_no_env</code> policy.</li>
+</ul>
+<h2>File-to-owner responsibility table</h2>
+<table>
+<thead>
+<tr>
+<th>File / state</th>
+<th>Owner</th>
+<th>Writers</th>
+<th>Readers</th>
+<th>Lock</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>orch-hrdn</code> bead</td>
+<td>sidekick</td>
+<td>1 (sidekick)</td>
+<td>all</td>
+<td>optimistic via bead status</td>
+</tr>
+<tr>
+<td><code>/tmp/&lt;project&gt;/sidekick/&lt;mission&gt;/STATE.md</code></td>
+<td>sidekick</td>
+<td>1 (sidekick, full rewrites allowed only)</td>
+<td>many (read-only)</td>
+<td>append-only journal section; per-mission path (PR #8191 retro)</td>
+</tr>
+<tr>
+<td><code>feat/&lt;lane&gt;</code> branch tip</td>
+<td>coder</td>
+<td>1 (pair-coder)</td>
+<td>verifier, /advice</td>
+<td>natural git lock</td>
+</tr>
+<tr>
+<td>PR conversation</td>
+<td>coder/verifier</td>
+<td>pair (comment-only)</td>
+<td>all</td>
+<td>GitHub-Locked</td>
+</tr>
+<tr>
+<td>Slack thread (mission output)</td>
+<td>hermes daemon</td>
+<td>1 (daemon)</td>
+<td>humans + sidekicks</td>
+<td>socket-level</td>
+</tr>
+</tbody>
+</table>
+<h2>When this protocol kicks in</h2>
+<ul>
+<li>Any mission with duration &gt; 30 min</li>
+<li>Any mission with &gt; 3 sub-agents</li>
+<li>Any mission that writes to durable state (beads, branches, files, Slack)</li>
+<li>Any mission crossing a CLI-runtime boundary (Codex ↔ Claude ↔ AO)</li>
+</ul>
+<h2>Known limitations</h2>
+<ul>
+<li>STATE.md single-writer is enforced <strong>conventionally</strong>, not by FS lock. A second sidekick could still race. Mitigation: durable bead <code>status</code> field flips to <code>claimed</code> with sidekick ID + heartbeat; second claim fails the soft-contract.</li>
+<li>Pair-verifier prompting to refute reduces false-PASS but introduces latency (~3-7 min per cycle). Acceptable for hardening; not for sub-minute loops.</li>
+<li><code>/advice</code> cross-model cost is non-trivial. Used only on PR-ready state, not on every commit.</li>
+</ul>
+<h2>References</h2>
+<ul>
+<li><code>~/.claude/CLAUDE.md</code> — global baseline</li>
+<li><code>~/.claude/skills/sidekick/SKILL.md</code> — sidekick definition + respawn contract</li>
+<li><code>~/roadmap/learnings-2026-07.md</code> [learnings-2026-07] — 2026-07-07 multi-sidekick collision and per-mission STATE.md path correction (PR #8191 retro)</li>
+<li>PR #744 (orch-kgfp), #745 (orch-beks), #746 (orch-auo0) — exemplars of the four-lane pattern</li>
+</ul>
+  </div>
+</body>
+</html>

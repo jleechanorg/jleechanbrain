@@ -11,9 +11,9 @@
 		<key>HOME</key>
 		<string>/Users/jleechan</string>
 		<key>HERMES_STATE_DIR</key>
-		<string>${HOME}/.smartclaw_prod</string>
+		<string>${HOME}/.smartclaw</string>
 		<key>HERMES_CONFIG_PATH</key>
-		<string>${HOME}/.smartclaw_prod/hermes.json</string>
+		<string>${HOME}/.smartclaw/hermes.json</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>
@@ -63,9 +63,9 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>${HOME}/.smartclaw_prod/logs/gateway.err.log</string>
+	<string>${HOME}/.smartclaw/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>${HOME}/.smartclaw_prod/logs/gateway.log</string>
+	<string>${HOME}/.smartclaw/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>

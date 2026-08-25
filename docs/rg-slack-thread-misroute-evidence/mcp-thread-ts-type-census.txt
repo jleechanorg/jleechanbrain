@@ -1,0 +1,20 @@
+=== census of MCP conversations_add_message calls (real prod log) ===
+thread_ts sent as NUMBER (silently drops to channel root): 62
+thread_ts sent as STRING (threads correctly)            : 58
+no thread_ts at all (intentional root post)             : 25
+
+>>> MISROUTE RATE among threaded attempts: 62/120 = 52%
+
+--- most recent NUMERIC (broken) calls ---
+   ('2026-08-15T22:56:22', '${SLACK_CHANNEL_ID}', '1786848721.194179')
+   ('2026-08-16T08:00:55', 'C0AJQ5M0A0Y', '1786849309.781769')
+   ('2026-08-16T17:17:35', 'C0AH3RY3DK6', '1786923343.983059')
+   ('2026-08-16T18:14:47', 'C0BDEAJH8PK', '1786929185.500759')
+   ('2026-08-16T18:38:06', 'C0BDEAJH8PK', '1786929185.500759')
+   ('2026-08-16T22:19:55', 'C0AUXSVFSA2', '1786943962.177919')
+
+--- most recent STRING (working) calls ---
+   ('2026-08-16T16:02:51', 'C0BDEAJH8PK', "'1786920993.956149'")
+   ('2026-08-16T16:08:18', '${SLACK_CHANNEL_ID}', "'1786920712.510709'")
+   ('2026-08-16T16:40:14', 'C0AH3RY3DK6', "'1786923343.983059'")
+   ('2026-08-16T17:36:46', 'C0BDEAJH8PK', "'1786926443.527889'")

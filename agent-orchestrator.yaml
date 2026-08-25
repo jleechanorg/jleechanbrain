@@ -1,15 +1,5 @@
 dataDir: ~/.agent-orchestrator
 defaults:
-  # Antigravity is the historical default agent; individual projects override
-  # via `project.agent:` (e.g. ai-universe-lite uses minimax for MiniMax-M3).
-  # Restored from `antigravity` → `minimax` change in recovery commit 49d59a75
-  # per codex-connector P1 finding (16 of 17 projects inherit the default;
-  # routing them through minimax silently fails 401 in envs without
-  # MiniMax credentials).
-  agent: antigravity
-  agentConfig:
-    model: MiniMax-M3
-    permissions: skip
   agentRules: "**COMMIT MESSAGE PREFIX \u2014 MANDATORY:**\nALL commits MUST use the\
     \ prefix `[agento]` in the commit message.\nFormat: `[agento] type: description`\n\
     Examples: `[agento] fix: address CR comments`, `[agento] test: add merge gate\
@@ -143,13 +133,6 @@ defaults:
     \ to spin up a mini team for the implementation work.\n"
   fallbackAgents:
   - minimax
-  modelByCli:
-    claude-code:
-      model: claude-sonnet-4-6
-    codex:
-      model: gpt-5.4
-    minimax:
-      model: MiniMax-M3
   notifiers:
   - hermes
   - orchestrator
@@ -358,25 +341,14 @@ projects:
     workspace: worktree
     worktreeDir: ~/.worktrees/claude-commands-main
   ai-universe-lite:
-    agentConfig:
-      model: MiniMax-M3
-    agentRules: 'You are working in the ai_universe_lite-backend repo — a TypeScript/Firebase
-      backend for the AI Universe gem-builder.
-
-      Always run `cd backend && npm test` before pushing.
-
-      Use conventional commits (feat:, fix:, chore:, test:, docs:).
-
-      Never push to main directly — always open a PR.
-
-      Never use git add -A; stage only files you changed.
-
-      Target >=80% line coverage on src/agents/ folder.
-
-      '
+    name: ai-universe-lite
+    agentRules: "You are working in the ai_universe_lite-backend repo \u2014 a TypeScript/Firebase\
+      \ backend for the AI Universe gem-builder.\nAlways run `cd backend && npm test`\
+      \ before pushing.\nUse conventional commits (feat:, fix:, chore:, test:, docs:).\n\
+      Never push to main directly \u2014 always open a PR.\nNever use git add -A;\
+      \ stage only files you changed.\nTarget >=80% line coverage on src/agents/ folder.\n"
     backfillAllPRs: false
     defaultBranch: main
-    name: AI Universe Lite
     path: ~/projects/ai_universe_lite-backend
     repo: jleechanorg/ai_universe_lite
     scm:
@@ -384,6 +356,32 @@ projects:
     sessionPrefix: au
     workspace: worktree
     worktreeDir: ~/.worktrees/ai-universe-lite-main
+  ai_universe:
+    agentRules: 'Working in ai_universe (TypeScript FastMCP backend with Firebase Auth and Cerebras). Tests: `cd backend && npm test -- --run`. Never push to main directly. Never use git add -A. Stage only files you changed.'
+    backfillAllPRs: false
+    defaultBranch: main
+    fallbackAgents:
+    - minimax
+    name: ai_universe
+    path: ~/projects/ai_universe
+    repo: jleechanorg/ai_universe
+    scm:
+      plugin: github
+    sessionPrefix: aun
+    workspace: worktree
+    worktreeDir: ~/.worktrees/ai_universe-main
+  ai_universe_frontend:
+    agentRules: 'Working in ai_universe_frontend (React/Vite frontend with Firebase Auth and Cypress E2E tests). Tests: `npm test` and Cypress via `testing_integration/ui/`. Real Firebase auth (ai-universe-b3551), real backend API calls. No mocks. Never push to main directly. Never use git add -A. Stage only files you changed.'
+    backfillAllPRs: false
+    defaultBranch: main
+    name: ai_universe_frontend
+    path: ~/projects/ai_universe_frontend
+    repo: jleechanorg/ai_universe_frontend
+    scm:
+      plugin: github
+    sessionPrefix: auf
+    workspace: worktree
+    worktreeDir: ~/.worktrees/ai_universe_frontend-main
   cmux:
     agentRules: "You are working in the jleechanorg/cmux fork \u2014 a macOS terminal\
       \ multiplexer app (Swift + Node).\n\nKey directories:\n- cmux/ \u2014 Swift\
@@ -402,10 +400,6 @@ projects:
     workspace: worktree
     worktreeDir: ~/.worktrees/cmux
   dark-factory:
-    agent: claude-code
-    agentConfig:
-      model: claude-sonnet-4-6
-      permissions: skip
     agentRules: 'You are implementing an airbnb-clone benchmark inside the dark-factory
       repo. Build the Next.js 14 + Firebase app per spec.md. Never read holdouts/,
       evaluator/, or scenarios.yaml. Do not push to remote.
@@ -413,9 +407,6 @@ projects:
       '
     defaultBranch: main
     fallbackAgents: []
-    modelByCli:
-      claude-code:
-        model: claude-sonnet-4-6
     name: dark-factory benchmarks
     path: ~/projects/dark-factory
     repo: jleechanorg/dark-factory
@@ -488,6 +479,7 @@ projects:
     workspace: worktree
     worktreeDir: ~/.worktrees/jleechanbrain
   mcp-mail:
+    name: mcp-mail
     agentRules: 'You are working in the mcp_mail repo.
 
       Resolve unresolved PR comments and failing required CI with minimal safe changes.
@@ -498,7 +490,6 @@ projects:
 
       '
     defaultBranch: main
-    name: mcp_mail
     path: ~/repos/mcp_mail
     repo: jleechanorg/mcp_mail
     scm:
@@ -559,6 +550,7 @@ projects:
       plugin: github
     sessionPrefix: mt2
   openclaw-sso:
+    name: openclaw-sso
     agentRules: "You are working in the openclaw_sso repo.\nUse conventional commits\
       \ (feat:, fix:, chore:, docs:).\nNever push to main directly \u2014 always open\
       \ a PR.\nNever use git add -A; stage only files you changed.\nOnce primary code\
@@ -575,7 +567,6 @@ projects:
       \ (\"PR is green \u2705 (6/6 criteria met \u2014 awaiting auto-merge)\") after\
       \ /er returns PASS.\n"
     defaultBranch: main
-    name: openclaw_sso
     path: /tmp/openclaw_sso_review
     pruneWorktrees: false
     repo: jleechanorg/openclaw_sso
@@ -650,6 +641,7 @@ projects:
       plugin: github
     sessionPrefix: sma
   worldai-claw:
+    name: worldai-claw
     agentRules: "You are working in the worldai_claw repo.\nUse conventional commits\
       \ (feat:, fix:, chore:, docs:).\nNever push to main directly \u2014 always open\
       \ a PR.\nNever use git add -A; stage only files you changed.\nOnce primary code\
@@ -666,7 +658,6 @@ projects:
       \ (\"PR is green \u2705 (6/6 criteria met \u2014 awaiting auto-merge)\") after\
       \ /er returns PASS.\n"
     defaultBranch: main
-    name: worldai_claw
     path: /tmp/worldai_claw_review
     pruneWorktrees: false
     repo: jleechanorg/worldai_claw
@@ -676,15 +667,9 @@ projects:
     workspace: worktree
     worktreeDir: ~/.worktrees/worldai-claw-main
   worldarchitect:
-    # Per-project override: use claude-code (claude-sonnet-4-6) instead of the
-    # global `antigravity` default. Jeffrey explicitly asked for Sonnet here on
-    # 2026-06-19: "Why arey you using agy? shoudlnt the defautl agent be
-    # minimax? Anyway its fine to use claude sonnet but make sure its using a
-    # claude team or subagnets to parallelize the work" (Slack C0AH3RY3DK6,
-    # thread 1781864348.171549). Without this override, `ao spawn -p
-    # worldarchitect` inherits `antigravity`, which fails with `agy: command
-    # not found` in the tmux session launched by AO (PATH missing ~/.local/bin).
-    agent: claude-code
+    fallbackAgents:
+    - codex
+    - claude-code
     backfillAllPRs: true
     agentRules: "You are working in the worldarchitect.ai repo \u2014 a Python/Flask\
       \ game backend.\nAlways run `python -m pytest tests/ -x -q` before pushing.\n\
@@ -705,25 +690,44 @@ projects:
     autoMerge:
       enabled: false
     defaultBranch: main
-    name: worldarchitect.ai
+    name: worldarchitect
     path: ~/projects/worldarchitect.ai
     repo: jleechanorg/worldarchitect.ai
     scm:
       plugin: github
     sessionPrefix: wa
-    # Skeptic cron per-PR throttle layers — PR #7467 in worldarchitect
-    # triggered 13 FAIL verdicts in 16h (42 commits, 14-21 min intervals)
-    # because SHA-only dedup didn't catch a moving-target PR. Layer A
-    # caps re-eval of the same PR to once per 30 min, Layer B skips one
-    # cycle after a brand-new SHA so the author can finish pushing, and
-    # Layer C skips a PR with a prior FAIL and no new review activity.
     skepticCron:
       enablePerPrThrottle: true
-      perPrCooldownMs: 1800000  # 30 min
-      shaStabilityWindowMs: 300000  # 5 min
+      perPrCooldownMs: 7200000
+      shaStabilityWindowMs: 300000
       enableVerdictCooldown: true
+      maxEscalationsPerPrPerDay: 3
     workspace: worktree
     worktreeDir: ~/.worktrees/worldarchitect-main
+  hermes-agent:
+    agentRules: "You are working in the hermes-agent repo \u2014 the Python AI runtime\n\
+      (AIAgent loop, gateway, CLI, providers). Read AGENTS.md first \u2014 it has\
+      \ the\ncanonical architecture map.\n\n## Production safety\nThe hermes-agent\
+      \ at ${HOME}/projects_other/hermes-agent IS the\nlive prod gateway checkout.\
+      \ ai.smartclaw.gateway.plist -> .venv/bin/python.\nRestarting the gateway = deploying.\
+      \ NEVER restart unless the user\napproves AND tests pass.\n\n## Git workflow\n\
+      Default branch: main. Always branch from origin/main.\nUse conventional commits.\
+      \ Never push to main directly.\nRun `bash scripts/run_tests.sh` before pushing.\n\
+      \n## Merge tasks\nIf assigned an upstream-merge task: read jleechanorg/main:FORK_ADJUSTMENTS.md\n\
+      first \u2014 it lists 49 fork-unique commits and 5 local-only items to preserve.\n\
+      Resolve conflicts preserving fork customizations. Document each conflict\nresolution\
+      \ with rationale in the PR description."
+    backfillAllPRs: true
+    defaultBranch: main
+    name: hermes-agent (jleechanorg fork)
+    path: ${HOME}/projects_other/hermes-agent
+    pruneWorktrees: false
+    repo: jleechanorg/hermes-agent
+    scm:
+      plugin: github
+    sessionPrefix: ha
+    workspace: worktree
+    worktreeDir: ~/.worktrees/hermes-agent-main
 pruneWorktrees: false
 reactions:
   agent-exited:

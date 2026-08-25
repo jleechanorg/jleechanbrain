@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.smartclaw.schedule.babysit-stale-watchdog.plist.template
+  Detect and disable babysit crons whose referenced PR is MERGED or CLOSED.
+  Bug-ref: 2026-07-03 — babysit-wa-2403-PR7711 fired 251 polls for 11 days
+  after PR #7711 merged, spamming Slack with "TERMINAL: merged" pings.
+  Companion to babysit.py in-script is_pr_terminal() check.
+  Cadence: every 30 min (silent if nothing stale).
+  Install: see scripts/install-babysit-stale-watchdog.sh (or copy + run
+  `launchctl load -w ~/Library/LaunchAgents/ai.smartclaw.schedule.babysit-stale-watchdog.plist`).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.babysit-stale-watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@HOME@/.smartclaw/.venv/bin/python3</string>
+        <string>@HOME@/.smartclaw/scripts/babysit_stale_watchdog.py</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@HOME@/.smartclaw/.venv/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/cron/output/babysit-stale-watchdog.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/cron/output/babysit-stale-watchdog.err</string>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+</dict>
+</plist>

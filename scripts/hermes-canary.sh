@@ -41,7 +41,7 @@ source "$LIB_DIR/slack_thread_lib.sh"
 # ── Defaults ──────────────────────────────────────────────────────────────────
 CHANNEL="${SLACK_TEST_CHANNEL:-${SLACK_CHANNEL_ID}}"
 TIMEOUT="${HERMES_CANARY_TIMEOUT:-20}"
-PROD_CONFIG="${HERMES_PROD_CONFIG:-$HOME/.smartclaw_prod/config.yaml}"
+PROD_CONFIG="${HERMES_PROD_CONFIG:-$HOME/.smartclaw/config.yaml}"
 if [[ -z "${HERMES_CANARY_PORT:-}" ]]; then
   PORT="$(python3 - "$PROD_CONFIG" <<'PY'
 import sys
@@ -239,13 +239,22 @@ fi
 CANARY_TEXT="[${CANARY_TAG}] Respond with exactly: ${CANARY_NONCE}"
 echo "  Sending canary: ${CANARY_TAG} (nonce=${CANARY_NONCE})"
 
+# Capture anchor_ts BEFORE posting (in the parent shell, not a subshell).
+# Bot replies land in the anchor thread; conversations.replies requires the
+# thread ROOT ts. MSG_TS is a reply ts — polling it returns nothing.
+ANCHOR_TS="$(slack_ensure_anchor)" || {
+  echo "FAIL: could not create/get anchor ts" >&2
+  $JSON_OUTPUT && echo "{\"status\":\"fail\",\"reason\":\"anchor_failed\",\"tag\":\"${CANARY_TAG}\"}"
+  exit 1
+}
+
 MSG_TS=$(slack_post "${CANARY_TEXT}") || {
   echo "FAIL: could not post canary message" >&2
   $JSON_OUTPUT && echo "{\"status\":\"fail\",\"reason\":\"post_failed\",\"tag\":\"${CANARY_TAG}\"}"
   exit 1
 }
 
-echo "  Posted message ts=${MSG_TS}"
+echo "  Posted message ts=${MSG_TS} (anchor=${ANCHOR_TS})"
 
 # ── Wait for bot response ─────────────────────────────────────────────────────
 ELAPSED=0
@@ -256,7 +265,9 @@ while [[ $ELAPSED -lt $TIMEOUT ]]; do
   sleep "$POLL_INTERVAL"
   ELAPSED=$((ELAPSED + POLL_INTERVAL))
 
-  RESPONSE=$(slack_find_bot_reply "$MSG_TS" "$CANARY_NONCE" 2>/dev/null) && break
+  # Poll the ANCHOR thread (not MSG_TS). conversations.replies?ts=anchor_ts
+  # returns all replies in the thread, including the bot's response.
+  RESPONSE=$(slack_find_bot_reply "$ANCHOR_TS" "$CANARY_NONCE" 2>/dev/null) && break
 
   echo "  Waiting... (${ELAPSED}s/${TIMEOUT}s)"
 done

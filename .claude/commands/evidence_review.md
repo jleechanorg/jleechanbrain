@@ -63,7 +63,7 @@ When this command is invoked, run an evidence review on the specified PR:
 
 2. Post as PR comment:
    ```bash
-   gh pr comment <pr_number> --body "<verdict>"
+   ~/.smartclaw/scripts/gh-safe-publish pr comment <pr_number> --body "<verdict>"
    ```
 
 ### Arguments

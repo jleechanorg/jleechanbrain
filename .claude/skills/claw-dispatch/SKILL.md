@@ -5,33 +5,43 @@ description: Use when dispatching work through the Hermes gateway with /claw, es
 
 # Claw Dispatch
 
-## Default behavior — AO workers first
+## Default behavior — `/claw` still uses AO; natural-language coding defaults to claudem
 
-**`/claw` defaults to spawning AO workers directly. Hermes gateway is the fallback, not the default.**
+**`/claw` is the dedicated AO dispatch command and continues to spawn AO workers by default.** That is its job — use it whenever you want a PR remediation across many CI/review cycles, AO supervision, or tmux/auto-factory orchestration. The change in this skill is *narrow*: the front door for ordinary natural-language coding requests (no slash command, no `/af`, no `/claw`) is now `claude-code-claudem` (the bashrc `claudem` / `claudeminimax` wrapper routed to MiniMax M3) via `bash -lic 'claudem -p "<task>"' --max-turns <N>` from a clean worktree created by `git worktree add … origin/main -b feat/…`. AO is opt-in only via `/af`, `/auto-factory`, or `/claw`.
 
 | Input | Default action |
 |-------|---------------|
-| PR number (`#633`, `PR 633`, `633`) | `ao spawn --project <detected> --claim-pr N` |
-| General task description | `ao spawn "<task>"` |
+| `/claw <task>` (any task) | Force `ao spawn` (AO is the dedicated purpose of `/claw`) |
+| `/af` / `/auto-factory` | Force `ao spawn` (explicit AO opt-in) |
+| Bare natural-language coding request (no slash command) | claudem on a clean worktree via `bash -lic 'claudem -p "<task>"' --max-turns <N>` |
+| `/claudem <task>` | Force claudem on a clean worktree (direct invocation of the default skill) |
+| `/claudeminimax <task>` | Force claudem on a clean worktree (alias of `/claudem`) |
 | `--bidi` prefix | Hermes interactive session (streaming) |
 | `--hermes` prefix | Force through Hermes gateway |
-| Slash command resolution (e.g. `/green`) | Resolve skill then AO spawn with it |
+| Slash command resolution (e.g. `/green`) | Resolve skill then run via claudem on a clean worktree (unless the skill explicitly routes through AO) |
 
 **Project auto-detection for PR tasks:** resolve from current git remote (`git remote get-url origin`).
 
-**When to use Hermes instead of AO:** only when the user explicitly says `--hermes`, uses `--bidi` for interactive output, or the task is explicitly a Hermes-native operation (routing config, gateway status, etc.).
+**When to use claudem instead of AO:** any bare natural-language coding/PR request that does not start with `/claw`, `/af`, or `/auto-factory`. The default for ordinary coding is `claude-code-claudem` on a clean worktree.
 
 ## Overview
 
-`/claw` routes work to AO workers by default. Use:
+`/claw` is the AO dispatch front door. Use:
+
 - `~/.claude/commands/ao.md`
 - `~/.claude/skills/ao-operator-discipline/SKILL.md`
 
-User-specified AO parameters remain mandatory.
+For non-AO coding work (the default), use `claude-code-claudem`:
+
+- `~/.claude/skills/claude-code-claudem/SKILL.md` — the wrapper for `claudem`/`claudeminimax` (MiniMax M3)
+- `~/.claude/skills/claw-dispatch/SKILL.md` — this skill (the dispatch front door)
+
+`/af` and `/auto-factory` continue to invoke AO (via `explicit-af-task-lock`).
 
 ## Requirements
 
-- For AO tasks: `ao session ls` must not show ≥20 active sessions (spawn cap)
+- For claudem tasks: `bash -lic 'claudem --version'` must report Claude Code v2.x+; the wrapper resolves to MiniMax M3 via the bashrc `claudem` function
+- For AO tasks (only when `/af` or explicit AO is in scope): `ao session ls` must not show ≥20 active sessions (spawn cap)
 - For Hermes fallback: gateway must be healthy via `hermes gateway status`
 - Slash command resolution must search `.claude/commands` first, then `.claude/skills`
 
@@ -74,7 +84,7 @@ PY
   )
 fi
 
-export HERMES_HOME="${HERMES_HOME:-$HOME/.smartclaw_prod}"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.smartclaw}"
 HERMES_CFG="$HERMES_HOME/config.yaml"
 
 if [ ! -f "$HERMES_CFG" ]; then
@@ -345,9 +355,20 @@ echo "   Monitor: watch for Hermes replies in the thread above"
 
 ## Post-dispatch output (MANDATORY)
 
-After **every** `/claw` dispatch — AO or Hermes — always print these lines in your reply:
+After **every** `/claw` dispatch — claudem (default), AO (explicit `/af`), or Hermes (fallback) — always print these lines in your reply:
+
+### claudem dispatch path (default)
+```
+✅ claudem worker dispatched on a clean worktree:
+   worktree:  /path/to/worktree
+   branch:    feat/<name>
+   command:   bash -lic 'claudem -p "<task>"' --max-turns <N>
+   follow:    tail -f the worktree's session log
+   kill:      pkill -f 'claudem -p "<task>"'
+```
 
 ### AO spawn path
+Use only when the user explicitly invoked `/af` or `/auto-factory` for this dispatch.
 ```
 ✅ AO worker spawned: <session-name>
    Attach:    ao attach <session-name>

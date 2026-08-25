@@ -28,8 +28,8 @@ if command -v gh &>/dev/null && gh auth status &>/dev/null; then
 else
   AUTH="git"
   if [ -z "$GITHUB_TOKEN" ]; then
-    if [ -f ~/.smartclaw/.env ] && grep -q "^GITHUB_TOKEN=" ~/.smartclaw/.env; then
-      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.smartclaw/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
+    if _hermes_env="${HERMES_HOME:-$HOME/.smartclaw}/.env"; [ -f "$_hermes_env" ] && grep -q "^GITHUB_TOKEN=" "$_hermes_env"; then
+      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" "$_hermes_env" | head -1 | cut -d= -f2 | tr -d '\n\r')
     elif grep -q "github.com" ~/.git-credentials 2>/dev/null; then
       GITHUB_TOKEN=$(grep "github.com" ~/.git-credentials 2>/dev/null | head -1 | sed 's|https://[^:]*:\([^@]*\)@.*|\1|')
     fi
@@ -189,7 +189,7 @@ gh pr checkout 123
 **General PR comment — with gh:**
 
 ```bash
-gh pr comment 123 --body "Overall looks good, a few suggestions below."
+~/.smartclaw/scripts/gh-safe-publish pr comment 123 --body "Overall looks good, a few suggestions below."
 ```
 
 **General PR comment — with curl:**
@@ -443,7 +443,7 @@ In addition to inline comments, leave a top-level summary so the PR author gets 
 
 **With gh:**
 ```bash
-gh pr comment $PR_NUMBER --body "$(cat <<'EOF'
+~/.smartclaw/scripts/gh-safe-publish pr comment $PR_NUMBER --body "$(cat <<'EOF'
 ## Code Review Summary
 
 **Verdict: Changes Requested** (2 issues, 1 suggestion)

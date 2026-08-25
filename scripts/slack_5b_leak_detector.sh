@@ -7,6 +7,19 @@
 # post-write safety net: scan the last 1h of monitored channels, alert on
 # the 5b signature so the operator can manually re-thread.
 #
+# Operator-visible output contract: this script is QUIET ON SUCCESS. When
+# no leaks are detected in the lookback window the script exits 0 with no
+# stdout/stderr — operator-visible output is reserved for real leak
+# detection. Real alerts (sub-class 5b workflow signal, sub-class 5e
+# cron-deliver-local narration) emit "ALERT …" / "5E-ALERT …" lines to
+# stdout and a single Slack post to $SLACK_5B_ALERT_CHANNEL. Exit codes:
+#   0 = clean (no output)
+#   1 = leaks detected (ALERT lines on stdout)
+#   2 = scan failure (ERROR lines on stderr)
+# This contract is what launchd plist / cron jobs.json schedule on a
+# reduced cadence — the detector fires periodically as a safety net, but
+# only generates noise when it finds something worth reporting.
+#
 # Detection signature (mirrors CLAUDE.md "Detection signature (5b-specific)"):
 #   • channel-root post (no thread_ts OR thread_ts == ts)
 #   • author == hermes bot (default: U0AEZC7RX1Q)
@@ -35,16 +48,16 @@ SLACK_5B_LOOKBACK_SECS="${SLACK_5B_LOOKBACK_SECS:-3600}"
 SLACK_5B_ALERT_CHANNEL="${SLACK_5B_ALERT_CHANNEL:-${SLACK_CHANNEL_ID}}"
 SLACK_5B_DRY_RUN="${SLACK_5B_DRY_RUN:-0}"
 SLACK_5B_CURL_BIN="${SLACK_5B_CURL_BIN:-curl}"
-# Slack thread state root: prod-cron lives in ~/.smartclaw_prod, so check both
+# Slack thread state root: prod-cron lives in ~/.smartclaw, so check both
 # HERMES_PROD_HOME and the production default explicitly.
-SLACK_5B_ANCHOR_DIRS="${SLACK_5B_ANCHOR_DIRS:-${HERMES_PROD_HOME:-$HOME/.smartclaw_prod}/var/slack ${HERMES_STATE_DIR:-$HOME/.smartclaw}/var/slack}"
+SLACK_5B_ANCHOR_DIRS="${SLACK_5B_ANCHOR_DIRS:-${HERMES_PROD_HOME:-$HOME/.smartclaw}/var/slack ${HERMES_STATE_DIR:-$HOME/.smartclaw}/var/slack}"
 DAILY_ANCHOR_GRACE_MIN="${DAILY_ANCHOR_GRACE_MIN:-10}"
 # 5e: gateway-cron-LLM with deliver=local posts conversational narration at
 # channel root instead of the cron job's origin thread. Cron jobs are read
 # from $SLACK_5E_CRON_HOME/cron/jobs.json (default: $HERMES_PROD_HOME or
-# ~/.smartclaw_prod) so the prod deployment is scanned without needing the
+# ~/.smartclaw) so the prod deployment is scanned without needing the
 # staging tree.
-SLACK_5E_CRON_HOME="${SLACK_5E_CRON_HOME:-${HERMES_PROD_HOME:-$HOME/.smartclaw_prod}}"
+SLACK_5E_CRON_HOME="${SLACK_5E_CRON_HOME:-${HERMES_PROD_HOME:-$HOME/.smartclaw}}"
 SLACK_5E_CRON_FILE="${SLACK_5E_CRON_FILE:-$SLACK_5E_CRON_HOME/cron/jobs.json}"
 SLACK_5E_DISABLE_JOB_FIELD="${SLACK_5E_DISABLE_JOB_FIELD:-disable_5e_detect}"
 SLACK_5E_LOOKBACK_SECS="${SLACK_5E_LOOKBACK_SECS:-7200}"
@@ -73,31 +86,27 @@ match_workflow_signal() {
 # is_intentional_anchor <channel_id> <ts>
 #   Sub-class 5c: daily-thread-anchor first-of-day posts. Each cronjob that
 #   uses lib/slack_thread_lib.sh stores its daily anchor ts in
-#   ${HERMES_PROD_HOME:-$HOME/.smartclaw_prod}/var/slack/<job>/daily-thread.ts
+#   ${HERMES_PROD_HOME:-$HOME/.smartclaw}/var/slack/<job>/daily-thread.ts
 #   (and under $HOME/.smartclaw in staging). The FIRST post of the UTC day is by
 #   design a channel-root post (so the thread can be created); subsequent
 #   posts in the same UTC day thread under it. To avoid a false-positive
 #   leak alert on these legitimate first-of-day anchors, walk every job's
-#   daily-thread.ts: if (a) mtime is within DAILY_ANCHOR_GRACE_MIN and (b) the
-#   file's content equals the candidate ts, this is an intentional anchor
-#   → return 0 (skip). Otherwise return 1 (treat as a real 5b leak).
+#   daily-thread.ts: if the file's stored ts equals the candidate ts, this
+#   is an intentional anchor → return 0 (skip). Otherwise return 1.
+#   The stored ts is the SOURCE OF TRUTH — file mtime is irrelevant
+#   (anchor files persist across the day; mtime is the time of the first
+#   post, not the time the candidate scan ran). The previous mtime-gated
+#   logic caused false-positive alerts on later poll cycles once
+#   DAILY_ANCHOR_GRACE_MIN elapsed. See bead jleechan-rv8e.
 #   Returns 0 on match (intentional), 1 on no match (real leak).
 is_intentional_anchor() {
-  local ts="$1" root job_dir anchor_file stored mtime now grace_epoch
-  now=$(date +%s)
-  grace_epoch=$((DAILY_ANCHOR_GRACE_MIN * 60))
+  local ts="$1" root job_dir anchor_file stored
   for root in $SLACK_5B_ANCHOR_DIRS; do
     [[ -d "$root" ]] || continue
     for job_dir in "$root"/*/; do
       [[ -d "$job_dir" ]] || continue
       anchor_file="${job_dir}daily-thread.ts"
       [[ -f "$anchor_file" ]] || continue
-      # Portable mtime (BSD stat -f %m on macOS, GNU stat -c %Y on Linux).
-      mtime=$(stat -c %Y "$anchor_file" 2>/dev/null \
-        || stat -f %m "$anchor_file" 2>/dev/null \
-        || echo 0)
-      [[ -z "$mtime" || "$mtime" -eq 0 ]] && continue
-      (( now - mtime <= grace_epoch )) || continue
       stored=$(cat "$anchor_file" 2>/dev/null | tr -d '[:space:]')
       [[ -z "$stored" ]] && continue
       if [[ "$stored" == "$ts" ]]; then
@@ -219,8 +228,13 @@ detect_5b_leaks() {
     echo "ERROR: scan failures on channels: ${failed_channels[*]} (history fetch failed; check token/network)" >&2
     return 2
   fi
+  # Quiet-on-success: when no leaks are found, emit NOTHING. Operator-visible
+  # output is reserved for real leak detection. Earlier this function printed
+  # "OK no leaks in last ${SLACK_5B_LOOKBACK_SECS}s across N channels" on
+  # every clean run, producing ~288 log lines/day of noise that obscured real
+  # alerts in launchd's slack-5b-leak-detector.{log,err}. Exit code 0 still
+  # tells the caller (launchd plist, cron jobs.json) the scan was clean.
   if [[ "$leak_count" -eq 0 ]]; then
-    echo "OK no leaks in last ${SLACK_5B_LOOKBACK_SECS}s across $(echo $SLACK_5B_CHANNELS | wc -w | tr -d ' ') channels"
     return 0
   fi
   return 1
@@ -411,8 +425,11 @@ detect_5e_local_deliver_leaks() {
     echo "ERROR: 5e scan failures on jobs: ${failed_jobs[*]} (history fetch failed; check token/network)" >&2
     return 2
   fi
+  # Quiet-on-success — same discipline as detect_5b_leaks: emit NOTHING when
+  # no leaks are found so operator-visible output is reserved for real
+  # detection. The earlier "OK no 5e leaks across N deliver=local job(s)" line
+  # produced the same noise pattern as 5b when every job was clean.
   if [[ "$leak_count" -eq 0 ]]; then
-    echo "OK no 5e leaks across $job_count deliver=local job(s)"
     return 0
   fi
   return 1
@@ -447,7 +464,17 @@ detect_all_leaks() {
   done < "$out_5e"
   rm -f "$out_5b" "$out_5e"
   : "${rc_5b:=0}"; : "${rc_5e:=0}"
-  printf '%s\n' "${out[@]}"
+  # Print ALERT lines only. On clean runs (no leaks) emit nothing — operator-
+  # visible output should be identical to leak detection. The `set +u` dance
+  # around ${out[@]+...} is required because `out` is declared with `-a` and
+  # the header has `set -u`; an empty array expansion trips `set -u` and
+  # produces the "out[@]: unbound variable" stderr spam seen in
+  # ~/.smartclaw/logs/scheduled-jobs/slack-5b-leak-detector.err every 5min.
+  # Use the indirect-reference form to expand safely under set -u.
+  local line
+  for line in "${out[@]+"${out[@]}"}"; do
+    [[ -n "$line" ]] && printf '%s\n' "$line"
+  done
   # Return the worst rc: 2 > 1 > 0.
   if [[ "$rc_5b" -eq 2 || "$rc_5e" -eq 2 ]]; then return 2; fi
   if [[ "$rc_5b" -eq 1 || "$rc_5e" -eq 1 ]]; then return 1; fi

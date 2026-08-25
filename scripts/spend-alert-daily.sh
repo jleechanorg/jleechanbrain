@@ -21,6 +21,10 @@
 #   - GEMINI_MTD_USD_FILE / GCP_MTD_USD_FILE: JSON {"usd": N} or {"mtd_usd": N}, or a plain number file.
 #
 # Alerts: Slack (SLACK_BOT_TOKEN + SLACK_CHANNEL) when a threshold is exceeded.
+# Threshold-breach alerts prepend `<@SPEND_ALERT_INVESTIGATOR_USER_ID>` so a
+# person is @-mentioned to investigate. Per the 2026-06-24 13:52Z Slack
+# directive in #worldai-alerts, the default on-call investigator is jleechan
+# (U09GH5BR3QU). First-run init messages do NOT include the tag.
 #
 set -euo pipefail
 
@@ -40,7 +44,18 @@ SPEND_ALERT_GH_WEEKLY_USD="${SPEND_ALERT_GH_WEEKLY_USD:-70}"
 SPEND_ALERT_GEMINI_WEEKLY_USD="${SPEND_ALERT_GEMINI_WEEKLY_USD:-35}"
 SPEND_ALERT_GCP_WEEKLY_USD="${SPEND_ALERT_GCP_WEEKLY_USD:-35}"
 
-SLACK_CHANNEL="${SLACK_CHANNEL:-${SLACK_CHANNEL_ID}}"
+# On-call investigator tagged on threshold-breach Slack alerts.
+# Per 2026-06-24 13:52Z directive in #worldai-alerts, jleechan (U09GH5BR3QU) is
+# the default on-call for the daily GCP jobs + cost alert.
+SPEND_ALERT_INVESTIGATOR_USER_ID="${SPEND_ALERT_INVESTIGATOR_USER_ID:-U09GH5BR3QU}"
+
+# Default channel: #worldai-alerts (Slack ID C0BCVG4F560). Per the
+# 2026-06-24 13:52Z directive, daily GCP job + cost-threshold alerts post
+# here. We use the channel ID (not the literal "#worldai-alerts" name) so
+# chat.postMessage doesn't need a server-side name lookup; the name still
+# resolves if you override SLACK_CHANNEL with a literal name. Mirrors the
+# worldarchitect.ai drift fix in PR #7904.
+SLACK_CHANNEL="${SLACK_CHANNEL:-C0BCVG4F560}"
 
 STATE_DIR="${STATE_DIR:-$HOME/.smartclaw/state}"
 STATE_FILE="${STATE_FILE:-$STATE_DIR/spend-alert-state.json}"
@@ -314,6 +329,10 @@ main() {
     msg=$(build_slack_message "$result")
 
     if [[ -n "${msg:-}" ]]; then
+        # Tag the on-call investigator on threshold-breach alerts (per
+        # 2026-06-24 13:52Z directive). First-run init path above does not
+        # reach this branch and is intentionally not tagged.
+        msg="<@${SPEND_ALERT_INVESTIGATOR_USER_ID}> ${msg}"
         log "ALERT: sending Slack notification"
         send_slack_alert "$msg"
     else

@@ -1,0 +1,78 @@
+name: Triage job smoke
+
+# Automatic CI caller for the deploy-launchers-and-smoke line of work:
+#   • scripts/orchestration_slack_catchup_daily.sh
+#   • scripts/orchestration_thread_lifecycle.sh
+#   • src/orchestration/slack_catchup.py
+#   • src/orchestration/thread_lifecycle.py
+#
+# Before this workflow existed, both launchers and
+# src/tests/test_triage_job_exit_codes.py had zero automatic caller — a
+# script/test on disk with no CI/cron/hook invoking it is not automation,
+# it's documentation. This workflow closes that gap: it runs on every PR
+# that touches the launchers, their tests, or the underlying orchestration
+# modules, so a regression in exit-code contracts or launcher plumbing is
+# caught before merge instead of only being discoverable by an operator
+# running the scripts by hand.
+#
+# Two checks, matching the local dev-loop exactly:
+#   1. pytest src/tests/test_triage_job_exit_codes.py -v — exit-code
+#      contract coverage (config missing/corrupt/well-formed-empty,
+#      launcher rc propagation, argument logging).
+#   2. bash scripts/tests/smoke_triage_jobs.sh — real shell invocation of
+#      both launchers against a sandboxed HERMES_HOME, proving the
+#      venv-python + PYTHONPATH + lock-dir plumbing works end-to-end (pytest
+#      alone cannot reproduce the plist-style shell → venv python → module
+#      invocation shape).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "scripts/orchestration_*.sh"
+      - "scripts/tests/**"
+      - "src/tests/test_triage_job_exit_codes.py"
+      - "src/orchestration/slack_catchup.py"
+      - "src/orchestration/thread_lifecycle.py"
+  workflow_dispatch:
+
+concurrency:
+  group: triage-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  triage-smoke:
+    name: triage job exit codes + smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # persist-credentials intentionally left at default (true): with
+          # false, checkout's immediate auth-cleanup runs `git submodule
+          # foreach --recursive`, which fails on this repo's orphan
+          # `worldarchitect` gitlink (160000 entry with no .gitmodules).
+          # Every other workflow in this repo uses the default for the
+          # same reason. This job is read-only (pytest + smoke), so the
+          # persisted token is never used.
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python3 -m pip install --upgrade pytest
+
+      - name: Run exit-code contract tests
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$(pwd)/src" python3 -m pytest src/tests/test_triage_job_exit_codes.py -v
+
+      - name: Run launcher smoke test
+        run: |
+          set -euo pipefail
+          chmod +x scripts/orchestration_slack_catchup_daily.sh scripts/orchestration_thread_lifecycle.sh scripts/tests/smoke_triage_jobs.sh
+          bash scripts/tests/smoke_triage_jobs.sh

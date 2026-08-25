@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Scan the resolved outbound GitHub body/file before invoking gh.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GATE="${OUTBOUND_SECRET_GATE:-$SCRIPT_DIR/../lib/outbound_secret_gate.py}"
+
+if [[ $# -lt 2 ]]; then
+  echo "usage: gh-safe-publish {issue create|issue comment|pr create|pr comment|gist create} ..." >&2
+  exit 2
+fi
+
+case "$1 $2" in
+  "issue create"|"issue comment"|"pr create"|"pr comment"|"gist create") ;;
+  *) echo "gh-safe-publish: unsupported publishing command: $1 $2" >&2; exit 2 ;;
+esac
+
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  arg="${args[$i]}"
+  case "$arg" in
+    --body=*|-b?*)
+      body="${arg#*=}"
+      [[ "$arg" == --body=* ]] || body="${arg#-b}"
+      printf '%s' "$body" | python3 "$GATE" check
+      ;;
+    --body-file=*|-F?*)
+      body_file="${arg#*=}"
+      [[ "$arg" == --body-file=* ]] || body_file="${arg#-F}"
+      if [[ "$body_file" == "-" ]]; then
+        body="$(cat)"
+        printf '%s' "$body" | python3 "$GATE" check
+        args[$i]="--body=$body"
+      else
+        python3 "$GATE" check --file "$body_file"
+      fi
+      ;;
+    --body|-b)
+      ((i + 1 < ${#args[@]})) || { echo "gh-safe-publish: $arg requires a value" >&2; exit 2; }
+      printf '%s' "${args[$((i + 1))]}" | python3 "$GATE" check
+      ((i += 1))
+      ;;
+    --body-file|-F)
+      ((i + 1 < ${#args[@]})) || { echo "gh-safe-publish: $arg requires a value" >&2; exit 2; }
+      body_file="${args[$((i + 1))]}"
+      if [[ "$body_file" == "-" ]]; then
+        body="$(cat)"
+        printf '%s' "$body" | python3 "$GATE" check
+        args[$i]="--body"
+        args[$((i + 1))]="$body"
+      else
+        python3 "$GATE" check --file "$body_file"
+      fi
+      ((i += 1))
+      ;;
+    *)
+      if [[ "$1 $2" == "gist create" && -f "$arg" ]]; then
+        python3 "$GATE" check --file "$arg"
+      else
+        printf '%s' "$arg" | python3 "$GATE" check
+      fi
+      ;;
+  esac
+done
+
+exec gh "${args[@]}"

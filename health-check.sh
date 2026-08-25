@@ -70,8 +70,43 @@ restart_gateway() {
     return 0
   fi
 
-  log "hermes CLI unavailable or restart failed; trying launchctl kickstart fallback."
-  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.prod" >> "$LOG_FILE" 2>&1
+  # Restart-storm guard: skip if we already restarted within the throttle
+  # window. Default 1200s = FAIL_STREAK_REQUIRED(4) × watchdog tick (5m).
+  # Without this, repeated calls during a sustained outage produced
+  # SIGTERM cascades (parent_pid=1 launches, parent_cmdline='(unknown)' in
+  # gateway-shutdown-diag.log — 6 events 2026-07-03 → 2026-07-12, 3 pairs).
+  # Tracing: rebuild-native-modules.sh + ai.smartclaw.health-check.plist +
+  # update-smartclaw-export-map.sh all call this script; -k drove WS
+  # pong starvation on each invocation.
+  local _marker="$LOG_DIR/.last_restart_epoch" _now _last=0 _throttle=1200
+  # -u for UTC, removes TZ-drift risk between this script's clock and the
+  # watchdog's clock source.
+  _now="$(date -u +%s)"
+  [ -f "$_marker" ] && _last="$(cat "$_marker" 2>/dev/null || echo 0)"
+  if [ "$_now" -lt "$_last" ] || [ $((_now - _last)) -lt "$_throttle" ]; then
+    log "WARN: restart_gateway throttled — last restart $((_now - _last))s ago (< ${_throttle}s). Skipping kickstart to prevent storm."
+    return 1
+  fi
+
+  # Liveness gate: only act if launchd reports the service NOT running.
+  # Per /research 2026-07-12: `bootout` on a KeepAlive:SuccessfulExit:false
+  # plist leaves the daemon down (clean exit is honored as "leave me down"),
+  # so bootout+bootstrap must always be paired. `kickstart` (no -k) on a
+  # stopped loaded plist is the canonical 2026 replacement for the old
+  # `kickstart -k` flow — it does not bounce a running process. (Note: on
+  # a running service, kickstart sends SIGTERM by default per Apple's
+  # launchd.plist(5); we pre-gate on state != running so this code path
+  # is never reached against a live daemon.)
+  if launchctl print "gui/$(id -u)/ai.smartclaw.prod" 2>/dev/null \
+      | grep -q "state = running"; then
+    log "INFO: ai.smartclaw.prod state=running per launchd print; transient probe miss — no restart."
+    return 0
+  fi
+
+  echo "$_now" > "$_marker"
+  log "ai.smartclaw.prod state != running per launchd print; kickstarting (no SIGTERM)."
+  launchctl kickstart "gui/$(id -u)/ai.smartclaw.prod" >> "$LOG_FILE" 2>&1 || \
+    log "WARN: launchctl kickstart failed; manual recovery required (single-instance check: bash ~/.smartclaw/scripts/deploy.sh)."
 }
 
 install_gateway() {

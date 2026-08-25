@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.daily-local-triage</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/opt/homebrew/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/daily-local-triage.sh</string>
+    </array>
+
+    <!--
+      Daily at 07:30 PT, Mon–Fri. Triage the ~/.smartclaw working tree so
+      `git status` ends clean (or open PRs are reported).
+
+      Policy (Jeffrey, 2026-07-05, Slack thread C0ALSKLU9KM):
+        • Load /ms context (memory_search skill) for prior triage art.
+        • Classify each modified/untracked file:
+            (A) runtime artifact → gitignore
+            (B) nested git repo  → gitignore + HAZARD finding
+            (C) simple clean edit → commit + push origin HEAD:main
+            (D) complex → branch + PR
+        • End state: empty `git status` or open PR(s).
+
+      DRY_RUN=0 in the plist means the daily run actually executes
+      (commit / push / open PR). For preview, run manually with
+      DRY_RUN=1: `bash scripts/daily-local-triage.sh` (default).
+
+      Companion files:
+        • ${HOME}/.smartclaw/scripts/daily-local-triage.sh
+        • ${HOME}/.smartclaw/logs/daily-local-triage.{log,err,jsonl}
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>7</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+            <key>Weekday</key>
+            <integer>1</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>7</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+            <key>Weekday</key>
+            <integer>2</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>7</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+            <key>Weekday</key>
+            <integer>3</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>7</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+            <key>Weekday</key>
+            <integer>4</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>7</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+            <key>Weekday</key>
+            <integer>5</integer>
+        </dict>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <!-- DRY_RUN=0 enables commit/push/PR. Flip to 1 to make the daily
+             run a no-op preview. -->
+        <key>DRY_RUN</key>
+        <string>0</string>
+        <!-- Slack channel for human-facing findings (hermes bot posts here
+             if the prompt escalates). -->
+        <key>DAILY_TRIAGE_CHANNEL</key>
+        <string>@DAILY_TRIAGE_CHANNEL@</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/daily-local-triage.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/daily-local-triage.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: 24h = 86400s, the natural cadence. Prevents back-to-back
+         firings if the system was asleep overnight. -->
+    <key>ThrottleInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Google Workspace API CLI for Hermes Agent.
 
-Uses the Google Workspace CLI (`gws`) when available, but preserves the
-existing Hermes-facing JSON contract and falls back to the Python client
-libraries if `gws` is not installed.
+DEPRECATED CLI BACKEND — REWRITTEN 2026-08-22 to use `gog` (gogcli) instead of `gws`.
 
-Usage:
+`gws` (a.k.a. `@googleworkspace/cli`) is BANNED for personal Workspace calls per
+SOUL.md `## COMMIT: gws-banned-for-personal-workspace`. This module now shells
+out to `gog --account jleechan@gmail.com ...` for every operation. The Python
+client libraries (kept below as a fallback path) are untouched.
+
+Usage (unchanged from the public contract):
   python google_api.py gmail search "is:unread" [--max 10]
   python google_api.py gmail get MESSAGE_ID
   python google_api.py gmail send --to user@example.com --subject "Hi" --body "Hello"
@@ -80,10 +83,13 @@ def _stored_token_scopes() -> list[str]:
 
 
 def _gws_binary() -> str | None:
-    override = os.getenv("HERMES_GWS_BIN")
-    if override:
-        return override
-    return shutil.which("gws")
+    # 2026-08-22: `gws` is BANNED for personal Workspace calls per SOUL.md
+    # ## COMMIT: gws-banned-for-personal-workspace. The CLI was uninstalled.
+    # This function now ALWAYS returns None so the code falls through to the
+    # Python client (google-api-python-client) which uses the same OAuth
+    # token stored at ~/.smartclaw/google_token.json. To migrate to `gog`
+    # directly, see ~/.smartclaw/skills/google-workspace-via-gog/SKILL.md.
+    return None
 
 
 def _gws_env() -> dict[str, str]:

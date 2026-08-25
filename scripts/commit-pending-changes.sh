@@ -26,6 +26,7 @@ trap '' PIPE
 # Source slack_thread_lib.sh so cronjob posts thread under a daily anchor instead
 # of channel root. bead jleechan-ry3y follow-up to PR #615.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GH_SAFE_PUBLISH="$SCRIPT_DIR/gh-safe-publish"
 LIB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/lib"
 # shellcheck source=lib/slack_thread_lib.sh
 source "$LIB_DIR/slack_thread_lib.sh"
@@ -37,7 +38,7 @@ source "$LIB_DIR/slack_thread_lib.sh"
 # P1 review on PR #630). We physically copy the lib's slack_post body to a
 # new name via `declare -f` + `sed` so the local definition below shadows
 # `slack_post` without affecting `lib_slack_post`.
-eval "$(declare -f slack_post | sed '1s/^slack_post()/lib_slack_post()/')"
+eval "$(declare -f slack_post | sed '1s/^slack_post[[:space:]]*()/lib_slack_post()/' || declare -f slack_post | sed '1s/^slack_post/lib_slack_post/')"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 LOCK_DIR="${CPC_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-commit-pending.lock}"
@@ -310,18 +311,18 @@ untracked_files() {
 
 open_pr_url() {
   cd "$REPO" || return 1
-  gh pr view "$PR_BRANCH" --json url --jq '.url' 2>/dev/null || echo ""
+  gh pr view "$PR_BRANCH" --json state,url --jq 'select(.state == "OPEN") | .url' 2>/dev/null || echo ""
 }
 
 open_pr_number() {
   cd "$REPO" || return 1
-  gh pr view "$PR_BRANCH" --json number --jq '.number' 2>/dev/null || echo ""
+  gh pr view "$PR_BRANCH" --json state,number --jq 'select(.state == "OPEN") | .number' 2>/dev/null || echo ""
 }
 
 # ── Commit + PR logic ────────────────────────────────────────────────────────
 
 do_commit_and_pr() {
-  local changed_files untracked_count pr_url pr_num commit_msg
+  local changed_files untracked_count pr_url pr_num commit_msg force_push=""
   local branch="$PR_BRANCH"
 
   # Check for tracked changes
@@ -346,22 +347,50 @@ do_commit_and_pr() {
   cd "$REPO" || return 1
 
   log "Switching to branch $branch..."
-  # Pull latest remote history so 'git checkout -b' creates a local tracking branch
-  # (not a diverged copy that would cause a non-fast-forward push error later).
+  # Pull latest remote history so we know if there is an open PR
   git fetch origin "$branch" 2>/dev/null || true
-  if git rev-parse --verify "$branch" >/dev/null 2>&1; then
-    git checkout "$branch" || {
-      log "ERROR: git checkout $branch failed — aborting to avoid committing on wrong branch"
+
+  # Check if there is an open PR for this branch
+  pr_url="$(open_pr_url)"
+
+  if [[ -z "$pr_url" ]]; then
+    force_push="-f"
+  fi
+
+  local current_branch
+  current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+
+  if [[ "$current_branch" == "$branch" ]]; then
+    log "Already on branch $branch."
+    if [[ -z "$pr_url" ]]; then
+      log "No open PR found. Syncing branch to main..."
+      git reset main || {
+        log "ERROR: git reset main failed"
+        return 1
+      }
+    fi
+  elif [[ -z "$pr_url" ]]; then
+    log "No open PR found for $branch. Resetting branch to main..."
+    git checkout -B "$branch" main || {
+      log "ERROR: git checkout -B $branch main failed"
       return 1
     }
   else
-    # No local branch — use remote tracking branch if available to avoid divergence.
-    # If origin/$branch doesn't exist, git checkout -b creates from HEAD (safe default).
-    git checkout -b "$branch" --track "origin/$branch" 2>/dev/null || \
-      git checkout -b "$branch" || {
-        log "ERROR: git checkout -b $branch failed"
+    # Existing open PR found, try to checkout the existing branch
+    if git rev-parse --verify "$branch" >/dev/null 2>&1; then
+      git checkout "$branch" || {
+        log "ERROR: git checkout $branch failed — aborting to avoid committing on wrong branch"
         return 1
       }
+    else
+      # No local branch — use remote tracking branch if available to avoid divergence.
+      # If origin/$branch doesn't exist, git checkout -b creates from HEAD (safe default).
+      git checkout -b "$branch" --track "origin/$branch" 2>/dev/null || \
+        git checkout -b "$branch" || {
+          log "ERROR: git checkout -b $branch failed"
+          return 1
+        }
+    fi
   fi
 
   # ── Stage tracked files only ───────────────────────────────────────────────
@@ -409,7 +438,9 @@ do_commit_and_pr() {
 
   # ── Push branch ─────────────────────────────────────────────────────────────
   log "Pushing branch $branch..."
-  git push -u origin "$branch" 2>/dev/null || {
+  # If force_push is set, use it to overwrite remote diverged branch since no open PR exists.
+  # Push branch. Do not bypass pre-push hooks.
+  git push ${force_push} -u origin "$branch" || {
     log "ERROR: git push failed"
     return 1
   }
@@ -420,7 +451,7 @@ do_commit_and_pr() {
 
   if [[ -n "$pr_url" ]]; then
     log "PR already exists: $pr_url — adding comment"
-    gh pr comment "$pr_num" \
+    "$GH_SAFE_PUBLISH" pr comment "$pr_num" \
       --body "Auto-commit triggered: staged and committed $(git log -1 --format='%H (%ci)').
 
 Files changed: $file_count" \
@@ -444,7 +475,7 @@ _This PR is auto-created by \`commit-pending-changes.sh\` (launchd, every 30 min
 
     # Capture gh pr create output — URL appears on its own line in stdout on success.
     # Fall back to empty string if gh fails or the URL cannot be parsed.
-    pr_output="$(gh pr create \
+    pr_output="$("$GH_SAFE_PUBLISH" pr create \
       --title "$PR_TITLE_PREFIX Pending changes $(date '+%Y-%m-%d %H:%M')" \
       --body "$pr_body" \
       --base main 2>&1)" || pr_output=""

@@ -1,12 +1,12 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-05-26 10:46:41 PDT
+Generated: 2026-08-24 21:12:59 PDT
 
 ## Summary
 
-- Candidate files evaluated: 1208
-- Included in export map: 1190
-- Excluded as non-portable/private/runtime: 18
+- Candidate files evaluated: 1574
+- Included in export map: 1553
+- Excluded as non-portable/private/runtime: 21
 
 ## Selection Rules
 
@@ -21,9 +21,13 @@ Non-portable paths are excluded when they contain:
 
 ## Included Files (sample)
 
+- `.claude/commands/a.md`
 - `.claude/commands/agento_report.md`
 - `.claude/commands/agentor.md`
+- `.claude/commands/auto.md`
 - `.claude/commands/checkpoint.md`
+- `.claude/commands/claudem.md`
+- `.claude/commands/claudeminimax.md`
 - `.claude/commands/claw.md`
 - `.claude/commands/coderabbit.md`
 - `.claude/commands/cr.md`
@@ -31,29 +35,45 @@ Non-portable paths are excluded when they contain:
 - `.claude/commands/eloop.md`
 - `.claude/commands/er.md`
 - `.claude/commands/evidence_review.md`
+- `.claude/commands/finish.md`
+- `.claude/commands/fullrun.md`
 - `.claude/commands/harness.md`
 - `.claude/commands/history.md`
+- `.claude/commands/launchd-autonomy-report.md`
 - `.claude/commands/learn.md`
 - `.claude/commands/nextsteps.md`
 - `.claude/commands/r.md`
 - `.claude/commands/research.md`
 - `.claude/commands/roadmap.md`
 - `.claude/commands/smartclaw-export.md`
+- `.claude/commands/social.md`
+- `.claude/commands/write-goal.md`
 - `.claude/skills/agento_report.md`
+- `.claude/skills/claw-dispatch/SKILL.md`
 - `.claude/skills/evolve_loop/SKILL.md`
+- `.claude/skills/hermes-models.md`
 - `.claude/skills/jleechanbrain-eloop/SKILL.md`
 - `.claude/skills/mem0-memory-operations.md`
 - `.claude/skills/nextsteps.md`
-- `.claude/skills/hermes-harness/SKILL.md`
-- `.claude/skills/hermes-models.md`
+- `.claude/skills/openclaw-harness/SKILL.md`
 - `.claude/skills/second-opinion-mcp-auth.md`
 - `.claude/skills/smartclaw-portability-export.md`
+- `.claude/skills/social-poster/README.md`
+- `.claude/skills/social-poster/SKILL.md`
+- `.claude/skills/social-poster/references`
+- `.claude/skills/social-poster/scripts/draft_social_post.py`
+- `.claude/skills/social-poster/scripts/post_approved.py`
+- `.claude/skills/social-poster/scripts/stage_in_aside.py`
+- `.claude/skills/social-poster/templates`
+- `.claude/skills/social-poster/tests`
 - `.claude/skills/staging-prod-pipeline/SKILL.md`
 - `.github/workflows/coderabbit-ping-on-push.yml`
+- `.github/workflows/example-discipline.yml`
 - `.github/workflows/green-gate.yml`
-- `.github/workflows/skeptic-cron.yml`
+- `.github/workflows/hermes-pr-tag-listener.yml`
 - `.github/workflows/staging-canary-full.yml`
 - `.github/workflows/staging-canary-gate.yml`
+- `.github/workflows/triage-smoke.yml`
 - `AUTO_START_GUIDE.md`
 - `BACKUP_AND_RESTORE.md`
 - `README.md`
@@ -61,26 +81,6 @@ Non-portable paths are excluded when they contain:
 - `SLACK_SETUP_GUIDE.md`
 - `agent-orchestrator.yaml`
 - `docs/AO_EXHAUSTIVE_AUDIT_FINDINGS.md`
-- `docs/CRON_MIGRATION.html`
-- `docs/CRON_MIGRATION.md`
-- `docs/GENESIS_DESIGN.md`
-- `docs/HARNESS_ENGINEERING.md`
-- `docs/HUMAN_CHANNEL_BRIDGE.html`
-- `docs/HUMAN_CHANNEL_BRIDGE.md`
-- `docs/INCIDENT_HERMES_2026328_WS_STREAM.html`
-- `docs/INCIDENT_HERMES_2026328_WS_STREAM.md`
-- `docs/ORCHESTRATION_RESEARCH_2026.md`
-- `docs/ORCHESTRATION_SYSTEM_DESIGN.html`
-- `docs/ORCHESTRATION_SYSTEM_DESIGN.md`
-- `docs/POSTMORTEM_2026-03-19_SMARTCLAW_ROUTING.md`
-- `docs/SMARTCLAW_PORTABILITY_AUDIT.html`
-- `docs/SMARTCLAW_PORTABILITY_AUDIT.md`
-- `docs/STAGING_PIPELINE.html`
-- `docs/STAGING_PIPELINE.md`
-- `docs/SWITCH_TO_HERMES.html`
-- `docs/SWITCH_TO_HERMES.md`
-- `docs/ZOE_AGENT_SWARM_REFERENCE.md`
-- `docs/antigravity-control-plane/.stale-comments-resolved`
 - _...truncated; see `scripts/smartclaw-export-map.tsv` for full list._
 
 ## Excluded Files (sample)
@@ -96,10 +96,13 @@ Non-portable paths are excluded when they contain:
 - `docs/context/PRODUCT.md`
 - `docs/context/PROMPTING_GUIDES.md`
 - `docs/context/SYSTEM_SNAPSHOT.html`
-- `docs/context/SYSTEM_SNAPSHOT.md`
 - `docs/context/WORKFLOWS.md`
 - `docs/superpowers/plans/2026-03-26-orch-k0e-pr-coverage-audit.md`
 - `docs/superpowers/plans/2026-03-28-ao-runner-implementation.md`
 - `docs/superpowers/plans/2026-03-28-sync-to-smartclaw.html`
 - `docs/superpowers/plans/2026-03-28-sync-to-smartclaw.md`
+- `docs/superpowers/plans/2026-07-10-ao-go-daily-repo-export.html`
+- `docs/superpowers/plans/2026-07-10-ao-go-daily-repo-export.md`
 - `docs/superpowers/specs/2026-03-28-self-hosted-runner-pypi-design.md`
+- `docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.html`
+- `docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.md`

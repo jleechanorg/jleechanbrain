@@ -1,8 +1,8 @@
 ---
 name: finish-the-job
-version: 1.0.0
+version: 1.2.0
 description: "End-to-end finish protocol for any Slack thread, CLI invocation, or cron task where the user has handed off a goal. Routes to /fs (spec gen) → /f (Dark Factory loop) → drives to a verifiable conclusion (green PR with non-unit-test evidence, finished code change, or dry-run to local machine state). Never stops halfway. Loads automatically when the SOUL.md `finish-the-job` commit fires."
-tags: [autonomy, finish, dark-factory, dispatch, pr, evidence, anti-stop-halfway]
+tags: ["autonomy", "finish", "dark-factory", "dispatch", "pr", "evidence", "anti-stop-halfway"]
 category: workflow
 triggers:
   - finish the job
@@ -35,6 +35,15 @@ triggers:
   - handle it
   - ship it
   - merge it
+  - is this finished
+  - is x finished
+  - did you finish
+  - where is the report
+  - reconstruct from prior session
+changelog:
+  - '1.2.0 (2026-07-14): New pitfall "60-min clarify silence is not a license to stop pushing" + new reference no-stop-after-clarify-silence-2026-07-14.md. Verified on jleechanorg/claude-commands PR #328 + jleechanorg/worldarchitect.ai PR #8402: agent treated 60-min clarify silence as authorization to stop; right move is conservative interpretive call + drive to PR-open end-state in the same session, no "want me to push?" confirmation gate. Trigger: Slack thread C0AH3RY3DK6/p1784056061.069019.'
+  - '1.1.0 (2026-07-08): Initial fix(watchdog) version.'
+  - 1.0.0 (2026-06-19): Initial skill — end-state evidence stack, phases 0-4, anti-patterns.
 related_skills:
   - dark-factory
   - drive-pr-to-green
@@ -77,6 +86,7 @@ Three drift patterns were observed in the user's last week of Slack threads (202
 - ❌ "Investigation complete, here are the findings" without a commit, PR, or dry-run
 - ❌ "I've started the worker, will update when done" — that's ack-and-walk-away
 - ❌ Mid-stream question without first exhausting the LLM's own judgment (per the user's rule: "in the middle I want AI to use its best judgement")
+- ❌ **"60-min clarify silence is not a license to stop pushing" (added 2026-07-14, jleechanorg/claude-commands PR #328 + jleechanorg/worldarchitect.ai PR #8402).** When the agent asks a Phase 0 clarification question and the user does not answer within ~60 minutes, the agent's instinct is to either re-ask, proceed locally and stop, or post a status update. **Both re-asking and stopping are wrong.** Silence is the user being busy / asleep / in a meeting, not authorization to halt mid-stream. Per `push-pr-donot-stop-halfway`, the right move when scope is even moderately unambiguous is to drive to PR-merged end-state (`git commit` + `git push` + `gh pr create` + Slack reply with PR URL) without re-asking. Verified bug case 2026-07-14: agent asked the clarify, no answer came, agent executed the minimal-scope interpretation LOCALLY but never reached `git push`. The user came back ~22h later with "why didn't you just do it without stopping?" — the entire 22h gap was avoidable. Recipe: (a) classify scope as "obvious enough to act on" vs "needs the user's call" — when scope can be inferred from prior session context + recent edits, it is obvious enough; (b) make the conservative interpretive call (do less, not more, but DO it); (c) drive to PR-open end-state in the same session — `git commit` + `git push` + `gh pr create` (no "want me to push?" confirmation gate); (d) post the Slack reply with PR URLs as the final reply. Companion reference: `references/no-stop-after-clarify-silence-2026-07-14.md` with the two-symlink-repo tracing recipe (`jleechanorg/claude-commands` for user-scope commands vs `jleechanorg/worldarchitect.ai` for repo-local commands) + the `git rev-parse origin/<branch>` push-verified check + the symlink-trap pitfall (`~/.claude/commands/auto-factory.md` resolves to `~/projects/dark-factory/.claude/commands/auto-factory.md`).
 
 ## Phases (execute in order, no pauses between)
 
@@ -116,9 +126,9 @@ Classify the user's goal into ONE of:
 
 For PR fixes: load `workflow/drive-pr-to-green` and follow its full sequence (worktree at explicit SHA → fix → push → watch CI → clear review → self-merge when authorized).
 
-For new features: dispatch via `dispatch-task` skill (`ao spawn`) so the worker gets its own tool-call budget. Inline gateway sessions cap at ~25 tool calls; AO workers have their own budget.
+For new features: **default** — delegate to `claude-code-claudem` via `bash -lic 'claudem -p "<task>"' --max-turns <N>` on a clean worktree (`git worktree add … origin/main -b feat/…`). Inline gateway sessions cap at ~25 tool calls; claudem on a clean worktree has its own budget and is recoverable across session boundaries. Use the `dispatch-task` skill (`ao spawn`) only when the user explicitly invoked `/af` or `/auto-factory`.
 
-For new PR from local branch: `workflow/always-pr-never-local-edit` → fresh worktree from `origin/main` → port the local diff if needed → push → `gh pr create`.
+For new PR from local branch: `workflow/always-pr-never-local-edit` → fresh worktree from `origin/main` → delegate via `claude-code-claudem` (default) on that worktree → port the local diff if needed → push → `gh pr create`. AO only when the user typed `/af`.
 
 For ops/investigation: execute inline (gcloud, curl, file reads). The "inline-able" boundary is one tool call OR a tight sequence with no fork.
 
@@ -147,6 +157,7 @@ Every completion reply MUST contain:
 - ❌ **"Tests pass locally, opening PR now"** (then going silent) — the PR URL goes in the final reply, not in a follow-up.
 - ❌ **"Investigation complete, here are 6 findings"** — every finding needs a "what to do about it" line, and at least one finding must be acted on.
 - ❌ **Stopping at "I asked AO to spawn a worker"** — that's an ack. The work isn't done until the worker reports OR the cron takes over.
+- ❌ **"Is X finished?" → redo X from scratch (added 2026-06-28).** When the user asks whether a recent non-trivial task was finished, do NOT re-pull gog / re-run searches / regenerate the report from scratch. Use `session_search` + `hermes sessions export <path> --session-id <id>` to surface the prior session's final assistant text in one turn. The 2026-06-28 audit-recovery case reconstructed a 67-message / 1.55M-cache-token prior session in ~10K tokens by exporting session `20260627_162502_ba20f748`. ~150x cheaper, same answer, one reply. **Only redo from scratch if** the prior session's final text ends in a multi-option menu (it stalled) OR the underlying data has gone stale (the user said "verify it's still correct" not "is it finished"). See `references/reconstruct-from-prior-session-2026-06-28.md` for the 3-step recipe and decision matrix.
 
 ## Loader / auto-fire contract
 
@@ -197,6 +208,7 @@ If items 1-7 land in the same turn as the rollout and 8-9 land within the next d
 3. `always-pr-never-local-edit` (only if goal shape is new-PR or local-changes-exist)
 4. `dispatch-task` (only if Phase 2 decides to dispatch via `ao spawn`)
 5. `dropped-messages` (only if the goal was itself a dropped-thread recovery — meta-finish)
+6. `session-history-search` (only if the user's question is "is X finished?" — reconstruct from prior session before redoing work; see `references/reconstruct-from-prior-session-2026-06-28.md`)
 
 ## Worked example — the 2026-06-19 incident
 
