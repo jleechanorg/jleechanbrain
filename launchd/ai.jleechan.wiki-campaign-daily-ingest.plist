@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.jleechan.wiki-campaign-daily-ingest</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/wiki-campaign-daily-ingest.sh</string>
+    </array>
+
+    <!--
+        Daily at 09:00 local time (after the 8am wiki-daily-worker slot).
+        Throttle 1h so a slow run can't trigger a duplicate.
+    -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/Library/Logs/wiki-campaign-daily-ingest.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/Library/Logs/wiki-campaign-daily-ingest.error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>@HOME@/.smartclaw/scripts:@HOME@/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>WORLDAI_DEV_MODE</key>
+        <string>true</string>
+        <key>GOOGLE_APPLICATION_CREDENTIALS</key>
+        <string>@HOME@/serviceAccountKey.json</string>
+    </dict>
+</dict>
+</plist>

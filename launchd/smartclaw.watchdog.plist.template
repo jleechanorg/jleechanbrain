@@ -29,9 +29,9 @@
   <dict>
     <!-- HERMES_HOME selects prod vs staging context. The script
          hermes-watchdog.sh uses both HERMES_HOME and HERMES_PROD_HOME
-         (default: ~/.smartclaw_prod) to decide which gateway to probe. -->
+         (default: ~/.smartclaw) to decide which gateway to probe. -->
     <key>HERMES_HOME</key>
-    <string>@HOME@/.smartclaw_prod</string>
+    <string>@HOME@/.smartclaw</string>
 
     <!-- PR #681 / 2026-06-13 channel routing fix:
          Pinning the noisy channel here is intentional — the script

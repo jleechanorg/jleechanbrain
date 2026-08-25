@@ -6,18 +6,18 @@
 
 | | Hermes Staging | Hermes Prod |
 |---|---|---|
-| **Directory** | `~/.smartclaw/` (git repo) | `~/.smartclaw_prod/` |
+| **Directory** | `~/.smartclaw/` (git repo) | `~/.smartclaw/` |
 | **Launchd** | `ai.smartclaw-staging` | `ai.smartclaw.prod` |
 | **Slack bot** | Staging app (`xoxb-...roQR...`) | Prod app (`xoxb-...L1ZG...`) |
 | **Model** | `minimax-portal/MiniMax-M2.7` | `minimax-portal/MiniMax-M2.7` |
-| **HERMES_HOME** | `~/.smartclaw/` | `~/.smartclaw_prod/` |
+| **HERMES_HOME** | `~/.smartclaw/` | `~/.smartclaw/` |
 | **Tokens** | Staging Slack | Prod Slack |
 
 **Directory structure:**
 ```
 ~/.smartclaw/          ← git repo root (jleechanbrain), Hermes staging
 ~/.smartclaw/        ← symlink → ~/.smartclaw/ (backward compat)
-~/.smartclaw_prod/     ← Hermes prod (separate runtime data)
+~/.smartclaw/     ← Hermes prod (separate runtime data)
 ```
 
 **Hermes is disabled** — set `HERMES_ENABLED=1` in the monitor to re-enable AO checks.
@@ -34,7 +34,7 @@ bash ~/.smartclaw/scripts/hermes-monitor.sh
 
 ```bash
 hermes status                        # staging
-HERMES_HOME=~/.smartclaw_prod hermes status   # prod
+HERMES_HOME=~/.smartclaw hermes status   # prod
 ```
 
 ### Start/Stop Gateways
@@ -49,7 +49,7 @@ launchctl stop gui/$(id -u)/ai.smartclaw.prod      # stop prod
 Or manually:
 ```bash
 HERMES_HOME=~/.smartclaw hermes gateway run        # staging (foreground)
-HERMES_HOME=~/.smartclaw_prod hermes gateway run  # prod (foreground)
+HERMES_HOME=~/.smartclaw hermes gateway run  # prod (foreground)
 ```
 
 ### Restart a Gateway
@@ -65,9 +65,9 @@ launchctl kickstart -kp gui/$(id -u)/ai.smartclaw.prod
 |---|---|---|
 | **Launchd label** | `ai.smartclaw-staging` | `ai.smartclaw.prod` |
 | **Slack tokens** | Staging | Prod |
-| **Memory** | `~/.smartclaw/memories/` | `~/.smartclaw_prod/memories/` |
-| **Sessions** | `~/.smartclaw/sessions/` | `~/.smartclaw_prod/sessions/` |
-| **Skills** | `~/.smartclaw/skills/` | `~/.smartclaw_prod/skills/` |
+| **Memory** | `~/.smartclaw/memories/` | `~/.smartclaw/memories/` |
+| **Sessions** | `~/.smartclaw/sessions/` | `~/.smartclaw/sessions/` |
+| **Skills** | `~/.smartclaw/skills/` | `~/.smartclaw/skills/` |
 
 ## Configuration Files
 
@@ -87,19 +87,19 @@ HERMES_CONFIG_PATH=${HOME}/.smartclaw/config.yaml
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
-### Prod `.env` (`~/.smartclaw_prod/.env`)
+### Prod `.env` (`~/.smartclaw/.env`)
 
 ```bash
 HERMES_ENABLED=true
 HERMES_ENV=prod
-HERMES_HOME=${HOME}/.smartclaw_prod
+HERMES_HOME=${HOME}/.smartclaw
 
 # Slack — PROD tokens
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 
-HERMES_STATE_DIR=${HOME}/.smartclaw_prod/
-HERMES_CONFIG_PATH=${HOME}/.smartclaw_prod/config.yaml
+HERMES_STATE_DIR=${HOME}/.smartclaw/
+HERMES_CONFIG_PATH=${HOME}/.smartclaw/config.yaml
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
@@ -115,10 +115,10 @@ Both Hermes instances share the same `auth.json` for Discord/Telegram, causing "
 
 ```bash
 hermes gateway status                    # staging
-HERMES_HOME=~/.smartclaw_prod hermes gateway status  # prod
+HERMES_HOME=~/.smartclaw hermes gateway status  # prod
 hermes doctor
 cat ~/.smartclaw/logs/gateway.log         # staging
-cat ~/.smartclaw_prod/logs/gateway.log    # prod
+cat ~/.smartclaw/logs/gateway.log    # prod
 ```
 
 ### Slack not responding
@@ -127,7 +127,7 @@ cat ~/.smartclaw_prod/logs/gateway.log    # prod
 hermes status                        # check Slack ✓
 # Verify tokens:
 rg 'SLACK_BOT_TOKEN' ~/.smartclaw/.env        # staging
-rg 'SLACK_BOT_TOKEN' ~/.smartclaw_prod/.env  # prod
+rg 'SLACK_BOT_TOKEN' ~/.smartclaw/.env  # prod
 ```
 
 ### Re-enable Hermes (AO path)

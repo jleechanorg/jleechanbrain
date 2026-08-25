@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.slack-digest-rollup</string>
+
+    <!--
+      Added 2026-07-07. Runs src/orchestration/slack_catchup.py once daily
+      and posts ONE tiered digest (needs-decision / in-flight / done /
+      parked) to #agent-digest, replacing the 20+/day per-thread doc-drop
+      firehose from ai.smartclaw.schedule.slack-thread-roadmap-report.
+
+      DEPLOY: production bot must `conversations.join` the public channel
+      before posting. KNOWN GAP: no join-then-retry-on-not_in_channel
+      helper exists yet anywhere in this codebase (tracked in bead
+      orch-8lyv) — until the bot is invited or that helper lands, a post
+      before the bot joins will fail visibly (not silently). Channel IDs:
+        #agent-digest = C0BFBCGN3HD (public) — now the default in
+          slack_catchup.py's DEFAULT_DIGEST_CHANNEL, verified 2026-07-07.
+        #needs-jeff   = C0BGM3A4ZC0 (public, sibling channel for idea 1)
+      Override via SLACK_DIGEST_CHANNEL env if the channel is recreated.
+
+      NOTE: this job does NOT yet disable slack-thread-roadmap-report --
+      that cutover is a deliberate separate decision (Jeffrey should compare
+      a few days of #agent-digest output against the roadmap-report docs
+      before retiring the old pipeline). Both slack-thread-roadmap-report
+      (scripts/slack-thread-roadmap-report.sh +
+      launchd/ai.smartclaw.schedule.slack-thread-roadmap-report.plist.template)
+      and this new digest job live in THIS repo (jleechanbrain) -- no
+      cross-repo blocker. See bead orch-lrzg for the retirement follow-up
+      plan.
+
+      Wrapped in launchd-env-wrapper.sh (sources ~/.bash_profile /
+      ~/.profile / ~/.bashrc) so SLACK_BOT_TOKEN and
+      ANTHROPIC_API_KEY are picked up from the shell profile -- never
+      hardcoded in this plist (secrets-no-env / secrets-no-plist policy).
+
+      Routed through scripts/orchestration_slack_catchup_daily.sh (not the
+      venv python module directly) so the launcher's overlap lock,
+      HERMES_HOME/venv preflight checks, and fail-fast behavior are always
+      exercised in production, not just when an operator runs the script by
+      hand. The launcher inherits its env (tokens, HOME, PYTHONPATH) from
+      this wrapper, so its own bashrc-fallback path is a no-op here.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/orchestration_slack_catchup_daily.sh</string>
+        <string>--hours</string>
+        <string>24</string>
+    </array>
+
+    <!-- Once daily, 08:00 local (every day -- weekend Slack activity should
+         still surface in Monday's digest, so no Weekday filter). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PYTHONPATH</key>
+        <string>@HOME@/.smartclaw/src</string>
+        <key>PATH</key>
+        <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/slack-digest-rollup.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/slack-digest-rollup.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: 24h = 86400s, the natural cadence of the digest itself. -->
+    <key>ThrottleInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>

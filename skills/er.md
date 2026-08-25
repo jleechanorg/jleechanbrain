@@ -42,7 +42,7 @@ EVIDENCE_FILES=$(gh pr view 123 --repo jleechanorg/jleechanbrain --json files | 
 codex review --files "$EVIDENCE_FILES"
 
 # Post result
-gh pr comment 123 --repo jleechanorg/jleechanbrain --body "**PASS** — evidence review: agent self-reviewed ✅, CR reviewed ✅, codex passed ✅"
+~/.smartclaw/scripts/gh-safe-publish pr comment 123 --repo jleechanorg/jleechanbrain --body "**PASS** — evidence review: agent self-reviewed ✅, CR reviewed ✅, codex passed ✅"
 ```
 
 ## Requirements

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>llm_inspector --skills-usage: current state + --show-dormant proposal</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+           font-size: 15px; line-height: 1.65; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+    h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; padding-bottom: 0.3rem;
+         border-bottom: 1px solid var(--border); color: var(--accent2); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.5rem; color: var(--accent4); }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px;
+            font-size: 0.88em; font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+          padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--table-header); padding: 0.5rem 0.75rem;
+         text-align: left; border: 1px solid var(--border); color: var(--accent); }
+    td { padding: 0.45rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    .warning { background: rgba(247,129,102,0.1); border-left: 3px solid var(--accent3);
+               padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .info { background: rgba(88,166,255,0.1); border-left: 3px solid var(--accent);
+            padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .done { color: var(--accent2); font-weight: 600; }
+    .not-migrated { color: var(--accent3); font-weight: 600; }
+    .section-divider { margin: 2rem 0; border: none; border-top: 1px dashed var(--border); }
+    .checklist-item { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.25rem 0; }
+    .checklist-item input { accent-color: var(--accent2); }
+    .updated { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+<h1>llm-inspector <code>--skills-usage</code>: current state + dormant-skill detection proposal</h1>
+<p><strong>Status:</strong> Proposal (doc-only, no implementation in this PR)
+<strong>Bead:</strong> orch-51op
+<strong>Repo owning the tool:</strong> <code>jleechanorg/llm_inspector</code> (checked out locally at
+<code>$HOME/projects_other/llm_inspector</code>)
+<strong>Date:</strong> 2026-07-07</p>
+<h2>Background</h2>
+<p>The dev-tooling backlog asked for an investigation into <code>llm_inspector --skills-usage</code>:
+report which Claude/Codex/Hermes skills are actually being invoked vs. dormant, to help
+prune the skill catalog (126+ skills live under <code>~/.claude/skills/</code>, <code>~/.agents/skills/</code>,
+etc. — see <code>docs/skill-trim-round-6-2026-06-19.md</code> in that repo for the last manual trim).</p>
+<p><strong>Finding: the flag already exists.</strong> <code>llm-inspector analyze --skills-usage</code> is fully
+implemented (<code>src/skills-usage.ts</code>, wired into <code>src/cli.ts</code>) and works today. This proposal
+therefore does <strong>not</strong> ask &quot;should we build this&quot; — it documents current behavior and
+proposes a scoped extension (dormant-skill detection) that the current implementation does
+not cover.</p>
+<h2>Goals</h2>
+<ol>
+<li>Document what <code>--skills-usage</code> currently does and does not do, so nobody re-implements
+it from scratch.</li>
+<li>Identify the concrete gap between &quot;report what was used&quot; (done) and &quot;report what to
+prune&quot; (not done) — the actual ask from the backlog item.</li>
+<li>Propose a minimal, additive extension with a defined data source, output format, and
+implementation sketch, without writing code (doc-only task).</li>
+</ol>
+<h2>Tenets</h2>
+<ul>
+<li>No silent implementation — this is a spec, not a PR that ships the feature.</li>
+<li>Reuse the existing scanner (<code>scanSkillsUsage</code>) rather than building a second log parser.</li>
+<li>Deterministic log/file parsing only (structured field extraction: <code>Skill</code> tool_use
+blocks, <code>&lt;command-name&gt;</code> tags, directory listings) — no semantic/LLM classification
+needed for this feature, so it does not trigger a ZFC violation.</li>
+</ul>
+<h2>Current behavior (verified 2026-07-07)</h2>
+<p>Command: <code>node dist/cli.js analyze --skills-usage --days 30</code> (also documented in
+<code>README.md</code>).</p>
+<pre><code class="language-text">=== Skills Usage ===
+Window: last 30 days (since 2026-06-07)
+Scanned 1591 session file(s), 101317 log entries in window.
+
+| Skill / Command  | Source        | Count |
+| ----------------- | ------------- | ----- |
+| /copilot          | slash command | 33    |
+| /goal             | slash command | 22    |
+| /polish           | slash command | 19    |
+| history            | Skill tool    | 8     |
+| nextsteps          | Skill tool    | 8     |
+...
+| TOTAL              |               | 182   |
+</code></pre>
+<p><code>--json</code> produces the same data as structured JSON
+(<code>{ windowDays, since, scannedFiles, parsedLines, entries[], totalInvocations }</code>).</p>
+<p><strong>Data source (existing):</strong> <code>~/.claude/projects/*/*.jsonl</code> — Claude Code session
+transcripts. For each JSONL line in the time window, it looks for:</p>
+<ul>
+<li>Assistant <code>tool_use</code> blocks where <code>name === &quot;Skill&quot;</code> → counts <code>input.skill</code>
+(source: <code>skill_tool</code>)</li>
+<li>User messages containing <code>&lt;command-name&gt;/foo&lt;/command-name&gt;</code> → counts <code>/foo</code>
+(source: <code>slash_command</code>)</li>
+</ul>
+<p><strong>Scope of &quot;usage&quot; today:</strong> only Claude Code sessions. Codex (<code>~/.codex/sessions/</code>) and
+Hermes (its own session/log store) are not scanned. The backlog item asked for
+&quot;Claude/Codex/Hermes skills&quot; — today only the Claude Code leg is covered.</p>
+<p><strong>What it does NOT do today:</strong></p>
+<ul>
+<li>It never reports skills that were <em>not</em> invoked. It has no notion of the full skill
+catalog — it only aggregates observed invocations. A skill with 0 uses in the window
+simply never appears in the table; there's no way to distinguish &quot;dormant&quot; from &quot;doesn't
+exist.&quot;</li>
+<li>It doesn't scan Codex or Hermes session stores (see above).</li>
+<li>It doesn't cross-reference skill <em>names</em> used in logs against the actual <code>SKILL.md</code>
+files on disk (dead symlinks, renamed skills, or typo'd invocations would silently
+produce a usage count with no matching catalog entry, or vice versa).</li>
+</ul>
+<p>This matches the actual backlog ask closely but not exactly: &quot;report which skills are
+actually being invoked vs dormant&quot; requires a second data source (the catalog) that the
+tool doesn't currently read.</p>
+<h2>Proposed extension: <code>--dormant</code> / <code>--skills-usage --show-dormant</code></h2>
+<h3>Data sources</h3>
+<ol>
+<li><strong>Usage side (existing, reuse as-is):</strong> <code>scanSkillsUsage()</code> from
+<code>src/skills-usage.ts</code>, unchanged. Already reads <code>~/.claude/projects/*/*.jsonl</code>.</li>
+<li><strong>Catalog side (new):</strong> enumerate skill names from:
+<ul>
+<li><code>~/.claude/skills/*/SKILL.md</code> (one level deep, matching the walker in the
+implementation sketch below) → skill name = directory
+name (matches <code>input.skill</code> naming convention observed in usage logs, e.g.
+<code>history</code>, <code>nextsteps</code>, <code>swarm</code>).</li>
+<li><code>~/.claude/commands/*.md</code> → slash-command name = <code>/</code> + filename stem (matches the
+<code>/copilot</code>, <code>/goal</code> style entries already in usage output).</li>
+<li>Optionally <code>~/.agents/skills/*/SKILL.md</code> and <code>~/.codex/skills/*/SKILL.md</code> for parity
+with the Codex leg, once/if Codex session scanning is added (see &quot;Known limitations&quot;
+below — out of scope for the first cut).</li>
+<li>Both catalog roots should be overridable via CLI flags (mirroring the existing
+<code>--projects-dir</code> override pattern in <code>skills-usage.ts</code>), so this works across
+machines with different <code>$HOME</code> layouts.</li>
+</ul>
+</li>
+<li><strong>Diff:</strong> catalog set minus usage set (by name, source-typed: <code>skill_tool</code> catalog
+entries only diff against <code>skill_tool</code> usage entries; <code>slash_command</code> catalog entries
+only diff against <code>slash_command</code> usage entries — a skill and a command can share a
+name without being the same thing).</li>
+</ol>
+<h3>Output format sketch</h3>
+<p>Text mode, appended after the existing usage table:</p>
+<pre><code class="language-text">=== Dormant (0 invocations in last 30 days) ===
+Catalog: 126 skills, 187 slash commands (313 total)
+Used:     51 skills,   38 slash commands  (89 total, 28.4%)
+Dormant:  75 skills,  149 slash commands (224 total, 71.6%)
+
+| Name                  | Source     | Catalog path                                    |
+| ---------------------- | ---------- | ------------------------------------------------ |
+| algorithmic-art         | skill      | ~/.claude/skills/algorithmic-art/SKILL.md         |
+| antigravity-computer-use | skill    | ~/.claude/skills/antigravity-computer-use/SKILL.md|
+| /benchg                | command    | ~/.claude/commands/benchg.md                      |
+...
+</code></pre>
+<p><code>--json</code> mode adds a parallel <code>dormant</code> array to the existing JSON shape:</p>
+<pre><code class="language-json">{
+  &quot;windowDays&quot;: 30,
+  &quot;since&quot;: &quot;...&quot;,
+  &quot;entries&quot;: [ /* existing usage entries, unchanged */ ],
+  &quot;dormant&quot;: [
+    { &quot;name&quot;: &quot;algorithmic-art&quot;, &quot;source&quot;: &quot;skill_tool&quot;, &quot;path&quot;: &quot;~/.claude/skills/algorithmic-art/SKILL.md&quot; },
+    { &quot;name&quot;: &quot;/benchg&quot;, &quot;source&quot;: &quot;slash_command&quot;, &quot;path&quot;: &quot;~/.claude/commands/benchg.md&quot; }
+  ],
+  &quot;catalogTotals&quot;: { &quot;skills&quot;: 126, &quot;commands&quot;: 187 },
+  &quot;usedTotals&quot;: { &quot;skills&quot;: 51, &quot;commands&quot;: 38 }
+}
+</code></pre>
+<p>This keeps the existing <code>entries</code> field backward-compatible (no breaking change for any
+script already parsing <code>--skills-usage --json</code>), and adds <code>dormant</code> as strictly additive.</p>
+<h3>Implementation sketch (NOT implemented in this PR — spec only)</h3>
+<p>New module <code>src/skills-catalog.ts</code>:</p>
+<ul>
+<li><code>scanSkillCatalog(dirs: string[]): Promise&lt;CatalogEntry[]&gt;</code> — walks each dir, one level
+deep, looking for <code>*/SKILL.md</code> (skill dirs) and <code>*.md</code> directly under a <code>commands/</code>
+root (slash commands). Returns <code>{ name, source, path }[]</code>.</li>
+<li>Pure filesystem enumeration, no parsing of SKILL.md content required for this feature
+(name + existence is enough) — keeps this squarely in the &quot;deterministic
+transformation&quot; ZFC exemption bucket, not semantic classification.</li>
+</ul>
+<p>CLI wiring in <code>src/cli.ts</code>:</p>
+<ul>
+<li>Add <code>--show-dormant</code> boolean flag to the existing <code>analyze --skills-usage</code> subcommand
+(not a new top-level command — it's a view over the same scan).</li>
+<li>Add <code>--skills-dir &lt;path&gt;</code> and <code>--commands-dir &lt;path&gt;</code> overrides, defaulting to
+<code>~/.claude/skills</code> and <code>~/.claude/commands</code>, mirroring the existing
+<code>--projects-dir</code> pattern.</li>
+<li><code>formatSkillsUsage()</code> in <code>skills-usage.ts</code> gets a sibling <code>formatDormantSkills()</code>, or an
+optional second table appended when <code>--show-dormant</code> is set.</li>
+</ul>
+<p>Tests (mirroring <code>src/skills-usage.test.ts</code> conventions): fixture directories with a few
+<code>SKILL.md</code> / command <code>.md</code> files, fixture JSONL usage logs, assert the diff excludes used
+names and includes unused ones, and that <code>--json</code> output has both <code>entries</code> and <code>dormant</code>.</p>
+<h3>Known limitations of the proposal itself</h3>
+<ul>
+<li><strong>Naming collisions:</strong> a skill directory name and a slash-command filename can coincide
+(e.g., <code>goal_harness</code> skill vs. potential <code>/goal_harness</code> command) with different
+invocation surfaces. The source-typed diff above handles this, but catalog scanning
+needs to preserve source type carefully — worth a unit test specifically for this case.</li>
+<li><strong>Aliases:</strong> several skills are documented as aliases of each other (e.g., <code>/cs</code> →
+<code>/code-standards</code>, <code>/h</code> → <code>/goal_harness</code>, per the alias list surfaced in this session's
+skill listing). A dormant report that doesn't understand aliasing will flag <code>/cs</code> as
+dormant even if <code>/code-standards</code> was used heavily, or vice versa. First-cut proposal:
+do NOT attempt alias resolution (that would require parsing each command file's body
+for &quot;Alias for X&quot; markers — feasible but adds scope); ship the naive per-name diff
+first, note aliases as a known false-positive source in the tool's own README, and
+only add alias resolution if the false-positive rate proves annoying in practice.</li>
+<li><strong>Codex / Hermes skills:</strong> out of scope for the first cut, per &quot;Scope of usage today&quot;
+above. The backlog item's &quot;Claude/Codex/Hermes&quot; framing implies a future second data
+source (Codex session JSONL under <code>~/.codex/sessions/</code>, and whatever Hermes uses for
+its own logs) feeding the same usage-aggregation shape. That is a separate, larger
+follow-up (new session-log parser per tool), not bundled into this dormant-detection
+proposal.</li>
+<li><strong>Time window sensitivity:</strong> a skill can be &quot;dormant in the last 30 days&quot; but used
+quarterly (e.g., a release-process skill). The existing <code>--days</code> override already lets
+a caller widen the window; the dormant report should default to the same <code>--days</code> value
+the usage scan uses, so callers doing a &quot;should I prune this&quot; audit can rerun with
+<code>--days 90</code> before deciding.</li>
+</ul>
+<h2>Testing</h2>
+<p>N/A — this is a proposal document, not a code change. No implementation, so no test run.
+If/when implemented, tests would live in <code>src/skills-catalog.test.ts</code> and an extension of
+<code>src/skills-usage.test.ts</code>, following the existing <code>vitest</code> conventions in that repo
+(<code>npm test</code> / <code>vitest run src/</code>).</p>
+<h2>Known Limitations</h2>
+<p>This document proposes but does not implement <code>--show-dormant</code>. It is scoped to the
+Claude Code leg only; Codex and Hermes usage scanning are explicitly out of scope and
+noted as follow-up work above. Any actual implementation requires review/approval before
+landing, per this task's doc-only constraint.</p>
+
+  </div>
+</body>
+</html>

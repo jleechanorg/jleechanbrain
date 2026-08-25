@@ -18,6 +18,10 @@
 # ============================================================
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GH_SAFE_PUBLISH="$SCRIPT_DIR/gh-safe-publish"
+OUTBOUND_SECRET_GATE="$SCRIPT_DIR/../lib/outbound_secret_gate.py"
+
 # Require Bash 4+ (for associative arrays and portable process substitution)
 if [[ ${BASH_VERSINFO[0]:-0} -lt 4 ]]; then
   echo "ERROR: Bash 4+ required (you have ${BASH_VERSION:-unknown}). On macOS, use: brew install bash" >&2
@@ -31,7 +35,7 @@ capture_pr_url() {
   local title="$3"
   local body="$4"
   local output
-  output=$(gh pr create --repo "$org/$repo" --title "$title" --body "$body" 2>&1) || true
+  output=$("$GH_SAFE_PUBLISH" pr create --repo "$org/$repo" --title "$title" --body "$body" 2>&1) || true
   # stdout always has the URL on success; fall back to extracting from combined output
   echo "$output" | grep -E '^https://github.com/' | head -1 || echo "$output"
 }
@@ -44,7 +48,7 @@ SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID:-}"
 DRY_RUN="${DRY_RUN:-}"
 AUTO_GENERATE_MAP="${AUTO_GENERATE_MAP:-1}"
 
-SOURCE_DIR="${SOURCE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+SOURCE_DIR="${SOURCE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 MAP_PATH="${MAP_PATH:-$SOURCE_DIR/scripts/smartclaw-export-map.tsv}"
 MAP_UPDATER_PATH="${MAP_UPDATER_PATH:-$SOURCE_DIR/scripts/update-smartclaw-export-map.sh}"
 # Always use mktemp — never delete a user-provided directory (TARGET_CLONE_DIR override is ignored)
@@ -179,7 +183,7 @@ for src_path in "${!SYNC_MAP[@]}"; do
   log "Syncing: $src_path → $dst_path"
   mkdir -p "$(dirname "$dst")"
 
-  cp "$src" "$dst"
+  cp -R -L "$src" "$dst"
 
   # Sanitize the copied content
   if [[ -f "$dst" ]]; then
@@ -277,6 +281,10 @@ if [[ -n "${SLACK_BOT_TOKEN:-}" ]] || [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
   else
     BOT_TOKEN="${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN}}"
     SLACK_TEXT="[AI Terminal: ao-spawn] smartclaw sync PR ready for HUMAN REVIEW (do not auto-merge): $PR_URL — sanitized content from jleechanbrain (notify: ${SLACK_CHANNEL_ID:-<set SLACK_CHANNEL_ID>})"
+    if ! printf '%s' "$SLACK_TEXT" | python3 "$OUTBOUND_SECRET_GATE" check; then
+      echo "sync-to-smartclaw: outbound Slack body blocked by secret gate" >&2
+      exit 3
+    fi
     SLACK_RESP=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
       -H "Authorization: Bearer $BOT_TOKEN" \
       -H "Content-Type: application/json" \

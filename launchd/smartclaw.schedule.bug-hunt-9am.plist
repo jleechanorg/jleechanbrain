@@ -4,16 +4,16 @@
 <dict>
     <key>Label</key>
     <string>ai.smartclaw.schedule.bug-hunt-9am</string>
-    
+
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/project_jleechanbrain/jleechanbrain/scripts/bug-hunt-daily.sh</string>
+        <string>@HOME@/.smartclaw/scripts/bug-hunt-daily.sh</string>
     </array>
-    
+
     <key>RunAtLoad</key>
     <false/>
-    
+
     <key>StartCalendarInterval</key>
     <array>
         <dict>
@@ -57,20 +57,24 @@
             <integer>5</integer>
         </dict>
     </array>
-    
+
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.log</string>
-    
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.log</string>
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.error.log</string>
-    
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.error.log</string>
+
     <key>WorkingDirectory</key>
-    <string>${HOME}/project_jleechanbrain/jleechanbrain</string>
-    
+    <string>@HOME@/.smartclaw</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
     <key>ProcessType</key>
     <string>Background</string>
-    
-    <key>ThrottleInterval</key>
-    <integer>86400</integer>
 </dict>
 </plist>

@@ -12,6 +12,24 @@
 
 set -euo pipefail
 
+# ── PATH bootstrap (defense in depth) ─────────────────────────────────────────
+# launchd jobs run with a minimal PATH that does NOT include nvm. The
+# `ao` CLI lives at ${HOME}/.nvm/versions/node/v22.22.0/bin/ao
+# (installed via npm i -g in node v22). Without this prepend, the
+# `command -v "$AO_BIN"` check at fetch_ao_sessions() falls through to the
+# silent-empty-array branch and the script posts "no active sessions
+# detected" every 30 min even when many AO workers are alive.
+#
+# Verified 2026-06-27: 22 sessions visible with nvm on PATH, 0 visible without.
+# The plist template now also includes the nvm bin dir + uses
+# launchd-env-wrapper.sh — this block is a belt-and-suspenders for anyone
+# who runs the script outside launchd (cron, manual, etc.) or who hasn't
+# deployed the updated plist yet.
+NVM_BIN="$HOME/.nvm/versions/node/v22.22.0/bin"
+if [[ -d "$NVM_BIN" ]] && [[ ":$PATH:" != *":$NVM_BIN:"* ]]; then
+  export PATH="$NVM_BIN:$PATH"
+fi
+
 export PATH="$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
 trap '' PIPE
 
@@ -86,8 +104,8 @@ with urllib.request.urlopen(req) as resp:
 # ── GH token ─────────────────────────────────────────────────────────────────
 resolve_token() {
   local tok=""
-  # Try hermes config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
-  for cfg in "$HOME/.smartclaw/config.yaml" "$HOME/.smartclaw_prod/config.yaml"; do
+  # Try hermes config(s) for embedded gh token (prod may use ~/.smartclaw)
+  for cfg in "$HOME/.smartclaw/config.yaml" "$HOME/.smartclaw/config.yaml"; do
     [[ -f "$cfg" ]] || continue
     tok="$(jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' "$cfg" 2>/dev/null)" || tok=""
     [[ -n "$tok" && "$tok" != "null" ]] && break
@@ -244,12 +262,46 @@ except Exception as e:
 # ── Get AO sessions JSON (all projects) ───────────────────────────────────────
 fetch_ao_sessions() {
   local all_sessions="[]"
-  if [[ ! -d "$AO_DIR" ]] || ! command -v "$AO_BIN" >/dev/null 2>&1; then
+  if [[ ! -d "$AO_DIR" ]]; then
+    log "ERROR: AO_DIR does not exist: $AO_DIR — set AO_DIR env var to point at the agent-orchestrator checkout"
     echo "$all_sessions"
     return
   fi
-  # Try JSON status first, fall back to parsing text
-  all_sessions="$(cd "$AO_DIR" && "$AO_BIN" status --json 2>/dev/null)" || echo "[]"
+  if ! command -v "$AO_BIN" >/dev/null 2>&1; then
+    # 2026-06-27 incident: this used to silently return "[]" and the reporter
+    # posted a misleading "no active sessions detected" message every 30 min
+    # even when 22+ AO workers were alive. Cause: launchd's PATH does not
+    # include nvm, where the `ao` CLI lives. We now log loudly with the
+    # diagnostic hint so the next failure is debuggable from the .err log
+    # alone, and the caller can decide whether to fail the tick.
+    local hint=""
+    if [[ ! -d "$HOME/.nvm/versions/node/v22.22.0/bin" ]]; then
+      hint=" (nvm dir missing at $HOME/.nvm/versions/node/v22.22.0/bin — install node v22)"
+    else
+      hint=" (nvm bin exists but not on launchd PATH — wrap script in launchd-env-wrapper.sh, see ~/.smartclaw/launchd/ai.smartclaw.schedule.ao-progress-reporter.plist.template)"
+    fi
+    log "ERROR: '$AO_BIN' not found on PATH (PATH=${PATH})$hint"
+    echo "$all_sessions"
+    return
+  fi
+  # Try JSON status first. ao sends its config warnings to stderr, so
+  # `2>/dev/null` is enough — stdout is a clean JSON array. We keep 2>&1
+  # OFF here because we want to lose the warning noise, not capture it.
+  # (We previously had `2>&1` then a strip-prefix block, but verifying
+  #  2026-06-27 with `ao status --json 2>/dev/null > out.txt 2> err.txt`
+  #  showed stdout starts with '[' and stderr holds all the config
+  #  warnings — so the strip was unnecessary defensive code.)
+  if ! all_sessions="$(cd "$AO_DIR" && "$AO_BIN" status --json 2>/dev/null)"; then
+    log "ERROR: '$AO_BIN status --json' failed (rc=$?) — output was: ${all_sessions:0:500}"
+    echo "[]"
+    return
+  fi
+  # Defensive sanity check: if for some reason stdout did contain a non-JSON
+  # prefix (future ao version, weird flag, etc.), surface a clear log line
+  # rather than letting jq silently fail later.
+  if [[ "$all_sessions" != "["* ]]; then
+    log "WARN: ao stdout does not start with '[' — first 200 chars: ${all_sessions:0:200}"
+  fi
   echo "$all_sessions"
 }
 
@@ -291,6 +343,209 @@ get_session_info() {
   local info
   info="$(echo "$ao_json" | jq -c "map(select(.name == \"$session_name\")) | .[0]" 2>/dev/null)" || info=""
   echo "$info"
+}
+
+# ── Cross-machine AO state (Mac + /linux) ─────────────────────────────────────
+# 2026-08-05 incident: the daily report only read `~/.ao/data/ao.db` on the Mac
+# (and only via `ao status --json`, which silently returned "[]" under GitHub
+# rate-limit). The /linux machine's `~/.ao/data/ao.db` (where some PRs and
+# sessions actually live) was never queried, so reports were lying by omission.
+#
+# 2026-08-13 incident: the original stale-detection signal (db-file mtime) was
+# wrong — a healthy-but-idle daemon legitimately doesn't write to its db for
+# hours/days, so mtime alone produced repeated false-positive "Xh stale" posts.
+# Fixed by adding a live /healthz daemon probe (`mac_daemon_up` /
+# `linux_daemon_up`) AND a true activity/freshness contract:
+# `linux_max_activity_h` (hours since the most recent session.activity_last_at)
+# is the canonical "is something currently trying to write?" signal. The stale
+# warning now fires ONLY when the linux daemon is up AND db mtime is older
+# than threshold AND something has touched the db within the same window.
+# Healthy idle daemons (no active workers, old db) stay silent.
+#
+# 2026-08-18 followup: this Mac is not a primary AO host (Linux is primary);
+# Mac-down is intentionally NOT surfaced as a warning. mac_daemon_up is
+# still probed for diagnostics, but the reporter only signals real Linux-side
+# failures (true stuck write; SSH unreachable → Mac-only fallback).
+#
+# This function runs the same SQLite ground-truth query on BOTH machines and
+# returns a small JSON object with per-machine counts + `linux_db_stale_h`
+# (hours since db mtime, NULL when unreachable) + `linux_max_activity_h`
+# (hours since most-recent session activity, -1 when no sessions) +
+# `mac_daemon_up` / `linux_daemon_up` (live /healthz liveness).
+# `ao status --json` is kept as the legacy source for per-session detail; the
+# SQLite count is the canonical reconciliation check.
+#
+# Configuration:
+#   AOPR_LINUX_SSH_HOST    — SSH alias (default: jeff-ubuntu)
+#   AOPR_LINUX_AO_DB       — remote path (default: ~/.ao/data/ao.db)
+#   AOPR_LINUX_HEALTH_URL  — /linux healthz URL (default: http://127.0.0.1:3001/healthz)
+#   AOPR_MAC_HEALTH_URL    — local healthz URL (default: http://127.0.0.1:3001/healthz)
+#   AOPR_STALE_THRESHOLD_H — escalate when daemon UP + recent activity + db mtime > this (default: 6)
+fetch_cross_machine_ao_state() {
+  local mac_db="${AO_DIR_DB:-${HOME}/.ao/data/ao.db}"
+  local linux_host="${AOPR_LINUX_SSH_HOST:-jeff-ubuntu}"
+  local linux_db="${AOPR_LINUX_AO_DB:-~/.ao/data/ao.db}"
+  local linux_health="${AOPR_LINUX_HEALTH_URL:-http://127.0.0.1:3001/healthz}"
+  local mac_health="${AOPR_MAC_HEALTH_URL:-http://127.0.0.1:3001/healthz}"
+  local stale_threshold="${AOPR_STALE_THRESHOLD_H:-6}"
+
+  # 0. Mac daemon /healthz probe (cheap, single curl). Distinguishes "alive but
+  # idle" from "truly stuck". A dead Mac daemon means workers can't spawn — the
+  # real failure mode, surfaced separately as 🚨 Mac daemon DOWN.
+  local mac_daemon_up="false"
+  if curl -fsS -m 2 "$mac_health" 2>/dev/null | grep -q '"status":"ok"'; then
+    mac_daemon_up="true"
+  fi
+
+  # 1. Mac counts (direct SQLite — works even when `ao` CLI hangs)
+  local mac_json="{}"
+  if [[ -r "$mac_db" ]] && command -v sqlite3 >/dev/null 2>&1; then
+    mac_json="$(sqlite3 -separator '|' "$mac_db" "
+SELECT
+  (SELECT COUNT(*) FROM pr WHERE pr_state='open'),
+  (SELECT COUNT(*) FROM pr WHERE pr_state='open' AND ci_state='success' AND mergeability='mergeable' AND review_decision='APPROVED'),
+  (SELECT COUNT(*) FROM sessions WHERE kind='worker'),
+  (SELECT COUNT(*) FROM sessions WHERE kind='worker' AND activity_last_at > datetime('now','-1 day'))
+" 2>/dev/null | awk -F'|' '{
+  printf "{\"open_prs\":%s,\"green_prs\":%s,\"worker_sessions\":%s,\"worker_sessions_24h\":%s}", $1, $2, $3, $4
+}')" || mac_json="{}"
+    # If awk produced nothing (sqlite error), fall back to safe empty
+    [[ -z "$mac_json" || "$mac_json" == "{}" ]] && mac_json='{"open_prs":0,"green_prs":0,"worker_sessions":0,"worker_sessions_24h":0}'
+  fi
+
+  # 2. /linux counts (SSH + SQLite) — silent skip if SSH unavailable
+  local linux_json="null"
+  local linux_stale_h="null"
+  local linux_max_activity_h="-1"
+  local linux_daemon_up="false"
+  if command -v ssh >/dev/null 2>&1 && ssh -o ConnectTimeout=4 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$linux_host" "true" 2>/dev/null; then
+    # Probe /linux daemon /healthz first (cheap, before running sqlite).
+    local linux_daemon_probe
+    if linux_daemon_probe="$(ssh -o ConnectTimeout=4 -o BatchMode=yes "$linux_host" "curl -fsS -m 2 '$linux_health' 2>/dev/null | grep -q '\"status\":\"ok\"' && echo up || echo down" 2>/dev/null)" && [[ "$linux_daemon_probe" == "up" ]]; then
+      linux_daemon_up="true"
+    fi
+    # Build the remote command in a separate variable to avoid newline-quoting hell
+    # when passing it as a single ssh argument. We use a heredoc-style multiline
+    # string with single quotes around $db to suppress remote variable expansion
+    # except for $HOME (which the local shell expands to the *remote* user's home
+    # because ssh sets HOME for the remote session).
+    # The 5th SELECT column is hours-since-most-recent-session.activity_last_at
+    # (NULL when no sessions); we COALESCE it to -1 so the awk split stays
+    # stable. substr(...,1,19) strips the Go RFC3339Nano timezone suffix
+    # ("-0700 PDT m=+...") so julianday() can parse the bare local timestamp.
+    local linux_remote_cmd linux_raw
+    linux_remote_cmd=$(cat <<REMOTE_EOF
+db="\${HOME}/.ao/data/ao.db"
+if [ -r "\$db" ] && command -v sqlite3 >/dev/null 2>&1; then
+  mtime_epoch=\$(stat -c '%Y' "\$db" 2>/dev/null || stat -f '%m' "\$db" 2>/dev/null)
+  now_epoch=\$(date +%s)
+  if [ -n "\$mtime_epoch" ]; then
+    age_h=\$(( (now_epoch - mtime_epoch) / 3600 ))
+  else
+    age_h=-1
+  fi
+  sqlite3 -separator '|' "\$db" "SELECT (SELECT COUNT(*) FROM pr WHERE pr_state='open'),(SELECT COUNT(*) FROM pr WHERE pr_state='open' AND ci_state='success' AND mergeability='mergeable' AND review_decision='APPROVED'),(SELECT COUNT(*) FROM sessions WHERE kind='worker'),(SELECT COUNT(*) FROM sessions WHERE kind='worker' AND activity_last_at > datetime('now','-1 day')),COALESCE(CAST((julianday('now') - julianday(substr(MAX(activity_last_at),1,19))) * 24 AS INTEGER),-1) FROM sessions" 2>/dev/null | awk -v age="\$age_h" -F'|' '{printf "%s|%s|%s|%s|%s|%s", \$1,\$2,\$3,\$4,\$5,age}'
+fi
+REMOTE_EOF
+)
+    if linux_raw="$(ssh -o ConnectTimeout=4 -o BatchMode=yes "$linux_host" "$linux_remote_cmd" 2>/dev/null)" && [[ -n "$linux_raw" ]]; then
+      # New layout: 5 sqlite columns + 1 awk-injected age_h = 6 fields.
+      # Field 5 = max_activity_h (recent activity age), field 6 = db mtime age.
+      linux_max_activity_h="$(echo "$linux_raw" | awk -F'|' '{print $5}')"
+      linux_stale_h="$(echo "$linux_raw" | awk -F'|' '{print $6}')"
+      linux_json="$(echo "$linux_raw" | awk -F'|' '{
+        printf "{\"open_prs\":%s,\"green_prs\":%s,\"worker_sessions\":%s,\"worker_sessions_24h\":%s}", $1, $2, $3, $4
+      }')"
+    fi
+  fi
+
+  # 3. Compose combined JSON. Use printf to avoid jq quoting hell on null.
+  #   linux_max_activity_h: -1 = no sessions, otherwise hours since most-recent
+  #   session activity. format_cross_machine_block reads this to gate the stale
+  #   warning on real recent activity (vs healthy idle with an old db).
+  printf '{"mac":%s,"mac_daemon_up":%s,"linux":%s,"linux_daemon_up":%s,"linux_db_stale_h":%s,"linux_max_activity_h":%s,"stale_threshold_h":%s}' \
+    "$mac_json" "$mac_daemon_up" "$linux_json" "$linux_daemon_up" "$linux_stale_h" "$linux_max_activity_h" "$stale_threshold"
+}
+
+# Render the cross-machine block as Slack-friendly markdown.
+# Returns empty string when both machines are healthy (saves noise). Returns
+# an actionable block when drift / daemon-down / true-stuck-write is detected.
+#
+# "True stuck write" rule (avoids the 2026-08-13 false-positive incident):
+#   emit the stale warning ONLY when ALL of the following hold:
+#     1. linux_daemon_up == true              (daemon is alive, not dead)
+#     2. linux_db_stale_h > threshold         (db mtime older than window)
+#     3. linux_max_activity_h <= threshold    (something IS touching the db
+#                                              within the same window — the
+#                                              canonical "should be writing"
+#                                              signal)
+#   Healthy idle daemons (no recent activity, old db) stay silent: that is
+#   normal operation, not a bug.
+#
+# Mac AO daemon (2026-08-18): this Mac is NOT a primary AO host — /linux is.
+# mac_daemon_up is still probed for diagnostics in the header but Mac-down
+# is intentionally NOT surfaced as a warning. Only real Linux-side failures
+# (true stuck write; SSH unreachable) appear.
+format_cross_machine_block() {
+  local state_json="$1"
+  if [[ -z "$state_json" || "$state_json" == "{}" ]]; then
+    return
+  fi
+  echo "$state_json" | jq -r '
+    def safe_num(v): if v == null then "?" else (v | tostring) end;
+    def safe_activity(v): if v == null or (v | tonumber) < 0 then "none" else ((v | tonumber) | tostring) + "h" end;
+    # Header is only rendered when AT LEAST ONE alert fires. The
+    # "return empty when both machines are healthy" contract from above is
+    # authoritative: healthy-idle (no recent activity, old db, no daemon
+    # failure) MUST stay silent — that is normal operation, not a bug.
+    # Worker-ended-Xh-ago with old db + open PRs still present (the
+    # 2026-08-05..08-13 false-positive bug) is short-circuited inside
+    # maybe_stale via the `linux_max_activity_h > threshold` gate.
+    def hdr($root):
+      "🖥️ *Cross-machine AO state* " +
+      "mac: open=" + safe_num($root.mac.open_prs) + " green=" + safe_num($root.mac.green_prs) +
+      " workers(24h)=" + safe_num($root.mac.worker_sessions_24h) +
+      " / linux: open=" + safe_num(($root.linux // {}).open_prs) + " green=" + safe_num(($root.linux // {}).green_prs) +
+      " workers(24h)=" + safe_num(($root.linux // {}).worker_sessions_24h) +
+      " recent_act=" + safe_activity($root.linux_max_activity_h) +
+      " | mac_daemon=" + (if ($root.mac_daemon_up // false) then "up" else "DOWN" end) +
+      " linux_daemon=" + (if ($root.linux_daemon_up // false) then "up" else "down" end);
+    def maybe_stale($root):
+      # True stuck write: daemon up + db mtime older than threshold +
+      # recent activity INSIDE threshold. The activity gate is what
+      # silences the 2026-08-13 false-positive "Xh stale" loop — a healthy
+      # idle daemon legitimately does not touch its db for hours/days, so
+      # mtime alone was the wrong signal. Worker-ended-just-past-threshold
+      # + old db + open PRs is the case max_activity_h > threshold handles
+      # (gate fails, returns empty).
+      if (($root.linux_daemon_up // false) == true)
+         and ($root.linux_db_stale_h != null)
+         and (($root.linux_db_stale_h | tonumber) > $root.stale_threshold_h)
+         and (($root.linux_max_activity_h // -1) >= 0)
+         and (($root.linux_max_activity_h | tonumber) <= $root.stale_threshold_h)
+      then "⚠️ *Linux AO db is " + ($root.linux_db_stale_h | tostring) + "h stale* (threshold " + ($root.stale_threshold_h | tostring) + "h) but daemon is up and most-recent activity is " + (($root.linux_max_activity_h | tonumber) | tostring) + "h ago — likely a stuck write. Investigate: ssh jeff-ubuntu stat ~/.ao/data/ao.db"
+      else empty
+      end;
+    def maybe_mac_down($root):
+      # 2026-08-18: /linux is the primary AO daemon — Mac AO is not expected
+      # to be running. We still probe mac_daemon_up for diagnostics in the
+      # header, but we DO NOT emit a Mac-down warning. Mac-down is silently
+      # downgraded to a non-actionable state. Only signal real Linux failure.
+      empty;
+    def maybe_unreach($root):
+      if $root.linux == null
+      then "⚠️ Linux side unreachable via SSH — falling back to Mac-only counts."
+      else empty
+      end;
+    # Bind input to $root first so `as $root` does not change `.` to a
+    # different value for the downstream field lookups.
+    . as $root
+    | [ maybe_mac_down($root), maybe_stale($root), maybe_unreach($root) ]
+    | map(select(. != null and . != ""))
+    | if (length == 0) then ""
+      else ([hdr($root)] + .) | join("\n")
+      end
+  ' 2>/dev/null
 }
 
 # ── Terminal-state classification ────────────────────────────────────────────
@@ -381,6 +636,19 @@ fi
   SLACK_THREAD_TS="$thread_ts"
 
   save_state "$current_state"
+
+  if [[ "${SKIP_CROSS_MACHINE:-0}" != "1" ]]; then
+    cross_machine_json="$(fetch_cross_machine_ao_state)" || cross_machine_json=""
+    if [[ -n "$cross_machine_json" && "$cross_machine_json" != "{}" ]]; then
+      cross_machine_block="$(format_cross_machine_block "$cross_machine_json")" || cross_machine_block=""
+      if [[ -n "$cross_machine_block" ]]; then
+        post_slack "$cross_machine_block"
+        log "Posted cross-machine AO state block (drift or stale condition detected)"
+      else
+        log "Cross-machine AO state healthy (no drift, no stale db) — suppressed block"
+      fi
+    fi
+  fi
 
   if [[ "$ao_sessions_json" == "[]" ]] || [[ -z "$ao_sessions_json" ]]; then
     log "No AO sessions found or AO unavailable"

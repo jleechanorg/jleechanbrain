@@ -130,7 +130,7 @@ If bootstrap still fails after step 1-4, run `bash ~/.smartclaw/scripts/install-
 
 ## Worktree Isolation — Edit Your Copy, Not ~/.smartclaw/ Directly
 
-`~/.smartclaw/` is the **staging** environment (the repo checkout). `~/.smartclaw_prod/` is **production** (separate dir with symlinks). Direct edits to `~/.smartclaw/` affect staging immediately but NOT production — production only updates when `scripts/deploy.sh` syncs validated config.
+`~/.smartclaw/` is the **staging** environment (the repo checkout). `~/.smartclaw/` is **production** (separate dir with symlinks). Direct edits to `~/.smartclaw/` affect staging immediately but NOT production — production only updates when `scripts/deploy.sh` syncs validated config.
 
 **Rule (ALL agent sessions): Do NOT directly edit files in `~/.smartclaw/` — use a PR.**
 

@@ -1,0 +1,4 @@
+RED result: marker msg ts=1786943996.160129 posted by hermes bot B0AEHUEA0JK
+thread_ts field: ABSENT (channel root)
+expected: 1786943962.177919 (thread root)
+SOUL.md state: fix REMOVED (sha 1774be6e6928c4640129255776cd9e01cfdc9a9292acdeefd9133e4138aaa660)

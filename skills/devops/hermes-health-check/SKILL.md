@@ -14,6 +14,22 @@ triggers:
 
 ## Diagnostic Order
 
+> **Step 0 — check whether `api_server` is even enabled before trusting any port probe.**
+> Verified 2026-08-10: on this host `api_server.{enabled,host,port}` are all null and
+> `api_server.extra` is `{}`, so **nothing listens on 8642/8643/8644 and that is correct, not a fault.**
+> Slack runs over Socket Mode (outbound WebSocket), which needs no inbound listener.
+> A dead `curl localhost:<port>/health` plus a live PID is therefore the EXPECTED
+> state here — do not restart the gateway on that signal alone.
+> ```bash
+> python3 -c "import yaml;a=yaml.safe_load(open('$HOME/.smartclaw_prod/config.yaml')).get('api_server') or {};print(a)"
+> ```
+> If `enabled` is falsy, prove liveness from the log instead — the gateway logs every
+> inbound message, so the authoritative check is that YOUR message appears:
+> ```bash
+> grep "inbound message" ~/.smartclaw_prod/logs/gateway.log | tail -3
+> ```
+> Note `~/.smartclaw_prod/logs/gateway.err.log` does not exist on this host; `gateway.log` holds both streams.
+
 **Step 1 — Launchd services and process status**
 ```bash
 launchctl list | grep hermes
@@ -409,6 +425,10 @@ grep -E "doctor_sh|slack_e2e|memory_lookup|ao_doctor" ~/.smartclaw/logs/monitor-
 ```
 
 ## Key Ports (remember these)
+
+⚠️ **This table is aspirational, not observed.** As of 2026-08-10 `api_server` is
+disabled on this host and NONE of these ports are bound. Read Step 0 first.
+
 | Service | Port | Config key |
 |---------|------|------------|
 | Hermes prod | 8642 | `~/.smartclaw_prod/config.yaml` → `api_server.extra.port` |

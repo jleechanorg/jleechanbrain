@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.autonomy-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/opt/homebrew/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/autonomy-report.sh</string>
+    </array>
+
+    <!--
+      Daily at 09:00 PT, Mon–Fri. Detects left/right-shift autonomy
+      violations in the last 48h of Slack threads, plus cross-channel
+      Slack search (Signal E) and /ms memory cross-reference (Signal F),
+      and posts a single digest ONLY when violations are found.
+      Quiet on success (matches the 5b-leak-detector pattern).
+
+      Added 2026-06-27 per Jeffrey: "design and build a daily /launchd
+      autonomy report to ensures hermes is following my left/right shift
+      tenet". Detector script at ~/.smartclaw/scripts/autonomy-report.sh.
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+            <key>Weekday</key>
+            <integer>1</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+            <key>Weekday</key>
+            <integer>2</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+            <key>Weekday</key>
+            <integer>3</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+            <key>Weekday</key>
+            <integer>4</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+            <key>Weekday</key>
+            <integer>5</integer>
+        </dict>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <key>AUTONOMY_ALERT_CHANNEL</key>
+        <string>@AUTONOMY_ALERT_CHANNEL@</string>
+        <key>AUTONOMY_LOOKBACK_HOURS</key>
+        <string>48</string>
+        <key>AUTONOMY_MONITORED_CHANNELS</key>
+        <string>C0AH3RY3DK6 C0BA4MCBPFB ${SLACK_CHANNEL_ID} ${SLACK_CHANNEL_ID}</string>
+        <key>AUTONOMY_BOT_USER_ID</key>
+        <string>U0AEZC7RX1Q</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/autonomy-report.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/autonomy-report.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: 24h = 86400s, the natural cadence. Prevents back-to-back
+         firings if the system was asleep overnight. -->
+    <key>ThrottleInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>

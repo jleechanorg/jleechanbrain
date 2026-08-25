@@ -30,7 +30,7 @@ cleanup() {
 trap cleanup EXIT
 
 HOME_DIR="$TMP_ROOT/home"
-STATE_DIR="$HOME_DIR/.smartclaw_prod"
+STATE_DIR="$HOME_DIR/.smartclaw"
 OC_DIR="$TMP_ROOT/ocdir"
 LOG_FILE="$TMP_ROOT/monitor.log"
 LOCK_DIR="$TMP_ROOT/monitor-agent.lock"

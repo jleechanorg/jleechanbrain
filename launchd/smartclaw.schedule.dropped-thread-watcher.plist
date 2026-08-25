@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.dropped-thread-watcher</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${HOME}/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/bin/bash</string>
+        <string>${HOME}/.smartclaw/scripts/dropped-thread-watcher-of-watchers.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/jleechan</string>
+        <key>PATH</key>
+        <string>${HOME}/.nvm/versions/node/current/bin:${HOME}/.nvm/versions/node/v22.22.0/bin:${HOME}/Library/pnpm:${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <!-- 2026-07-04: channels ops messages here, NOT a busy local channel.
+             Empty default per umbrella pattern (PR #681, #687) — the launchd-env-wrapper
+             will export HERMES_OPS_SLACK_CHANNEL from bashrc when set there; for now
+             this plist hardcodes #all-jleechan-ai ${SLACK_CHANNEL_ID} because #all-jleechan-ai
+             is the canonical home channel for cron alerts per slql/CLAUDE.md →
+             Slack channel routing policy. -->
+        <key>HERMES_OPS_SLACK_CHANNEL</key>
+        <string>${SLACK_CHANNEL_ID}</string>
+        <key>WATCH_LOG_MAX_AGE</key>
+        <string>5400</string>
+        <key>WATCH_COOLDOWN_SECONDS</key>
+        <string>21600</string>
+        <key>WATCH_TARGET_LABEL</key>
+        <string>ai.smartclaw.schedule.dropped-thread-followup</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>900</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>${HOME}/.smartclaw/logs/dropped-thread-watcher.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${HOME}/.smartclaw/logs/dropped-thread-watcher.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

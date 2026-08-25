@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jleechan.cmux-surface-report-4h</string>
+
+    <!--
+      Launches the wrapper which sources launchd-env-wrapper.sh (for SLACK_BOT_TOKEN)
+      then execs the report script. The wrapper itself writes to
+      ~/Library/Logs/com.jleechan.cmux-surface-report-4h.log — StandardOutPath below
+      captures any pre-wrapper stderr (e.g. syntax errors).
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/cmux-surface-report-4h-wrapper.sh</string>
+    </array>
+
+    <!--
+      4h cadence, 6 ticks/day at offset minute :07 to avoid :00 storms.
+      Cron expr `0 0,4,8,12,16,20 * * *` lives in jobs.json for the LLM-cron job;
+      this launchd plist is the deterministic-scheduler sibling.
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>0</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>4</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>8</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>12</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>16</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>20</integer>
+            <key>Minute</key>
+            <integer>7</integer>
+        </dict>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <key>HERMES_HOME</key>
+        <string>@HOME@/.smartclaw</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/Library/Logs/com.jleechan.cmux-surface-report-4h.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/Library/Logs/com.jleechan.cmux-surface-report-4h.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: prevent back-to-back firings if the system was asleep.
+         4h = 14400s, the natural cadence of the report itself. -->
+    <key>ThrottleInterval</key>
+    <integer>14400</integer>
+</dict>
+</plist>

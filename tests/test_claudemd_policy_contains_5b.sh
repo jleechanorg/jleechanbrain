@@ -2,7 +2,7 @@
 # test_claudemd_policy_contains_5b.sh
 #
 # Verifies that BOTH staging (~/.smartclaw/CLAUDE.md) and prod
-# (~/.smartclaw_prod/CLAUDE.md) contain the sub-class 5b narration
+# (~/.smartclaw/CLAUDE.md) contain the sub-class 5b narration
 # threading rule added in PR (jleechan-5bcl).
 #
 # This test exists to prevent the exact drift failure mode that
@@ -16,7 +16,7 @@
 #   0 if staging contains the rule (prod drift is a warning, not a failure)
 #   1 if staging is missing the rule (the rule must exist where the agent reads it)
 #
-# Skipped (not failed) if neither ~/.smartclaw nor ~/.smartclaw_prod exists
+# Skipped (not failed) if neither ~/.smartclaw nor ~/.smartclaw exists
 # (e.g. running on a machine without the harness installed).
 #
 # IMPORTANT — prod drift is a WARNING, not a failure. Before the PR merges,
@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 STAGING_FILE="$REPO_DIR/CLAUDE.md"
-PROD_FILE="$HOME/.smartclaw_prod/CLAUDE.md"
+PROD_FILE="$HOME/.smartclaw/CLAUDE.md"
 
 # Required strings (the rule's anchor + bypass log prefix + hard-rule text patterns)
 REQUIRED_STAGING=(
@@ -110,7 +110,7 @@ if [[ -f "$PROD_FILE" ]]; then
   if [[ "$PROD_DRIFT" -eq 1 ]]; then
     echo ""
     echo "  NOTE: prod drift is EXPECTED before this PR merges. After merge,"
-    echo "        run: cp ~/.smartclaw/CLAUDE.md ~/.smartclaw_prod/CLAUDE.md &&"
+    echo "        run: cp ~/.smartclaw/CLAUDE.md ~/.smartclaw/CLAUDE.md &&"
     echo "             launchctl kickstart -k gui/\$UID/ai.smartclaw.prod"
   fi
 else

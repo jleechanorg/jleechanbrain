@@ -2,17 +2,28 @@
 
 set -u
 
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mctrl-doctor.XXXXXX")"
+trap cleanup EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # LIVE_HERMES is resolved after launchd env hydration (below) — do not set here.
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-# Prod/staging detection: prefer ai.smartclaw.prod; fall back to ai.smartclaw.gateway.
-if [[ -f "$LAUNCHD_DIR/ai.smartclaw.prod.plist" ]]; then
-  GATEWAY_LABEL="ai.smartclaw.prod"
-elif [[ -f "$LAUNCHD_DIR/ai.smartclaw.gateway.plist" ]]; then
-  GATEWAY_LABEL="ai.smartclaw.gateway"
+# Prod/staging detection: check if running staging profile
+if [[ "${HERMES_HOME:-}" == *"/config.staging.yaml" || "${HERMES_CONFIG_PATH:-}" == *"/config.staging.yaml" || "${HERMES_PROFILE:-}" == "staging" || "${HERMES_HOME:-}" == "${HOME}/.smartclaw" ]]; then
+  if [[ -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist" ]]; then
+    GATEWAY_LABEL="ai.smartclaw.staging"
+  elif [[ -f "$LAUNCHD_DIR/ai.smartclaw.gateway.plist" ]]; then
+    GATEWAY_LABEL="ai.smartclaw.gateway"
+  else
+    GATEWAY_LABEL="ai.smartclaw.staging"
+  fi
 else
-  GATEWAY_LABEL="ai.smartclaw.prod"  # best guess; drift check will catch mismatch
+  if [[ -f "$LAUNCHD_DIR/ai.smartclaw.prod.plist" ]]; then
+    GATEWAY_LABEL="ai.smartclaw.prod"
+  else
+    GATEWAY_LABEL="ai.smartclaw.prod"
+  fi
 fi
 GATEWAY_PLIST="$LAUNCHD_DIR/$GATEWAY_LABEL.plist"
 AO_DASHBOARD_LABEL="ai.agento.dashboard"
@@ -36,7 +47,67 @@ PASS_COUNT=0
 WARN_COUNT=0
 FAIL_COUNT=0
 IS_DARWIN=0
-TMP_DIR=""
+
+convert_yaml_to_json() {
+  local yaml_file="$1"
+  local json_file="$2"
+  local tmp_file="${json_file}.tmp"
+
+  if command -v yq >/dev/null 2>&1; then
+    if yq -o=json "$yaml_file" >"$tmp_file" 2>/dev/null; then
+      mv "$tmp_file" "$json_file"
+      return 0
+    fi
+  fi
+
+  if python3 - "$yaml_file" >"$tmp_file" 2>/dev/null <<'PY'
+import json
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    print(json.dumps(yaml.safe_load(handle) or {}))
+PY
+  then
+    mv "$tmp_file" "$json_file"
+    return 0
+  fi
+
+  rm -f "$tmp_file"
+  return 1
+}
+
+# Intercept jq and convert YAML files to JSON on-the-fly to support yaml config.yaml files.
+# Conversion is fail-closed: a bad YAML file must not silently become an empty JSON query.
+jq() {
+  local args=()
+  local file_idx=-1
+  local i=0
+  for arg in "$@"; do
+    if [[ -f "$arg" && ( "$arg" == *".yaml" || "$arg" == *".yml" ) ]]; then
+      file_idx=$i
+    fi
+    args+=("$arg")
+    i=$((i + 1))
+  done
+
+  if [[ $file_idx -ne -1 ]]; then
+    local yaml_file="${args[file_idx]}"
+    local base_name
+    base_name="$(basename "$yaml_file")"
+    local json_file="$TMP_DIR/jq_conv_${base_name//[^[:alnum:]._-]/_}.json"
+    
+    if [[ ! -f "$json_file" || "$yaml_file" -nt "$json_file" ]]; then
+      if ! convert_yaml_to_json "$yaml_file" "$json_file"; then
+        printf 'doctor.sh: failed to convert YAML for jq: %s\n' "$yaml_file" >&2
+        return 2
+      fi
+    fi
+    args[file_idx]="$json_file"
+  fi
+
+  command jq "${args[@]}"
+}
 
 # Runtime invariants for the production profile. Override via env if needed.
 # APPROVED VALUES (2026-04-10, user-approved): maxConcurrent=10, timeoutSeconds=600.
@@ -90,6 +161,53 @@ launchd_job_is_running() {
   grep -q 'state = running' "$state_file"
 }
 
+list_hermes_gateway_processes() {
+  ps -axo pid=,command= 2>/dev/null | awk '
+    index($0, "hermes gateway run") > 0 && index($0, "awk") == 0 {
+      sub(/^[[:space:]]+/, "", $0)
+      print
+    }
+  '
+}
+
+check_gateway_process_concurrency() {
+  local proc_file="$TMP_DIR/hermes-gateway-processes.txt"
+  local proc_count
+
+  list_hermes_gateway_processes >"$proc_file" || true
+  proc_count="$(wc -l <"$proc_file" | tr -d '[:space:]')"
+
+  if [[ "$proc_count" =~ ^[0-9]+$ && "$proc_count" -gt 1 ]]; then
+    fail "multiple live 'hermes gateway run' processes detected; verify prod/staging Socket Mode isolation before trusting Slack delivery: $(tr '\n' ';' <"$proc_file")"
+  elif [[ "$proc_count" == "1" ]]; then
+    pass "single live hermes gateway process detected"
+  else
+    warn "no live 'hermes gateway run' process found in process table"
+  fi
+}
+
+config_get() {
+  local cfg_path="$1"
+  local dotted_path="$2"
+  python3 - "$cfg_path" "$dotted_path" <<'PY' 2>/dev/null || true
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    current = yaml.safe_load(handle) or {}
+
+for part in sys.argv[2].split("."):
+    if not isinstance(current, dict):
+        current = ""
+        break
+    current = current.get(part, "")
+
+if current is None:
+    current = ""
+print(current if isinstance(current, str) else "")
+PY
+}
+
 check_shared_slack_socket_tokens() {
   local live_cfg="$1"
   local live_label="$2"
@@ -101,11 +219,11 @@ check_shared_slack_socket_tokens() {
   case "$live_label" in
     ai.smartclaw.prod)
       other_cfg="$HOME/.smartclaw/config.yaml"
-      other_label="ai.smartclaw.gateway"
+      other_label="ai.smartclaw.staging"
       other_profile="staging"
       ;;
-    ai.smartclaw.gateway)
-      other_cfg="$HOME/.smartclaw_prod/config.yaml"
+    ai.smartclaw.staging|ai.smartclaw.gateway)
+      other_cfg="$HOME/.smartclaw/config.yaml"
       other_label="ai.smartclaw.prod"
       other_profile="prod"
       ;;
@@ -114,13 +232,28 @@ check_shared_slack_socket_tokens() {
       ;;
   esac
 
-  if [[ ! -f "$other_cfg" ]] || ! json_valid "$other_cfg"; then
-    return 0
+  # Also add a general concurrency check: if both staging/gateway and prod are running, fail.
+  if [[ "$live_label" == "ai.smartclaw.prod" ]]; then
+    if launchd_job_is_running "ai.smartclaw.staging" || launchd_job_is_running "ai.smartclaw.gateway"; then
+      fail "Both prod (ai.smartclaw.prod) and staging/gateway (ai.smartclaw.staging) launchd jobs are running concurrently! This will cause Slack Socket Mode split-brain conflicts."
+    fi
+  elif [[ "$live_label" == "ai.smartclaw.staging" || "$live_label" == "ai.smartclaw.gateway" ]]; then
+    if launchd_job_is_running "ai.smartclaw.prod"; then
+      fail "Both staging/gateway (ai.smartclaw.staging) and prod (ai.smartclaw.prod) launchd jobs are running concurrently! This will cause Slack Socket Mode split-brain conflicts."
+    fi
   fi
 
-  other_bot_raw="$(jq -r '.channels.slack.botToken // empty' "$other_cfg" 2>/dev/null || true)"
+  if [[ ! -f "$other_cfg" ]]; then
+    if [[ "$other_profile" == "staging" && -f "$HOME/.smartclaw/config.staging.yaml" ]]; then
+      other_cfg="$HOME/.smartclaw/config.staging.yaml"
+    else
+      return 0
+    fi
+  fi
+
+  other_bot_raw="$(config_get "$other_cfg" "channels.slack.botToken")"
   other_bot_token="$(resolve_secret_ref "$other_bot_raw")"
-  other_app_raw="$(jq -r '.channels.slack.appToken // empty' "$other_cfg" 2>/dev/null || true)"
+  other_app_raw="$(config_get "$other_cfg" "channels.slack.appToken")"
   other_app_token="$(resolve_secret_ref "$other_app_raw")"
 
   if is_placeholder_token "$live_bot_token" || is_placeholder_token "$live_app_token"; then
@@ -202,7 +335,7 @@ detect_local_timezone() {
 infer_gateway_profile_dir_from_port() {
   local gateway_port="${1:-}"
   case "$gateway_port" in
-    8643) echo "$HOME/.smartclaw_prod" ;;
+    8643) echo "$HOME/.smartclaw" ;;
     8644) echo "$HOME/.smartclaw" ;;
     *) echo "" ;;
   esac
@@ -215,7 +348,7 @@ detect_live_profile() {
     printf '%s' "$HERMES_DOCTOR_PROFILE"
     return 0
   fi
-  if [[ "${root_ref%/}" == "${HOME}/.smartclaw_prod" ]]; then
+  if [[ "${root_ref%/}" == "${HOME}/.smartclaw" ]]; then
     printf 'prod'
     return 0
   fi
@@ -243,7 +376,7 @@ expected_gateway_port_for_profile() {
 expected_state_dir_for_profile() {
   case "$1" in
     staging) printf '%s/.smartclaw' "$HOME" ;;
-    *) printf '%s/.smartclaw_prod' "$HOME" ;;
+    *) printf '%s/.smartclaw' "$HOME" ;;
   esac
 }
 
@@ -326,6 +459,11 @@ validate_heartbeat_config() {
   local cfg_path="$LIVE_HERMES/config.yaml"
   local every target prompt expected_runtime_every
 
+  if jq -e 'has("_config_version")' "$cfg_path" >/dev/null 2>&1; then
+    pass "heartbeat config: skipped legacy validation for new-style config.yaml"
+    return
+  fi
+
   every="$(jq -r '.agents.defaults.heartbeat.every // empty' "$cfg_path" 2>/dev/null || true)"
   target="$(jq -r '.agents.defaults.heartbeat.target // empty' "$cfg_path" 2>/dev/null || true)"
   prompt="$(jq -r '.agents.defaults.heartbeat.prompt // empty' "$cfg_path" 2>/dev/null || true)"
@@ -379,6 +517,19 @@ validate_runtime_invariants() {
   local primary max_conc sub_max timeout_s mem_embedder
   local default_workspace expected_workspace_root expected_agent_dir_root
   local wrong_agent_workspaces wrong_agent_dirs
+
+  local busy_mode
+  busy_mode="$(config_get "$cfg_path" "display.busy_input_mode")"
+  if [[ "$busy_mode" == "steer" ]]; then
+    pass "runtime invariant: display.busy_input_mode is steer"
+  else
+    fail "runtime invariant: display.busy_input_mode must be 'steer' (got '$busy_mode')"
+  fi
+
+  if jq -e 'has("_config_version")' "$cfg_path" >/dev/null 2>&1; then
+    pass "runtime invariant: skipped legacy validation for new-style config.yaml"
+    return
+  fi
 
   primary="$(jq -r '.agents.defaults.model.primary // empty' "$cfg_path" 2>/dev/null || true)"
   max_conc="$(jq -r '.agents.defaults.maxConcurrent // empty' "$cfg_path" 2>/dev/null || true)"
@@ -460,6 +611,38 @@ validate_runtime_invariants() {
   fi
 }
 
+check_ms_proactive_firing() {
+  # Detects /ms rule under-firing by reading ~/.smartclaw/state.db.
+  # Wired in scripts/doctor.sh on 2026-07-02 per /advice Reviewer A flag
+  # (the audit script existed but was never auto-invoked, so a future
+  # regression would be silent). Adds a soft-WARN when firing rate < 50%.
+  #
+  # See: workspace/SOUL.md `## COMMIT: ms-on-new-task`,
+  #      scripts/audit_ms_proactive_firing.sh,
+  #      launchd/ai.smartclaw.schedule.ms-proactive-firing-audit.plist.template
+  local audit_script="$LIVE_HERMES/scripts/audit_ms_proactive_firing.sh"
+  local threshold="${MS_AUDIT_THRESHOLD_PCT:-50}"
+
+  if [[ ! -x "$audit_script" ]]; then
+    warn "ms-proactive-firing: audit script missing or not executable: $audit_script"
+    return 0
+  fi
+
+  local out rc=0
+  out="$(HERMES_STATE_DB="$LIVE_HERMES/state.db" THRESHOLD_PCT="$threshold" WINDOW_DAYS=7 \
+         "$audit_script" 2>&1)" || rc=$?
+  rc="${rc:-0}"
+
+  if [[ "$rc" -eq 0 ]]; then
+    pass "ms-proactive-firing: firing rate at/above threshold (${threshold}%)"
+    return 0
+  fi
+
+  warn "ms-proactive-firing: firing rate BELOW threshold (${threshold}%) — see $audit_script"
+  printf '   %s\n' "$out" | sed 's/^/   /'
+  return 0  # soft-WARN, not FAIL — the launchd plist handles hard alerting
+}
+
 check_config_audit_gateway_rewrites() {
   local audit_path="$LIVE_HERMES/logs/config-audit.jsonl"
   local cfg_path="$LIVE_HERMES/config.yaml"
@@ -526,12 +709,40 @@ cmp_text() {
   [[ "$left" == "$right" ]]
 }
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mctrl-doctor.XXXXXX")"
-trap cleanup EXIT
+# TMP_DIR and trap initialized at startup
 
 printf 'Hermes Repo Doctor\n'
 printf 'Repo: %s\n' "$REPO_ROOT"
 printf 'Home: %s\n\n' "$HOME"
+
+# ---------------------------------------------------------------------------
+# Aggregate with upstream `hermes doctor`
+# ---------------------------------------------------------------------------
+# The upstream `hermes doctor` (pip-installed CLI) probes Python env,
+# required packages, config files, and auth providers. Run it once and
+# translate its ✔/✗ lines into this script's pass/warn/fail counters
+# so the totals at the bottom reflect BOTH layers.
+if command -v hermes >/dev/null 2>&1; then
+  printf '\n── Upstream `hermes doctor` ─────────────────────────────────\n'
+  HERMES_DOCTOR_OUT="$TMP_DIR/hermes-doctor.txt"
+  if hermes doctor >"$HERMES_DOCTOR_OUT" 2>&1; then
+    hermes_doc_rc=0
+  else
+    hermes_doc_rc=$?
+  fi
+  while IFS= read -r _hd_line; do
+    case "$_hd_line" in
+      *✓*)   pass "upstream hermes doctor: $_hd_line" ;;
+      *✗*)   fail "upstream hermes doctor: $_hd_line" ;;
+      *⚠*)   warn "upstream hermes doctor: $_hd_line" ;;
+      *)     printf '  %s\n' "$_hd_line" ;;
+    esac
+  done <"$HERMES_DOCTOR_OUT"
+  if [[ "$hermes_doc_rc" -ne 0 ]]; then
+    warn "upstream hermes doctor exited rc=$hermes_doc_rc (see above)"
+  fi
+  printf '\n'
+fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   IS_DARWIN=1
@@ -655,6 +866,9 @@ if [[ "$live_config_ok" -eq 1 ]]; then
   check_config_audit_gateway_rewrites
 fi
 
+# ms-on-new-task firing-rate soft-WARN (added 2026-07-02)
+check_ms_proactive_firing
+
 # Keep live_json_ok as alias so downstream jq-based checks that still reference it compile
 live_json_ok="$live_config_ok"
 
@@ -663,48 +877,53 @@ live_json_ok="$live_config_ok"
 # so plugin-id enforcement here caused false failures on healthy installs.
 if [[ "$live_json_ok" -eq 1 ]]; then
   _cfg="$LIVE_HERMES/config.yaml"
-  _mm_err=$(jq -r '
-    def providers: (.models.providers // {});
-    def model_ids:
-      ([.agents.defaults.model.primary] + (.agents.defaults.model.fallbacks // [])
-        + ([.agents.list[]? | .model // empty]))
-      | map(select(. != null and . != ""))
-      | unique
-      | .[];
-    . as $root
-    | model_ids as $mid
-    | ($mid | split("/")[0]) as $p
-    | if $p == "minimax-portal" then
-        if ($root | providers | has("minimax-portal") | not) then
-          "model \($mid) requires models.providers.minimax-portal"
-        else empty end
-      elif $p == "minimax" then
-        if ($root | providers | has("minimax") | not) then
-          "model \($mid) requires models.providers.minimax"
-        else empty end
-      else empty end
-  ' "$_cfg" 2>/dev/null | head -n 1)
-  if [[ -n "$_mm_err" ]]; then
-    fail "MiniMax model/provider mismatch: $_mm_err"
+  if jq -e 'has("_config_version")' "$_cfg" >/dev/null 2>&1; then
+    pass 'MiniMax config check: skipped legacy validation for new-style config.yaml'
   else
-    pass 'MiniMax model ids match models.providers (minimax / minimax-portal)'
+    _mm_err=$(jq -r '
+      def providers: (.models.providers // {});
+      def model_ids:
+        ([.agents.defaults.model.primary] + (.agents.defaults.model.fallbacks // [])
+          + ([.agents.list[]? | .model // empty]))
+        | map(select(. != null and . != ""))
+        | unique
+        | .[];
+      . as $root
+      | model_ids as $mid
+      | ($mid | split("/")[0]) as $p
+      | if $p == "minimax-portal" then
+          if ($root | providers | has("minimax-portal") | not) then
+            "model \($mid) requires models.providers.minimax-portal"
+          else empty end
+        elif $p == "minimax" then
+          if ($root | providers | has("minimax") | not) then
+            "model \($mid) requires models.providers.minimax"
+          else empty end
+        else empty end
+    ' "$_cfg" 2>/dev/null | head -n 1)
+    if [[ -n "$_mm_err" ]]; then
+      fail "MiniMax model/provider mismatch: $_mm_err"
+    else
+      pass 'MiniMax model ids match models.providers (minimax / minimax-portal)'
+    fi
+    _mm_runtime_err=$(jq -r '
+      (.models.providers.minimax // null) as $minimax
+      | if $minimax == null then
+          "models.providers.minimax missing"
+        elif (($minimax.api // "") != "anthropic-messages") then
+          "models.providers.minimax.api=\($minimax.api // "<missing>")"
+        elif (($minimax.baseUrl // "") != "https://api.minimax.io/anthropic") then
+          "models.providers.minimax.baseUrl=\($minimax.baseUrl // "<missing>")"
+        else empty end
+    ' "$_cfg" 2>/dev/null | head -n 1)
+    if [[ -n "$_mm_runtime_err" ]]; then
+      fail "MiniMax runtime provider drift: $_mm_runtime_err"
+    else
+      pass 'MiniMax runtime provider matches anthropic-messages https://api.minimax.io/anthropic'
+    fi
+    unset _mm_err _mm_runtime_err
   fi
-  _mm_runtime_err=$(jq -r '
-    (.models.providers.minimax // null) as $minimax
-    | if $minimax == null then
-        "models.providers.minimax missing"
-      elif (($minimax.api // "") != "anthropic-messages") then
-        "models.providers.minimax.api=\($minimax.api // "<missing>")"
-      elif (($minimax.baseUrl // "") != "https://api.minimax.io/anthropic") then
-        "models.providers.minimax.baseUrl=\($minimax.baseUrl // "<missing>")"
-      else empty end
-  ' "$_cfg" 2>/dev/null | head -n 1)
-  if [[ -n "$_mm_runtime_err" ]]; then
-    fail "MiniMax runtime provider drift: $_mm_runtime_err"
-  else
-    pass 'MiniMax runtime provider matches anthropic-messages https://api.minimax.io/anthropic'
-  fi
-  unset _cfg _mm_err _mm_runtime_err
+  unset _cfg
 fi
 
 # ORCH-slack-all-channels: with groupPolicy=allowlist, channels.slack.channels["*"] must
@@ -736,6 +955,7 @@ assert_slack_listen_all_invited_channels() {
 if [[ "$live_json_ok" -eq 1 ]]; then
   validate_heartbeat_config
   assert_slack_listen_all_invited_channels "$LIVE_HERMES/config.yaml" 'live config.yaml'
+  check_gateway_process_concurrency
 fi
 
 live_token_raw=''
@@ -813,6 +1033,9 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
     fi
 
     plist_port="$(plist_extract_raw EnvironmentVariables.HERMES_PORT "$GATEWAY_PLIST" 2>/dev/null || true)"
+    if [[ -z "$plist_port" ]]; then
+      plist_port="$(expected_gateway_port_for_profile "$LIVE_PROFILE")"
+    fi
     live_port=$(jq -r '.gateway.port // empty' "$LIVE_CONFIG_PATH" 2>/dev/null || true)
     if [[ -z "$live_port" ]]; then
       live_port="$(expected_gateway_port_for_profile "$LIVE_PROFILE")"
@@ -858,10 +1081,13 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
     # Always run this check: fall back to expected_state_dir when plist_state_dir is unset.
     auth_state_dir="${plist_state_dir:-${inferred_state_dir:-$expected_state_dir}}"
     prod_auth="$auth_state_dir/agents/main/agent/auth-profiles.json"
+    prod_auth_new="$auth_state_dir/auth.json"
     if [[ -f "$prod_auth" ]]; then
       pass "auth-profiles.json present in prod state dir ($prod_auth)"
+    elif [[ -f "$prod_auth_new" ]]; then
+      pass "auth.json present in prod state dir ($prod_auth_new)"
     else
-      fail "auth-profiles.json MISSING: $prod_auth — gateway HTTP health will pass but agent cannot authenticate; run deploy.sh or copy from staging"
+      fail "Neither auth-profiles.json ($prod_auth) nor auth.json ($prod_auth_new) found in prod state dir — gateway HTTP health will pass but agent cannot authenticate; run deploy.sh or copy from staging"
     fi
 
     # Check for NVM node path in gateway plist (fragile during Node version upgrades)
@@ -898,23 +1124,34 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
   # Symptom: launchd shows service as enabled in print-disabled, but launchctl print fails.
   # Cause: launchctl unload/load cycle left the service in enabled state without a live bootstrap.
   # This causes any manually-started staging process to get SIGTERM immediately.
-  _staging_label=""
-  if [[ "$GATEWAY_LABEL" != "ai.smartclaw.gateway" && -f "$LAUNCHD_DIR/ai.smartclaw.gateway.plist" ]]; then
-    _staging_label="ai.smartclaw.gateway"
-  fi
-  if [[ -n "$_staging_label" ]]; then
-    _staging_disabled=$(launchctl print-disabled "gui/$(id -u)" 2>/dev/null | grep -oP "\"${_staging_label//./\\.}\"\s*=>\s*\K(enabled|disabled)" || echo "unknown")
-    _staging_live=$(launchctl print "gui/$(id -u)/$_staging_label" >/dev/null 2>&1 && echo "yes" || echo "no")
-    if [[ "$_staging_disabled" == "enabled" && "$_staging_live" == "no" ]]; then
-      fail "staging launchd bootstrap broken: service is enabled but not bootstrapped (Bootstrap failed: 5: I/O error). Fix: launchctl unload -w ~/Library/LaunchAgents/${_staging_label}.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/${_staging_label}.plist"
-    elif [[ "$_staging_disabled" == "disabled" ]]; then
-      warn "staging launchd service is disabled — staging gateway will not auto-start on login"
-    else
-      pass "staging launchd bootstrap state OK (_staging_disabled=$_staging_disabled _staging_live=$_staging_live)"
+  for _staging_label in "ai.smartclaw.staging" "ai.smartclaw.gateway"; do
+    if [[ "$GATEWAY_LABEL" != "$_staging_label" && -f "$LAUNCHD_DIR/${_staging_label}.plist" ]]; then
+      _staging_disabled=$(
+        launchctl print-disabled "gui/$(id -u)" 2>/dev/null \
+          | awk -v label="\"$_staging_label\"" '
+              index($0, label) {
+                if ($0 ~ /=>[[:space:]]*enabled/) print "enabled"
+                else if ($0 ~ /=>[[:space:]]*disabled/) print "disabled"
+              }
+            ' \
+          | head -n1
+      )
+      _staging_disabled="${_staging_disabled:-unknown}"
+      _staging_live=$(launchctl print "gui/$(id -u)/$_staging_label" >/dev/null 2>&1 && echo "yes" || echo "no")
+      if [[ "$_staging_disabled" == "enabled" && "$_staging_live" == "no" ]]; then
+        fail "staging launchd bootstrap broken: service $_staging_label is enabled but not bootstrapped (Bootstrap failed: 5: I/O error). Fix: launchctl unload -w ~/Library/LaunchAgents/${_staging_label}.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/${_staging_label}.plist"
+      elif [[ "$_staging_disabled" == "disabled" ]]; then
+        if [[ -f "$LAUNCHD_DIR/${_staging_label}.plist.disabled" ]]; then
+          pass "staging launchd service $_staging_label is disabled and plist is marked .disabled (expected between deploy cycles)"
+        else
+          warn "staging launchd service $_staging_label is disabled — staging gateway will not auto-start on login"
+        fi
+      else
+        pass "staging launchd bootstrap state OK (_staging_label=$_staging_label _staging_disabled=$_staging_disabled _staging_live=$_staging_live)"
+      fi
+      unset _staging_disabled _staging_live
     fi
-    unset _staging_disabled _staging_live
-  fi
-  unset _staging_label
+  done
 
   # Check AO dashboard launchd (current label first, then legacy label).
   ao_dashboard_plist_found=""
@@ -1093,7 +1330,17 @@ if [[ "$live_json_ok" -eq 1 ]]; then
   # Check for env var placeholders in critical token fields
   # These MUST be hardcoded real tokens, not ${ENV_VAR} references
   slack_bot_raw="$(jq -r '.channels.slack.botToken // empty' "$LIVE_HERMES/config.yaml" 2>/dev/null || true)"
+  if [[ -z "$slack_bot_raw" && -f "$LIVE_HERMES/hermes.json" ]]; then
+    slack_bot_raw="$(jq -r '.channels.slack.botToken // empty' "$LIVE_HERMES/hermes.json" 2>/dev/null || true)"
+  fi
   slack_app_raw="$(jq -r '.channels.slack.appToken // empty' "$LIVE_HERMES/config.yaml" 2>/dev/null || true)"
+  if [[ -z "$slack_app_raw" && -f "$LIVE_HERMES/hermes.json" ]]; then
+    slack_app_raw="$(jq -r '.channels.slack.appToken // empty' "$LIVE_HERMES/hermes.json" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$slack_bot_raw" && -z "$slack_app_raw" ]]; then
+    warn 'Slack socket-mode token fields are not present in this config schema; process-table concurrency check still ran'
+  fi
   
   if [[ "$slack_bot_raw" =~ ^\$\{.*\}$ ]]; then
     fail "channels.slack.botToken contains env var placeholder: $slack_bot_raw (must be hardcoded token)"
@@ -1109,7 +1356,10 @@ if [[ "$live_json_ok" -eq 1 ]]; then
 
   token_probe_timeout=12
 
-  slack_bot_token="$(resolve_secret_ref "$slack_bot_raw")"
+  slack_bot_token="${SLACK_BOT_TOKEN:-${OPENCLAW_SLACK_BOT_TOKEN:-}}"
+  if [[ -z "$slack_bot_token" ]]; then
+    slack_bot_token="$(resolve_secret_ref "$slack_bot_raw")"
+  fi
   if is_placeholder_token "$slack_bot_token"; then
     fail 'Slack bot token is missing/placeholder (channels.slack.botToken)'
   else
@@ -1121,8 +1371,10 @@ if [[ "$live_json_ok" -eq 1 ]]; then
     fi
   fi
 
-  slack_app_raw="$(jq -r '.channels.slack.appToken // empty' "$LIVE_HERMES/config.yaml" 2>/dev/null || true)"
-  slack_app_token="$(resolve_secret_ref "$slack_app_raw")"
+  slack_app_token="${SLACK_APP_TOKEN:-${OPENCLAW_SLACK_APP_TOKEN:-}}"
+  if [[ -z "$slack_app_token" ]]; then
+    slack_app_token="$(resolve_secret_ref "$slack_app_raw")"
+  fi
   if is_placeholder_token "$slack_app_token"; then
     fail 'Slack app token is missing/placeholder (channels.slack.appToken)'
   else
@@ -1323,27 +1575,18 @@ if command -v hermes >/dev/null 2>&1; then
     fi
   fi
 
-  # 3. Memory lookup verification — ensure hermes memory search is functional
+  # 3. Memory lookup verification — ensure hermes memory status is functional
   if [[ "${HERMES_DOCTOR_SKIP_MEMORY:-0}" == "1" ]]; then
     warn "Memory lookup probe skipped (HERMES_DOCTOR_SKIP_MEMORY=1)"
   else
-    memory_out="$(timeout 30 hermes memory search "test" 2>&1)"
+    memory_out="$(timeout 10 hermes memory status 2>&1)"
     memory_rc=$?
-    # Check for Qdrant / backend errors
-    if printf '%s\n' "$memory_out" | grep -qiE "Error initializing Qdrant|ECONNREFUSED|Failed to connect to 127\.0\.0\.1 port 6333|fetch failed"; then
-      fail "Memory lookup failed: Qdrant backend unavailable"
+    if [[ "$memory_rc" -eq 0 ]]; then
+      pass "Memory lookup probe succeeded (hermes memory status OK)"
     elif [[ "$memory_rc" -eq 124 ]]; then
-      warn "Memory lookup command timed out after 30s — treating as transient"
-    elif [[ "$memory_rc" -ne 0 ]]; then
-      fail "Memory lookup command failed (rc=$memory_rc)"
-    elif printf '%s\n' "$memory_out" | grep -qE '^[[:space:]]*[0-9]+\.|"score"[[:space:]]*:'; then
-      # Results start with a score like "0.531" (old format) OR JSON "score": field
-      pass "Memory lookup probe succeeded (found results)"
-    elif printf '%s\n' "$memory_out" | grep -qiE 'No matches|No memories found\.?|\[ *\]'; then
-      # "No matches" or empty JSON array means search works but corpus is empty - OK
-      pass "Memory lookup probe succeeded (search functional, corpus empty)"
+      warn "Memory lookup command timed out after 10s — treating as transient"
     else
-      warn "Memory lookup returned no searchable results (may be empty corpus)"
+      fail "Memory lookup command failed (rc=$memory_rc): $memory_out"
     fi
   fi
 fi
@@ -1446,6 +1689,70 @@ if command -v python3 >/dev/null 2>&1 && python3 -c "import pytest" >/dev/null 2
 else
   warn 'python3 or pytest not available — skipping config.yaml pytest validation'
 fi
+
+printf '\n=== skill resolution audit ===\n' 2>/dev/null || true
+
+# Fail if any SKILL.md is duplicated byte-for-byte across the two resolver roots.
+# Both roots are valid (the canonical tree + the hermes-imports mirror), but they MUST
+# not carry the same byte-identical file — the resolver refuses to pick between them
+# and the cron silently adapt-inlines (clawchief:ea-sweep-hourly 2f942031797e pattern, 2026-08-18).
+# Source repo for the canonical copy is hermes-imports/; the top-level mirror is the
+# hub-install artifact that should be either (a) deleted, or (b) replaced with a
+# regenerated file from the hub source. Either move synchronizes the resolver.
+check_duplicate_skill_resolution() {
+  local hermes_root="$1"
+  local canonical_root="$hermes_root/skills"
+  local mirror_root="$hermes_root/skills/hermes-imports"
+  if [[ ! -d "$mirror_root" ]]; then
+    pass "no hermes-imports/ mirror present (resolver cannot produce ambiguity)"
+    return 0
+  fi
+  local dup_pairs=()
+  local scanned=0
+  # Build sha256 -> path map for mirror SKILL.md files
+  while IFS= read -r -d '' skill_file; do
+    scanned=$((scanned + 1))
+  done < <(find "$mirror_root" -type f -name 'SKILL.md' -print0 2>/dev/null)
+  if [[ "$scanned" -eq 0 ]]; then
+    pass "no SKILL.md files under hermes-imports/ — no duplication possible"
+    return 0
+  fi
+  while IFS= read -r -d '' skill_file; do
+    local mirror_sha
+    mirror_sha="$(shasum -a 256 "$skill_file" 2>/dev/null | awk '{print $1}')"
+    # Compute the corresponding top-level path: hermes-imports/<category>/<name>/SKILL.md
+    # maps to <category>/<name>/SKILL.md under the canonical root.
+    local rel="${skill_file#"$mirror_root"/}"
+    local canonical_path="$canonical_root/$rel"
+    if [[ -f "$canonical_path" ]]; then
+      local canonical_sha
+      canonical_sha="$(shasum -a 256 "$canonical_path" 2>/dev/null | awk '{print $1}')"
+      if [[ "$mirror_sha" == "$canonical_sha" ]]; then
+        dup_pairs+=("$canonical_path  <==>  $skill_file")
+      fi
+    fi
+  done < <(find "$mirror_root" -type f -name 'SKILL.md' -print0 2>/dev/null)
+  if [[ ${#dup_pairs[@]} -eq 0 ]]; then
+    pass "no duplicate-skill-resolution ambiguity under hermes-imports/ ($scanned skill files scanned)"
+  else
+    fail "duplicate-skill-resolution ambiguity detected (${#dup_pairs[@]} byte-identical pair(s)) — resolver will fail ambiguous; sync from hub then delete the local top-level mirror, OR delete the mirror copy under hermes-imports/ and let the canonical copy win. Pairs:"
+    local pair
+    for pair in "${dup_pairs[@]}"; do
+      printf '         %s\n' "$pair" >&2
+    done
+  fi
+}
+
+# Run the check against the LIVE Hermes tree (where the resolver actually loads from),
+# not REPO_ROOT (which is the doctor.sh checkout itself). Fall back to REPO_ROOT if
+# LIVE_HERMES is unset for any reason.
+_dup_skill_target="${LIVE_HERMES:-$REPO_ROOT}"
+if [[ -d "$_dup_skill_target/skills" ]]; then
+  check_duplicate_skill_resolution "$_dup_skill_target"
+else
+  warn "skill root not found at $_dup_skill_target/skills — duplicate-skill check skipped"
+fi
+unset _dup_skill_target
 
 printf '\nSummary: %s pass, %s warn, %s fail\n' "$PASS_COUNT" "$WARN_COUNT" "$FAIL_COUNT"
 

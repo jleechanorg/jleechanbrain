@@ -6,7 +6,7 @@ set -u
 
 HERMES_BIN="${HERMES_BIN:-hermes}"
 HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-${HOME}/.smartclaw}"
-HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.smartclaw_prod}"
+HERMES_PROD_HOME="${HERMES_PROD_HOME:-${HOME}/.smartclaw}"
 
 PASS=0
 FAIL=0

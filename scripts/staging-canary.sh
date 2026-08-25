@@ -78,12 +78,12 @@ fi
 # ── Check 2: Config schema validation (no unrecognized keys) ──
 echo "[2/9] Config schema validation..."
 # Staging gateway (8644) uses ~/.smartclaw/config.staging.yaml.
-# Architecture: ~/.smartclaw/ = staging (8644), ~/.smartclaw_prod/ = production (8643)
+# Architecture: ~/.smartclaw/ = staging (8644), ~/.smartclaw/ = production (8643)
 # Explicit override (CI / custom layouts)
 if [[ -n "${HERMES_STAGING_CONFIG:-}" ]]; then
     CONFIG_FILE="$HERMES_STAGING_CONFIG"
 elif [[ "$PORT" == "8643" ]]; then
-    CONFIG_FILE="$HOME/.smartclaw_prod/config.yaml"
+    CONFIG_FILE="$HOME/.smartclaw/config.yaml"
 elif [[ "$PORT" == "8644" ]]; then
     CONFIG_FILE="$HOME/.smartclaw/config.staging.yaml"
 else
@@ -256,9 +256,9 @@ else
 fi
 
 # ── Check 7: Stale session locks ──
-# Derive state dir from port: prod port (~/.smartclaw_prod), else staging (~/.smartclaw)
+# Derive state dir from port: prod port (~/.smartclaw), else staging (~/.smartclaw)
 if [[ "$PORT" == "$PROD_PORT" ]]; then
-    SESSION_DIR="$HOME/.smartclaw_prod/agents/main/sessions"
+    SESSION_DIR="$HOME/.smartclaw/agents/main/sessions"
 else
     SESSION_DIR="$HOME/.smartclaw/agents/main/sessions"
 fi
@@ -289,7 +289,7 @@ fi
 # Derive state dir from port (same logic as Check 7).
 # PROD_PORT defined at top of script; use it here for custom deployment support.
 if [[ "$PORT" == "$PROD_PORT" ]]; then
-    AUTH_DIR="$HOME/.smartclaw_prod/agents/main/agent"
+    AUTH_DIR="$HOME/.smartclaw/agents/main/agent"
 else
     AUTH_DIR="$HOME/.smartclaw/agents/main/agent"
 fi

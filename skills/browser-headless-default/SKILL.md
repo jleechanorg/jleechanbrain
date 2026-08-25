@@ -12,10 +12,13 @@ context: hermes
 
 **Default: headless always.** Jeffrey's Mac is not a demo kiosk — do not pop Chrome windows during agent work.
 
+**Primary tool (2026-06-27):** **Aside browser** (`aside` CLI / `aside-mcp`). Use it first for all browser work. This skill is the fallback for Playwright MCP / superpowers-chrome paths.
+
 | Tool | Default | Forbidden unless explicit user opt-in |
 |------|---------|--------------------------------------|
-| **Playwright MCP** | headless | headed / `headless: false` |
-| **superpowers-chrome** (`chrome_use_browser`) | headless (`hide_browser`, `browser_mode` → `headless: true`) | `show_browser`, headed restart |
+| **Aside CLI / `aside-mcp`** | **PRIMARY** — headless or headed per task; verify with `aside account list` | nothing (Aside is the default) |
+| **Playwright MCP** | fallback, headless | headed / `headless: false` |
+| **superpowers-chrome** (`chrome_use_browser`) | fallback, headless (`hide_browser`, `browser_mode` → `headless: true`) | `show_browser`, headed restart |
 | **claude-in-chrome / GUI Chrome** | do not use for localhost | driving Jeffrey's visible Chrome for automation |
 
 **Explicit opt-in phrases only:** Jeffrey says *"show browser"*, *"headed mode"*, *"visible browser"*, or *"I want to see the window"* in the **current thread**.

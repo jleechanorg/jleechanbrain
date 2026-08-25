@@ -27,8 +27,8 @@ if command -v gh &>/dev/null && gh auth status &>/dev/null; then
 else
   AUTH="git"
   if [ -z "$GITHUB_TOKEN" ]; then
-    if [ -f ~/.smartclaw/.env ] && grep -q "^GITHUB_TOKEN=" ~/.smartclaw/.env; then
-      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.smartclaw/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
+    if _hermes_env="${HERMES_HOME:-$HOME/.smartclaw}/.env"; [ -f "$_hermes_env" ] && grep -q "^GITHUB_TOKEN=" "$_hermes_env"; then
+      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" "$_hermes_env" | head -1 | cut -d= -f2 | tr -d '\n\r')
     elif grep -q "github.com" ~/.git-credentials 2>/dev/null; then
       GITHUB_TOKEN=$(grep "github.com" ~/.git-credentials 2>/dev/null | head -1 | sed 's|https://[^:]*:\([^@]*\)@.*|\1|')
     fi
@@ -471,7 +471,7 @@ curl -s -X POST \
 **With gh:**
 
 ```bash
-gh gist create script.py --public --desc "Useful script"
+~/.smartclaw/scripts/gh-safe-publish gist create script.py --public --desc "Useful script"
 gh gist list
 ```
 

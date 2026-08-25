@@ -3,7 +3,7 @@
 #
 # Architecture:
 #   ~/.smartclaw/      = staging repo (git checkout)
-#   ~/.smartclaw_prod/ = production runtime dir (port 8643)
+#   ~/.smartclaw/ = production runtime dir (port 8643)
 #
 # Flow:
 #   1. Print banner (timestamp, branch, remote)
@@ -14,7 +14,13 @@
 #        staging to prod so the running gateway reads the latest rules.
 #        Skipped with --no-sync. Drift is the jleechan-pcah class of
 #        silent policy degradation.
+#   4.6. Sync skills tree (~/.smartclaw/skills/ → ~/.smartclaw/skills/).
+#        Add-only (no --delete) so hub-installed prod skills survive.
+#        Excludes runtime artifacts (__pycache__, .usage.json, etc).
 #   5. Run canary — fail deploy if canary fails
+#   5.5. Warn on policy-file drift between staging and prod (non-blocking)
+#   5.5b. Warn on skills-tree drift between staging and prod (non-blocking)
+#   5.6. Warn on cron/launchd drift between staging and prod (non-blocking)
 #   6. Print success with HEAD SHA
 #
 # Usage:
@@ -38,7 +44,11 @@ SKIP_SYNC=0
 # Policy files that the gateway reads at startup; must match between staging
 # and prod so the agent sees the latest rules on the very next restart.
 POLICY_FILES=(CLAUDE.md SOUL.md TOOLS.md HEARTBEAT.md)
-PROD_DIR="$HOME/.smartclaw_prod"
+PROD_DIR="$HOME/.smartclaw"
+SINGLE_DIR_MODE=0
+if [[ "$(cd "$REPO_DIR" && pwd -P)" == "$(mkdir -p "$PROD_DIR"; cd "$PROD_DIR" && pwd -P)" ]]; then
+  SINGLE_DIR_MODE=1
+fi
 
 for arg in "$@"; do
   case "$arg" in
@@ -67,7 +77,7 @@ REMOTE="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || echo 'unknown'
 echo "  Repo   : $REPO_DIR"
 echo "  Branch : $BRANCH"
 echo "  Remote : $REMOTE"
-echo "  Prod   : $HOME/.smartclaw_prod  (port $PROD_PORT)"
+echo "  Prod   : $HOME/.smartclaw  (port $PROD_PORT)"
 echo "  Label  : $LAUNCHD_LABEL"
 
 # ── Stage 2: Git pull ──────────────────────────────────────────────────────────
@@ -163,14 +173,17 @@ fi
 
 # ── Stage 4.5: Policy-file sync (staging → prod) ─────────────────────────────
 # Auto-syncs CLAUDE.md/SOUL.md/TOOLS.md/HEARTBEAT.md from staging
-# (~/.smartclaw/<file>) to prod (~/.smartclaw_prod/<file>) when they differ.
+# (~/.smartclaw/<file>) to prod (~/.smartclaw/<file>) when they differ.
 # Solves jleechan-pcah class: rule lands in main → deploys to staging → but
 # the running prod gateway keeps reading the old prod copy. Skipped with
 # --no-sync. Runs after Stage 4 restart so the canary in Stage 5 validates
 # the post-sync state — i.e. tests what the gateway will read on next read.
-if [[ "$SKIP_SYNC" -eq 1 ]]; then
+if [[ "$SINGLE_DIR_MODE" -eq 1 ]]; then
+  section "Stage 4.5: Policy Sync (single-dir)"
+  echo "[single-dir] Canonical repo and runtime are both $PROD_DIR; no policy copy needed."
+elif [[ "$SKIP_SYNC" -eq 1 ]]; then
   section "Stage 4.5: Policy Sync (skipped)"
-  echo "[no-sync] Skipping policy-file sync to ~/.smartclaw_prod/."
+  echo "[no-sync] Skipping policy-file sync to ~/.smartclaw/."
 else
   section "Stage 4.5: Policy Sync → $PROD_DIR"
   SYNCED=0
@@ -211,52 +224,170 @@ else
   fi
 fi
 
-# ── Stage 5: Canary ────────────────────────────────────────────────────────────
-# Canary races documented (all transient, LLM pipeline healthy on retry):
-#   - hermes-canary.sh cron posts its daily-thread anchor simultaneously,
-#     competing for the bot's first response slot. Manual retry at 2026-06-17
-#     18:41:19Z returned the exact nonce in 7.3s.
+# ── Stage 4.6: Skills sync (staging → prod) ──────────────────────────────────
+# Mirrors the canonical skills tree from ~/.smartclaw/skills/ (git-tracked) to
+# ~/.smartclaw/skills/ (runtime). Closes the skill_manage write-target drift
+# where prod-profile agent sessions wrote skills to ~/.smartclaw/skills/ and
+# they never made it into git (silent data loss in the deploy pipeline). Now
+# that skill_manage is pinned to ~/.smartclaw/skills/ (see jleechanorg/hermes-agent
+# PR #34), this stage propagates author-side skill edits to the runtime tree.
+#
+# We use rsync for efficient delta copy: only changed files transfer, large
+# SKILL.md files (60K+) only resync when their content actually changes.
+# Runtime-only artifacts (__pycache__/, .usage.json, .curator_backups/) are
+# excluded — those are owned by the prod gateway process, not git.
+#
+# CRITICAL: NO --delete. Prod has many skills (354 SKILL.md files vs 188 in
+# staging) that come from the hermes skills hub, AO worker imports, and other
+# runtime sources — they are not in this git repo by design. Using --delete
+# would wipe out 166+ prod skills on every deploy. Add-only sync is the
+# correct default; skills removed from the repo can be cleaned up out-of-band
+# via `hermes skills hub remove` or manual rmdir.
+if [[ "$SINGLE_DIR_MODE" -eq 1 ]]; then
+  section "Stage 4.6: Skills Sync (single-dir)"
+  echo "[single-dir] Canonical repo and runtime are both $PROD_DIR; no skills rsync needed."
+elif [[ "$SKIP_SYNC" -eq 1 ]]; then
+  section "Stage 4.6: Skills Sync (skipped)"
+  echo "[no-sync] Skipping skills sync to ~/.smartclaw/."
+else
+  section "Stage 4.6: Skills Sync → $PROD_DIR/skills"
+  STAGING_SKILLS="$REPO_DIR/skills"
+  PROD_SKILLS="$PROD_DIR/skills"
+  if [[ ! -d "$STAGING_SKILLS" ]]; then
+    echo "  [skip] $STAGING_SKILLS does not exist"
+  else
+    mkdir -p "$PROD_SKILLS"
+    # rsync excludes runtime-only artifacts:
+    #   __pycache__/   — Python bytecode cache (regenerated on first import)
+    #   .usage.json    — skill-usage telemetry (managed by curator, not git)
+    #   .curator_backups/ — auto-curator backups (managed by curator, not git)
+    # -c forces checksum-based change detection (NOT mtime) so a `git checkout`
+    # that updates mtime without changing content does NOT spuriously re-copy.
+    # NO --delete: prod skills not in staging (hub installs, AO imports) must
+    # survive the deploy. See Stage 4.6 header comment for the full rationale.
+    if rsync -a -c \
+          --exclude='__pycache__' \
+          --exclude='.usage.json' \
+          --exclude='.curator_backups' \
+          "$STAGING_SKILLS/" "$PROD_SKILLS/" 2>&1 | head -50; then
+      STAGING_COUNT=$(find "$STAGING_SKILLS" -name SKILL.md -type f 2>/dev/null | wc -l | tr -d ' ')
+      PROD_COUNT=$(find "$PROD_SKILLS" -name SKILL.md -type f 2>/dev/null | wc -l | tr -d ' ')
+      PROD_ONLY_COUNT=$(( PROD_COUNT > STAGING_COUNT ? PROD_COUNT - STAGING_COUNT : 0 ))
+      echo "  Skills in sync: staging=$STAGING_COUNT  prod=$PROD_COUNT  (prod-only=$PROD_ONLY_COUNT from hub/imports)"
+      if [[ "$STAGING_COUNT" -gt "$PROD_COUNT" ]]; then
+        echo "WARN: prod has fewer skills than staging — investigate (staging=$STAGING_COUNT prod=$PROD_COUNT)" >&2
+      fi
+    else
+      echo "  [FAIL] rsync failed" >&2
+      die "Stage 4.6 skills sync failed — aborting deploy."
+    fi
+  fi
+fi
+
+# ── Stage 5: Health Check ──────────────────────────────────────────────────────
+# Health check/restart races documented (all transient, local webserver healthy on retry):
 #   - SlackSocket event-loop saturation under gateway restart.
 # One retry with 30s backoff absorbs these without false-positive deploy
 # failures. If the second attempt also fails, the gateway is genuinely
 # unhealthy and the deploy must halt.
-section "Stage 5: Canary Check"
-if HERMES_CANARY_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-canary.sh"; then
-  echo "Canary passed."
-else
-  echo "Canary failed on first attempt — waiting 30s before retry (race recovery)."
-  sleep 30
-  if HERMES_CANARY_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-canary.sh"; then
-    echo "Canary passed on retry."
-  else
-    die "Canary failed twice — production gateway may be unhealthy. Check logs."
-  fi
-fi
+section "Stage 5: Health Check"
+# hermes-health.sh returns:
+#   exit 0 = HEALTHY (no warnings, no failures)
+#   exit 1 = DEGRADED (warnings only, e.g. loadavg elevated — NOT a real failure)
+#   exit 2 = DOWN (one or more failures)
+# Only DOWN should halt the deploy. DEGRADED passes with a visible WARN so the
+# transient loadavg-from-deploy-itself pattern does not false-positive the deploy.
+# (See memory project_2026-06-25_pr689_drive_complete_7green_automerge + the
+# repeated "Stage 5 deploy always failing" pattern fixed across PR #661 etc.)
+HERMES_HEALTH_RC=0
+HERMES_HEALTH_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-health.sh" || HERMES_HEALTH_RC=$?
+case "$HERMES_HEALTH_RC" in
+  0) echo "Health check passed." ;;
+  1) echo "Health check DEGRADED (warnings only — proceeding). See WARN lines above." ;;
+  2) echo "Health check DOWN on first attempt — waiting 30s before retry (race recovery)." >&2
+     sleep 30
+     HERMES_HEALTH_RC=0
+     HERMES_HEALTH_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-health.sh" || HERMES_HEALTH_RC=$?
+     case "$HERMES_HEALTH_RC" in
+       0) echo "Health check passed on retry." ;;
+       1) echo "Health check DEGRADED on retry (warnings only — proceeding)." ;;
+       2) die "Health check DOWN twice — production gateway may be unhealthy. Check logs." ;;
+       *) die "Health check exited with unexpected code $HERMES_HEALTH_RC." ;;
+     esac
+     ;;
+  *) die "Health check exited with unexpected code $HERMES_HEALTH_RC." ;;
+esac
 
 # ── Stage 5.5: Policy-file drift warning (non-blocking) ──────────────────────
 # The 5th-misroute sub-class 5b leak (2026-06-14) was caused by prod CLAUDE.md
 # drifting 29 days behind staging. Emit a visible WARN if any policy file
 # (CLAUDE.md, SOUL.md, TOOLS.md, HEARTBEAT.md) differs between staging
-# ~/.smartclaw and prod ~/.smartclaw_prod. Do NOT auto-cp — drift must be visible.
+# ~/.smartclaw and prod ~/.smartclaw. Do NOT auto-cp — drift must be visible.
 section "Stage 5.5: Policy-File Drift Warning"
 STAGING_DIR="$REPO_DIR"
-PROD_DIR="$HOME/.smartclaw_prod"
+PROD_DIR="$HOME/.smartclaw"
 DRIFT_FOUND=0
-for POLICY_FILE in CLAUDE.md SOUL.md TOOLS.md HEARTBEAT.md; do
-  STAGING_FILE="$STAGING_DIR/$POLICY_FILE"
-  PROD_FILE="$PROD_DIR/$POLICY_FILE"
-  if [[ -f "$STAGING_FILE" && -f "$PROD_FILE" ]]; then
-    if ! diff -q "$STAGING_FILE" "$PROD_FILE" >/dev/null 2>&1; then
-      echo "WARN: $POLICY_FILE differs between staging and prod." >&2
-      echo "  staging: $STAGING_FILE" >&2
-      echo "  prod   : $PROD_FILE" >&2
-      echo "  -> run: cp $STAGING_FILE $PROD_FILE  (then restart prod gateway)" >&2
-      DRIFT_FOUND=1
+if [[ "$SINGLE_DIR_MODE" -eq 1 ]]; then
+  echo "[single-dir] Policy drift check skipped; staging and prod are the same directory."
+else
+  for POLICY_FILE in CLAUDE.md SOUL.md TOOLS.md HEARTBEAT.md; do
+    STAGING_FILE="$STAGING_DIR/$POLICY_FILE"
+    PROD_FILE="$PROD_DIR/$POLICY_FILE"
+    if [[ -f "$STAGING_FILE" && -f "$PROD_FILE" ]]; then
+      if ! diff -q "$STAGING_FILE" "$PROD_FILE" >/dev/null 2>&1; then
+        echo "WARN: $POLICY_FILE differs between staging and prod." >&2
+        echo "  staging: $STAGING_FILE" >&2
+        echo "  prod   : $PROD_FILE" >&2
+        echo "  -> run: cp $STAGING_FILE $PROD_FILE  (then restart prod gateway)" >&2
+        DRIFT_FOUND=1
+      fi
     fi
+  done
+  if [[ "$DRIFT_FOUND" -eq 0 ]]; then
+    echo "Policy files in sync between staging and prod."
   fi
-done
-if [[ "$DRIFT_FOUND" -eq 0 ]]; then
-  echo "Policy files in sync between staging and prod."
+fi
+# Non-blocking — deploy continues. Drift is a WARN, not a die.
+
+# ── Stage 5.5b: Skills drift warning (non-blocking) ──────────────────────────
+# Mirrors Stage 5.5 for skills/. With Stage 4.6 auto-syncing the canonical
+# (git-tracked) skills to prod on every deploy, drift should normally be zero.
+# If drift appears here, either (a) someone ran skill_manage from a session
+# that bypassed git (should be impossible after hermes-agent PR #34 merges),
+# (b) Stage 4.6 ran with --no-sync, or (c) a skill was edited directly in prod.
+# The check uses rsync --dry-run for speed — only flags skills that would
+# actually change, not skill metadata like mtime.
+section "Stage 5.5b: Skills Drift Warning"
+STAGING_SKILLS_DRIFT="$REPO_DIR/skills"
+PROD_SKILLS_DRIFT="$PROD_DIR/skills"
+SKILLS_DRIFT_FOUND=0
+if [[ "$SINGLE_DIR_MODE" -eq 1 ]]; then
+  echo "[single-dir] Skills drift check skipped; staging and prod are the same directory."
+elif [[ -d "$STAGING_SKILLS_DRIFT" && -d "$PROD_SKILLS_DRIFT" ]]; then
+  DRIFT_LIST=$(rsync -a -c --dry-run \
+                 --exclude='__pycache__' \
+                 --exclude='.usage.json' \
+                 --exclude='.curator_backups' \
+                 "$STAGING_SKILLS_DRIFT/" "$PROD_SKILLS_DRIFT/" 2>/dev/null \
+               | awk '/^[<>ch][f.]/ {print $NF}')
+  if [[ -n "$DRIFT_LIST" ]]; then
+    DRIFT_COUNT=$(echo "$DRIFT_LIST" | wc -l | tr -d ' ')
+    echo "WARN: $DRIFT_COUNT skill file(s) differ between staging and prod:" >&2
+    echo "$DRIFT_LIST" | head -10 | while read -r f; do
+      [[ -z "$f" ]] && continue
+      echo "  - $f" >&2
+    done
+    if [[ "$DRIFT_COUNT" -gt 10 ]]; then
+      echo "  ... and $((DRIFT_COUNT - 10)) more" >&2
+    fi
+    echo "  -> re-run deploy.sh (Stage 4.6 will resync)" >&2
+    SKILLS_DRIFT_FOUND=1
+  else
+    echo "Skills in sync between staging and prod."
+  fi
+else
+  echo "WARN: skills drift check skipped; missing $STAGING_SKILLS_DRIFT or $PROD_SKILLS_DRIFT" >&2
+  SKILLS_DRIFT_FOUND=1
 fi
 # Non-blocking — deploy continues. Drift is a WARN, not a die.
 
@@ -276,7 +407,9 @@ CRON_CHECK_UNCERTAIN=0
 #   - missing IDs in prod (jobs added to staging but not prod)
 #   - changed definitions (same id, different schedule/command/payload) — catch by stable hash
 #   Filesystem or parse failures fall through as WARN, NOT as silent "in sync".
-if [[ -f "$STAGING_CRON_JOBS" && -f "$PROD_CRON_JOBS" ]]; then
+if [[ "$SINGLE_DIR_MODE" -eq 1 ]]; then
+  echo "[single-dir] Cron drift check skipped; staging and prod are the same directory."
+elif [[ -f "$STAGING_CRON_JOBS" && -f "$PROD_CRON_JOBS" ]]; then
   CRON_DIFF="$(python3 - "$STAGING_CRON_JOBS" "$PROD_CRON_JOBS" <<'PY'
 import hashlib, json, sys
 try:

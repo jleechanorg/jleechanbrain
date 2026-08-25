@@ -4,6 +4,8 @@
 <dict>
     <key>Label</key>
     <string>ai.smartclaw.schedule.orch-health-weekly</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
     <key>ProgramArguments</key>
     <array>
         <string>@PYTHON3_PATH@</string>

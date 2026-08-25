@@ -1,0 +1,29 @@
+=== DEFECT 1: tool schema target description (tools/send_message_tool.py) ===
+228:                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or 'platform:chat_id:thread_id' for Telegram topics and Discord threads. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:999888777:555444333', 'discord:#bot-home', 'slack:#engineering', 'signal:+155****4567', 'matrix:!roomid:server.org', 'matrix
+
+=== DEFECT 2: HERMES_SESSION_THREAD_ID never read by send tool ===
+occurrences in send_message_tool.py: 0 matches for 'HERMES_SESSION_THREAD_ID'
+session vars it DOES read:
+get_session_env("HERMES_CRON_AUTO_DELIVER_CHAT_ID"
+get_session_env("HERMES_CRON_AUTO_DELIVER_PLATFORM"
+get_session_env("HERMES_CRON_AUTO_DELIVER_THREAD_ID"
+get_session_env("HERMES_SESSION_PLATFORM"
+get_session_env("HERMES_SESSION_USER_ID"
+var IS exported by gateway:
+3 matches in 3 files:
+
+/.../gateway/session_context.py:13:os.environ["HERMES_SESSION_THREAD_ID"] = str(context.source.thread_id)
+143:0:_SESSION_THREAD_ID,
+79:0:xtVar = ContextVar("HERMES_SESSION_THREAD_ID", default=_UNSET)
+other tools that DO read it:
+cronjob_tools.py
+terminal_tool.py
+kanban_tools.py
+
+=== CAPABILITY EXISTS: slack thread target supported in code ===
+# Session-derived Slack thread targets use "<conversation_id>:<thread_ts>".
+_SLACK_THREAD_TARGET_RE = re.compile(r"^\s*([CGD][A-Z0-9]{8,}):([^\s:]+)\s*$")
+    if platform_name == "slack":
+        match = _SLACK_THREAD_TARGET_RE.fullmatch(target_ref)
+        if match:
+            return match.group(1), match.group(2), True

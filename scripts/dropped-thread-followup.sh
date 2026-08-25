@@ -44,8 +44,8 @@ trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
 LOCK_DIR="${DROP_LOCK_DIR:-${TMPDIR:-/tmp}/hermes-dropped-thread.lock}"
-LOG_DIR="${DROP_LOG_DIR:-${HOME}/.smartclaw_prod/logs}"
-STATE_FILE="${DROP_STATE_FILE:-$HOME/.smartclaw_prod/logs/dropped-thread-state.json}"
+LOG_DIR="${DROP_LOG_DIR:-${HOME}/.smartclaw/logs}"
+STATE_FILE="${DROP_STATE_FILE:-$HOME/.smartclaw/logs/dropped-thread-state.json}"
 NUDGE_INTERVAL_SECS="${DROP_NUDGE_INTERVAL_SECS:-1800}"   # 30 minutes default
 # Per-channel cooldown: cap how often ANY single channel can be nudged, regardless
 # of how many distinct dropped threads/messages it has in one run. Mitigates the
@@ -63,12 +63,43 @@ PROGRESS_STALE_MINUTES="${DROP_PROGRESS_STALE_MINUTES:-5}"  # dispatched task wi
 # conversations.replies fetch size (Slack allows up to 1000; default 200 for long threads)
 DROP_THREAD_REPLY_LIMIT="${DROP_THREAD_REPLY_LIMIT:-200}"
 # Space-separated channel IDs: cold/stale/followup nudges apply only if Jeffrey posted in-thread.
-# Unset → default ${SLACK_CHANNEL_ID} (#all-jleechan-ai). Set to "" to disable jeffrey-only gating everywhere.
+# 2026-07-04 change: default is now EMPTY (not ${SLACK_CHANNEL_ID}). The earlier default treated
+# #all-jleechan-ai as a 3rd-party chat room where Hermes should stay quiet unless someone
+# else spoke. That was wrong for the new operator-Hermes direct-line model — every task-shaped
+# post in #all-jleechan-ai IS an operator ask. Opt back in with DROP_JEFFREY_ONLY_CHANNELS=
+# (env override wins). Gating still available for any future 3rd-party channel Jeffrey adds.
 if [[ "${DROP_JEFFREY_ONLY_CHANNELS+x}" = x ]]; then
   JEFFREY_ONLY_CHANNELS="$DROP_JEFFREY_ONLY_CHANNELS"
 else
-  JEFFREY_ONLY_CHANNELS="${SLACK_CHANNEL_ID}"
+  JEFFREY_ONLY_CHANNELS=""
 fi
+export JEFFREY_ONLY_CHANNELS
+# ── Fabrication-detection (added 2026-06-25, see references/no-new-content-hallucination-2026-06-23.md) ──
+# When the last agent message in a thread contains fabrication-style phrasing ("no new content",
+# "nothing new to address", etc.) AND the second-to-last message is a real human message with
+# non-empty text, treat the thread as a likely fabrication rather than a legitimate summary.
+# Fires a re-nudge immediately, bypassing the standard 30-min quiet window.
+#   DROP_FABRICATION_WINDOW_SECS — max seconds between human msg + agent fabrication msg (default 600 = 10 min).
+#   DROP_FABRICATION_STRIKE_CAP — max fabrication-nudges per (channel, thread) per 24h (default 2).
+#   DROP_FABRICATION_DRY_RUN    — when "1", log detections to fabrication-detections.log but skip the nudge (default 0).
+#   FABRICATION_LOG             — audit log path (default ~/.smartclaw/memory/fabrication-detections.log).
+FABRICATION_WINDOW_SECS="${DROP_FABRICATION_WINDOW_SECS:-600}"
+FABRICATION_STRIKE_CAP="${DROP_FABRICATION_STRIKE_CAP:-2}"
+FABRICATION_DRY_RUN="${DROP_FABRICATION_DRY_RUN:-0}"
+FABRICATION_LOG="${FABRICATION_LOG:-$HOME/.smartclaw/memory/fabrication-detections.log}"
+mkdir -p "$(dirname "$FABRICATION_LOG")" 2>/dev/null || true
+# Phrases that, when found in an agent message that immediately follows a real human message,
+# indicate a fabrication rather than a legitimate "nothing new" summary. Case-insensitive.
+FABRICATION_PHRASES=(
+  "no new content"
+  "no new message"
+  "nothing new to address"
+  "nothing new to report"
+  "the user just sent"
+  "the message has no body"
+  "your message contains no new content"
+  "the message has no text"
+)
 POST_AS_BOT="${DROP_POST_AS_BOT:-1}"                      # 0 = post as user
 AGENT_USER_ID="${HERMES_BOT_USER_ID:-U0AEZC7RX1Q}"  # bot user ID for classification
 JEFFREY_USER_ID="${JLEECHAN_USER_ID:-U09GH5BR3QU}"        # Jeffrey's Slack user ID (standalone msg detection)
@@ -210,6 +241,102 @@ was_nudged_recently() {
   ts_sec="$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_ts" '+%s' 2>/dev/null)" || return 0
   [[ $((now_sec - ts_sec)) -lt $NUDGE_INTERVAL_SECS ]] && return 0
   return 1
+}
+
+# detect_agent_fabrication: examine the last two messages in a thread.
+# Returns 0 (fabrication detected) when ALL of these hold:
+#   1. Last message is from the agent (not a human, not another bot)
+#   2. Last message text matches one of the FABRICATION_PHRASES (case-insensitive)
+#   3. Second-to-last message is from a human (not the agent, not a bot)
+#   4. Second-to-last message text is non-empty (i.e. a real ask, not a /raw event)
+#   5. Gap between second-to-last and last message is <= FABRICATION_WINDOW_SECS
+# Side effect: writes one line to FABRICATION_LOG with ts, channel, thread_ts,
+# last_human_ts, last_agent_ts, gap_secs, fabrication_phrase_matched, action_taken.
+# When FABRICATION_DRY_RUN=1, sets action_taken=log_only and does NOT return 0
+# (caller treats dry-run hits as info-only, not nudges).
+# Reads thread messages JSON from a path passed as $6 (avoid argv length limits).
+detect_agent_fabrication() {
+  local channel_id=$1 thread_ts=$2 last_human_ts=$3 last_agent_ts=$4 last_agent_text=$5 messages_file=$6
+  [[ -z "$last_agent_text" ]] && return 1
+  # Check phrase match (case-insensitive)
+  local agent_text_lc phrase matched=""
+  agent_text_lc="$(printf '%s' "$last_agent_text" | tr '[:upper:]' '[:lower:]')"
+  for phrase in "${FABRICATION_PHRASES[@]}"; do
+    if [[ "$agent_text_lc" == *"$phrase"* ]]; then
+      matched="$phrase"
+      break
+    fi
+  done
+  [[ -z "$matched" ]] && return 1
+  # Verify second-to-last is a real human with non-empty text
+  [[ -z "$last_human_ts" || "$last_human_ts" == "null" ]] && return 1
+  local penultimate_text penultimate_user penultimate_is_bot
+  penultimate_text="$(jq -r --arg ts "$last_human_ts" '.[] | select(.ts == $ts) | .text // ""' "$messages_file" 2>/dev/null | head -c 500)"
+  penultimate_user="$(jq -r --arg ts "$last_human_ts" '.[] | select(.ts == $ts) | .user // ""' "$messages_file" 2>/dev/null)"
+  penultimate_is_bot="$(jq -r --arg ts "$last_human_ts" '.[] | select(.ts == $ts) | (.bot_id // .subtype // "")' "$messages_file" 2>/dev/null)"
+  [[ -z "$penultimate_text" || "$penultimate_text" == "null" ]] && return 1
+  # Reject if penultimate is itself a bot (avoids catching agent→agent "no new content" replies)
+  [[ "$penultimate_user" == "$AGENT_USER_ID" ]] && return 1
+  [[ -n "$penultimate_is_bot" && "$penultimate_is_bot" != "null" ]] && return 1
+  # Gap check — Slack ts is "<epoch>.<microseconds>". epoch is the integer portion
+  # BEFORE the dot; the integer portion is the Unix epoch in seconds. Convert to a
+  # comparable epoch (matching the format the script uses elsewhere via
+  # `date -r "${last_reply_ts%.*}" -u '+%Y-%m-%dT%H:%M:%SZ'`).
+  local last_agent_epoch gap_secs
+  last_agent_epoch="$(date -u -j -f "%s" "${last_agent_ts%%.*}" '+%s' 2>/dev/null)" || return 1
+  now_sec="$(date +%s)"
+  gap_secs=$((now_sec - last_agent_epoch))
+  [[ $gap_secs -lt 0 ]] && return 1
+  [[ $gap_secs -gt $FABRICATION_WINDOW_SECS ]] && return 1
+  # Audit log
+  local action_taken="re-nudge"
+  [[ "${FABRICATION_DRY_RUN}" == "1" ]] && action_taken="log_only"
+  printf '[%s] ts=%s channel=%s thread_ts=%s last_human_ts=%s last_agent_ts=%s gap_secs=%d phrase=%q action=%s\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    "$(date +%s)" "$channel_id" "$thread_ts" \
+    "$last_human_ts" "$last_agent_ts" "$gap_secs" "$matched" "$action_taken" \
+    >> "$FABRICATION_LOG" 2>/dev/null || true
+  # Dry-run: log but don't return success (caller won't re-nudge)
+  [[ "${FABRICATION_DRY_RUN}" == "1" ]] && return 2
+  return 0
+}
+
+# fabrication_strike_count: count fabrication-nudges issued to this (channel, thread) in the last 24h.
+# Reads from FABRICATION_LOG (line-counting by exact thread_ts match, then filtering by 24h cutoff).
+fabrication_strike_count() {
+  local channel_id=$1 thread_ts=$2
+  [[ -f "$FABRICATION_LOG" ]] || { echo 0; return; }
+  local cutoff now
+  now="$(date +%s)"
+  cutoff=$((now - 86400))
+  # Strip the leading ISO timestamp bracket and convert to epoch, then filter by 24h.
+  # Use python3 here (already used elsewhere in this script) — clearer than nested awk.
+  python3 - "$FABRICATION_LOG" "$cutoff" "$channel_id" "$thread_ts" <<'PY' 2>/dev/null || echo 0
+import sys, re, subprocess, datetime as dt
+log_path, cutoff, channel_id, thread_ts = sys.argv[1:5]
+try:
+    cutoff = int(cutoff)
+except (TypeError, ValueError):
+    print(0); raise SystemExit
+count = 0
+try:
+    with open(log_path, 'r', errors='ignore') as fh:
+        for line in fh:
+            m_iso = re.match(r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\]', line)
+            if not m_iso:
+                continue
+            try:
+                epoch = int(dt.datetime.strptime(m_iso.group(1), '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=dt.timezone.utc).timestamp())
+            except (TypeError, ValueError):
+                continue
+            if epoch < cutoff:
+                continue
+            if f'channel={channel_id}' in line and f'thread_ts={thread_ts}' in line and 'action=re-nudge' in line:
+                count += 1
+except OSError:
+    pass
+print(count)
+PY
 }
 
 # True (0) if this incident has been permanently given up on (escalated already).
@@ -418,6 +545,14 @@ def _has_delivered(text: str) -> bool:
         return True
     if re.search(r"\b(task complete|all done|finished the)\b", t) and len(t) > 100:
         return True
+    # Research/info deliverables: explicit completion marker + on-disk artifact path.
+    # Without this, /research, /web-advice, and similar report-style asks get flagged
+    # as "partial-no-delivery" every tick because there's no PR to merge.
+    if re.search(r"\b(work complete|work done|task complete|all done)\b", t) and len(t) > 100:
+        if re.search(r"/tmp/(research|web-advice|investigations?|reports?)/[\w./-]+\.(md|json|txt)\b", t):
+            return True
+        if re.search(r"\bfiles? on disk\b", t) and re.search(r"\b(\.md|\.json)\b", t):
+            return True
     return False
 
 
@@ -1160,7 +1295,10 @@ case " ${DEFAULT_CHANNELS} " in
 esac
 
 # Always merge priority operator channels when scanning all bot-member channels.
-if [[ "$DROP_SCAN_ALL" == "1" || -n "${DROP_CHANNELS:-}" ]]; then
+# When the caller has explicitly set DROP_CHANNELS, respect their list and do
+# NOT silently expand it — the cron pipeline (slack-thread-roadmap-report)
+# sets DROP_CHANNELS to a focused 2-channel set on purpose.
+if [[ "$DROP_SCAN_ALL" == "1" && -z "${DROP_CHANNELS:-}" ]]; then
   for _pch in $DROP_PRIORITY_CHANNELS; do
     case " ${DEFAULT_CHANNELS} " in
       *" ${_pch} "*) : ;;
@@ -1343,15 +1481,17 @@ post_reply() {
   local as_user=${POST_AS_BOT:-1}
   local token response
 
+  # Source ~/.profile once per invocation so SLACK_USER_TOKEN (xoxp) is available
+  # whether the caller is posting as bot or user. SLACK_USER_TOKEN is exported from
+  # ~/.profile (not the default shell env), so it must be sourced here.
+  if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
+    # shellcheck source=/dev/null
+    source "${HOME}/.profile" 2>/dev/null || true
+  fi
+
   # DM channels (D-prefix) require user identity — bots can't write to DMs they didn't open.
-  # Source ~/.profile to pick up SLACK_USER_TOKEN if not already in env.
-  if [[ "$channel_id" == D* ]]; then
-    if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
-      # shellcheck source=/dev/null
-      source "${HOME}/.profile" 2>/dev/null || true
-    fi
-    token="${SLACK_USER_TOKEN:-}"
-  elif [[ "$as_user" == "0" ]]; then
+  # as_user=0 also requires the xoxp token (else the post gets attributed to the bot).
+  if [[ "$channel_id" == D* ]] || [[ "${as_user}" == "0" ]]; then
     token="${SLACK_USER_TOKEN:-}"
   else
     # Prefer MCP mail bot token for dropped-thread nudges
@@ -1514,7 +1654,51 @@ for channel in $SCAN_CHANNELS; do
     if [[ "$needs_action" != "true" ]]; then
       reason=$(echo "$analysis" | jq -r '.reason' 2>/dev/null || echo "unknown")
       log "  OK ($reason): $channel $thread_ts"
-      continue
+
+      # Fabrication-detection override (added 2026-06-25):
+      # If analysis said "no action needed" but the last agent message in the thread
+      # is a fabrication ("no new content" framing right after a real human ask),
+      # override to action_needed=true so we re-nudge immediately. Without this,
+      # the cron treats the agent's last reply as a closed loop and only re-nudges
+      # on the 30-min quiet window — which is the exact window during which the user
+      # loses trust. Cap strikes at FABRICATION_STRIKE_CAP per (channel, thread) per 24h
+      # to prevent infinite-loop if the agent keeps hallucinating the same framing.
+      _fabrication_tmp="$(mktemp /tmp/dropped-fab.XXXXXX)"
+      echo "$messages" > "$_fabrication_tmp"
+      _last_msg_json="$(echo "$messages" | jq -r '.[-1] | "\(.user // "")|\(.ts // "")|\(.text // "")"' 2>/dev/null)"
+      _last_user="${_last_msg_json%%|*}"
+      _rest="${_last_msg_json#*|}"
+      _last_ts="${_rest%%|*}"
+      _last_text="${_rest#*|}"
+      _penultimate_ts="$(echo "$messages" | jq -r --arg u "$_last_user" '.[-2].ts // ""' 2>/dev/null)"
+      _penultimate_user="$(echo "$messages" | jq -r --arg u "$_last_user" '.[-2].user // ""' 2>/dev/null)"
+      # Only run fabrication check if the last message is from the agent
+      if [[ "$_last_user" == "$AGENT_USER_ID" ]]; then
+        _strike_count="$(fabrication_strike_count "$channel" "$thread_ts" 2>/dev/null || echo 0)"
+        if [[ "${_strike_count:-0}" -lt "$FABRICATION_STRIKE_CAP" ]]; then
+          detect_agent_fabrication "$channel" "$thread_ts" "$_penultimate_ts" "$_last_ts" "$_last_text" "$_fabrication_tmp"
+          _fab_rc=$?
+          rm -f "$_fabrication_tmp"
+          if [[ $_fab_rc -eq 0 ]]; then
+            log "  FABRICATION DETECTED → re-nudge ($reason → fabrication-override): $channel $thread_ts"
+            needs_action=true
+            reason="fabrication-override"
+            kind="fabrication"
+          elif [[ $_fab_rc -eq 2 ]]; then
+            # Dry-run hit — log only, don't re-nudge
+            log "  FABRICATION DETECTED (dry-run, no re-nudge): $channel $thread_ts"
+          fi
+        else
+          rm -f "$_fabrication_tmp"
+          log "  OK ($reason): $channel $thread_ts (fabrication strike cap $FABRICATION_STRIKE_CAP reached in last 24h)"
+        fi
+      else
+        rm -f "$_fabrication_tmp"
+      fi
+
+      if [[ "$needs_action" != "true" ]]; then
+        continue
+      fi
     fi
 
     reason=$(echo "$analysis" | jq -r '.reason' 2>/dev/null || echo "unknown")
@@ -1561,6 +1745,16 @@ Message excerpt: ${original_msg:-[empty]}"
       nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] This thread shows a gateway/model timeout or overload — that counts as a dropped run. "
       nudge_text+="Please retry with a smaller step, lower concurrency, or post the blocker. "
       nudge_text+="Original ask: \"${original_msg:-[could not retrieve]}\"."
+    elif [[ "$kind" == "fabrication" ]]; then
+      # Fabrication override — last agent msg was a 'no new content' framing on top
+      # of a real human ask. Bypass the standard 30-min quiet window and force a
+      # re-read + re-fetch (per SOUL.md COMMIT: never-hallucinate-no-new-content).
+      nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup — fabrication detected] Your last reply in this thread used 'no new content' / 'nothing new to address' / similar phrasing right after a real human ask (\"${original_msg:-[human ask text]}\"). "
+      nudge_text+="That framing is a documented false-positive class (see skills/dropped-messages/references/no-new-content-hallucination-2026-06-23.md). "
+      nudge_text+="Required response shape: (1) re-fetch the thread via conversations_replies and re-read the most recent human message; "
+      nudge_text+="(2) if re-fetch confirms empty body, ask 'did you mean to attach something?'; "
+      nudge_text+="(3) if re-fetch reveals a real message, acknowledge the gap honestly and act on it now. "
+      nudge_text+="Do NOT generate 'no new content' / 'no new message' / 'the user just sent their name' / 'nothing new to address' framing for an unread message."
     else
       nudge_text="<@${AGENT_USER_ID}> [Dropped-thread followup] This thread appears to have gone cold. "
       nudge_text+="Original request: \"${original_msg:-[could not retrieve]}\". "
