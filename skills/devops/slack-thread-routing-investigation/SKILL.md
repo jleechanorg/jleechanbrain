@@ -1,6 +1,6 @@
 ---
 name: slack-thread-routing-investigation
-description: Diagnose why a Slack reply "didn't go to the right thread" — covers FIVE known failure modes (gateway self-threaded post, runtime tool-surface gap, gateway scratch-leak during probing, tool-call narration leak, AND wrong-thread_ts from a stale session context header) and the durable direct-HTTP fallback path. Use when a Slack reply lands as a top-level channel message instead of a thread reply, when the bot's thinking trace leaks into the wrong thread, when mcp__slack__conversations_add_message is missing from the runtime tool list, when the session context header reports a thread_ts that turns out not to be the user's actual thread, or when the user says "I thought we fixed this?" / "isn't this patched?". NOTE: the `send_message` thread_ts-drop bug (Failure 1) was FIXED by hermes-agent PR #29 on 2026-06-14 — see the STATUS UPDATE banner; the still-open mode is Failure 5 (wrong thread_ts in the session context header).
+description: Diagnose why a Slack reply "didn't go to the right thread" — covers SIX known failure modes (gateway self-threaded post, runtime tool-surface gap, gateway scratch-leak during probing, tool-call narration leak, wrong-thread_ts from a stale session context header [with sub-classes 5a-5f covering MCP-direct path, daily-anchor, context drift, deliver:local cron, AND cross-workspace bot-token hard-block]) and the durable direct-HTTP fallback path. Use when a Slack reply lands as a top-level channel message instead of a thread reply, when the bot's thinking trace leaks into a sibling thread, when mcp__slack__conversations_add_message is missing from the runtime tool list, when the session context header reports a thread_ts that turns out not to be the user's actual thread, when a recovery reply stalls with "iteration budget exhausted" because the bot token is scoped to a different workspace, or when the user says "I thought we fixed this?" / "isn't this patched?". NOTE: the `send_message` thread_ts-drop bug (Failure 1) was FIXED by hermes-agent PR #29 on 2026-06-14 — see the STATUS UPDATE banner; the still-open modes are Failure 5a-5f (wrong thread_ts + sub-classes) and the cross-workspace fallback in Failure 5f is the canonical operationalization via SLACK_USER_TOKEN per SOUL.md COMMIT `slack-cross-workspace-fallback-xoxp`.
 ---
 
 # Slack Thread Routing — Investigation & Durable Post Path
@@ -169,6 +169,41 @@ mcp__slack__conversations_history(channel_id=<chan>, limit=5)
 **Sibling to:** Failure 5 (wrong `thread_ts` from session context header — agent pulls stale thread from the prompt), 5b (MCP-direct Claude Code posts bypass gateway), 5c (intentional first-of-day daily-anchor is by design channel-root), 5d (cron LLM content drift — right channel/thread, wrong PR). 5e is distinct: right content, wrong routing layer (cron job's path), post lands at channel root because `deliver: local` lets the LLM pick the post shape.
 
 **Defense-in-depth gaps remaining:** (i) the gateway Path C tool does not auto-inject the cron job's `thread_ts` when `deliver: local` is detected — would require a new `origin_thread_ts` runtime context, tracked separately; (ii) no automated re-thread on alert — operator must manually `chat.update` to set `thread_ts` on the orphan post; (iii) detector reads `jobs.json` from disk per run, so a job that runs >once/2h can miss leaks if the operator rotates `jobs.json` mid-window (acceptable for the cron cadence in use today).
+
+### Failure 5f — cross-workspace bot-token hard-block, recovery stalls with no posted reply (canonical bug, 2026-06-25, ts 1782317177)
+
+**Symptom:** a session correctly diagnoses Failure 5 (or any of 5a-5e) and prepares a recovery Slack reply, but Path A / Path B / Path C / `mcp__slack__conversations_add_message` ALL fail with `error: missing_scope` or `error: not_in_channel` because the bot token is scoped to the bot's HOME workspace (e.g. `T09FXQ4LCQP` WorldArchitect.AI workspace) and the channel lives in a DIFFERENT workspace. The agent then runs out of iteration budget and reports "iteration budget exhausted (60/60) — asking model to summarise" with NO posted reply, leaving the user with zero recovery output. Observed instance: 2026-06-25 in `C0AH3RY3DK6`, recovery attempts at `1782317095.215819` ("Now I'll post this analysis...") and `1782317177.654589` ("Cross-workspace bot-token hard-block — sub-class 5f per the slack-misroute-detector skill"). Both stalled.
+
+**Root cause:** Slack bot tokens (`xoxb-...`) are scoped to the bot's installation workspace. A bot installed in workspace A cannot post to a channel in workspace B even with the correct `channel_id` + `thread_ts`. The gateway's Path A/B/C paths all use the bot token, so they all fail identically. User tokens (`xoxp-...`) cross workspace boundaries (when the user is a member of both workspaces) — but the typical agent runtime has only the bot token in env, not the user token.
+
+**Mitigation — the XOX-P user-token fallback:**
+1. **Detect sub-class 5f** — symptom: `chat.postMessage` returns `{"ok":false,"error":"missing_scope"}` or `{"ok":false,"error":"not_in_channel"}` AND `team` in the error response differs from the bot's home `team`. The agent should report "cross-workspace bot-token hard-block (sub-class 5f)" and proceed to step 2 immediately — NOT stall on the error.
+2. **Source `SLACK_USER_TOKEN`** from the launchd-env-wrapper contract (`~/.smartclaw/scripts/launchd-env-wrapper.sh`, `_extract_bashrc_var SLACK_USER_TOKEN` pattern). Do NOT trust a sibling `~/.bashrc` export that has been overwritten by `.profile` — see memory `bashrc-profile-xapp-drift-blocks-launchd` (2026-06-18) for the failure mode where rotating `OPENCLAW_SLACK_APP_TOKEN` requires updating BOTH files.
+3. **Post via curl with the user token:**
+   ```bash
+   SLACK_USER_TOKEN="$(~/.smartclaw/scripts/launchd-env-wrapper.sh printenv SLACK_USER_TOKEN 2>/dev/null || grep '^export SLACK_USER_TOKEN=' ~/.profile | head -1 | sed 's/export SLACK_USER_TOKEN=//; s/"//g')"
+   curl -fsS -X POST "https://slack.com/api/chat.postMessage" \
+     -H "Authorization: Bearer $SLACK_USER_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"channel":"<chan>","thread_ts":"<correct_ts>","text":"<reply>"}'
+   ```
+4. **Identity disclosure in post body** — the reply will appear as posted by `jleechan` (or whichever user), not the hermes bot. Include a brief disclaimer in the post body if the identity switch might confuse the reader: *"(posted via jleechan identity due to cross-workspace bot-token hard-block; the analysis below is from the hermes agent)"*.
+5. **Verify via `conversations_replies`** — the new MsgID must have `ThreadTs == <correct_ts>` AND `UserID == U09GH5BR3QU` (jleechan), not a bot ID.
+6. **Do NOT stall** — the SOUL.md `push-pr-donot-stop-halfway` COMMIT (shipped 2026-06-23) and the `slack-cross-workspace-fallback-xoxp` COMMIT (shipped 2026-06-25 in the same PR as this skill update) are the operational guardrails. An incomplete reply posted at the correct thread beats a complete analysis that the user never sees because the agent ran out of iteration budget.
+
+**Distinct from 5e:** 5e is `deliver: local` cron narration landing at channel root (right content, wrong post shape). 5f is the recovery path being blocked entirely (no post at all because all bot-token paths fail). 5f is the "iteration budget exhausted with no posted reply" failure mode; 5e is the "posted but at wrong location" failure mode.
+
+**Test coverage:** `tests/test_slack_xoxp_fallback.py` — 13 unit tests covering:
+- (A) XOX-P token source resolves from env → `~/.bashrc` → `~/.profile` (bashrc wins, mirrors launchd-env-wrapper's `_extract_bashrc_var`)
+- (B) `post_via_xoxp()` builds correct body (channel + thread_ts + identity-disclosed text + `mrkdwn=False` for `text/plain`)
+- (C) Identity disclosure on by default; skipped when `identity_disclosure=False`
+- (D) No-stall verification — `--fallback auto` falls through to XOX-P within 1 tool call when bot token returns a cross-workspace error (`not_in_channel`, `channel_not_found`, `restricted_action`, `team_access_not_granted`, `missing_scope`)
+- (E) `--fallback auto` does NOT fall through on non-cross-workspace errors (`invalid_auth`, `account_inactive`, etc.) — caller sees exit code 3
+- (F) CLI `--fallback xoxp` is accepted by the production parser (`smp._build_parser()`)
+
+**Companion SOUL.md COMMIT:** `slack-cross-workspace-fallback-xoxp` — same content as this Failure 5f section, mirrored at the SOUL.md layer so the session-init COMMIT scan surfaces it for every session regardless of which skill gets loaded.
+
+**Bug-ref:** 2026-06-25 — Slack `C0AH3RY3DK6 / 1782313354.384299`, recovery attempts at `1782317095.215819` and `1782317177.654589` (bot self-message: *"Cross-workspace bot-token hard-block — sub-class 5f per the slack-misroute-detector skill"*). Iteration budget exhausted with no posted reply. The user (jleechan) had to manually invoke `/harness` on the meta-failure. After the prod gateway was restored (port 8643 unbound → bound via `~/.smartclaw_prod/config.yaml` port fix), the next session correctly identified Failure 5 as the misroute root cause AND sub-class 5f as the recovery-blocker, and would now apply the XOX-P fallback per this section.
 
 ## Durable Post Path (3 paths in priority order)
 

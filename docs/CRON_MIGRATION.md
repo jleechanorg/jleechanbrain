@@ -26,6 +26,7 @@ and what it should do — and are reproduced on any machine via the install scri
 | `ai.smartclaw.schedule.orch-health-weekly.plist` | `ai.smartclaw.schedule.orch-health-weekly` | Mon 9:30 AM PT | `orchestration.cron_runner` | Orchestration health report |
 | `ai.smartclaw.schedule.composio-upstream-reminder.plist` | `ai.smartclaw.schedule.composio-upstream-reminder` | Mon 9:00 AM PT | `scripts/composio-upstream-reminder.sh` | Reminder to consider upstream pull + PR batch |
 | `ai.smartclaw.schedule.github-intake.plist` | `ai.smartclaw.schedule.github-intake` | 9:00 AM PT daily | `scripts/github-intake.sh` | GitHub notification intake |
+| `ai.smartclaw.schedule.daily-repo-export.plist.template` | `ai.smartclaw.schedule.daily-repo-export` | 3:20 AM local daily | `scripts/auto-push-to-main.sh --repo ...` | Export `llm_wiki` + `roadmap` to `origin/main`; AO Go recovery on failure — see "Daily Repository Export" below |
 | `ai.agento.dashboard.plist` | `ai.agento.dashboard` | KeepAlive | `npx next start` | AO web dashboard (port 3020) |
 | `ai.smartclaw.lifecycle-manager.plist` | `ai.smartclaw.lifecycle-manager` | KeepAlive | inline bash | AO lifecycle workers |
 | `ai.smartclaw.config-sync.plist` | `ai.smartclaw.config-sync` | 1 hr | `scripts/sync-hermes-config.sh` | Config sync to live dir |
@@ -160,6 +161,99 @@ Use this checklist when reviewing whether a recurring job belongs in git or stay
   - Never commit this file
 - [ ] `~/.smartclaw/webhook.json` — webhook secrets, gitignored
   - Never commit this file
+
+## Daily Repository Export (llm_wiki + roadmap, AO Go recovery)
+
+Governing design and plan: `docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.md`,
+`docs/superpowers/plans/2026-07-10-ao-go-daily-repo-export.md`. Issue:
+https://github.com/jleechanorg/jleechanbrain/issues/755.
+
+`ai.smartclaw.schedule.daily-repo-export` replaces the two overlapping
+per-repository jobs below with one daily coordinator run. It uses the
+existing deterministic Git fast path in `scripts/auto-push-to-main.sh`
+(`--repo PATH:NAME` coordinator mode, preserving the legacy
+`<repo_path> <repo_name>` two-argument interface for other callers) and
+delegates exceptional recovery — merge conflicts, hook failures, secret-scan
+blockers — to `scripts/ao-go-repo-recovery.sh`, a narrow shell boundary
+around the **Go** Agent Orchestrator CLI. It never calls `codex` or `claude`
+directly.
+
+**Superseded (booted out and removed by the installer once the new label
+loads successfully):**
+- `ai.smartclaw.schedule.auto-push-llm-wiki` (tracked in this repo)
+- `com.jleechan.git-push-llm-wiki` (live-only; wraps the older
+  `scripts/git-push-or-codex.sh`, which called `codex exec --yolo` directly
+  and staged untracked files with `--no-verify`)
+
+`ai.smartclaw.schedule.auto-push-user-scope` and `com.jleechan.git-push-user-scope`
+are **not** touched — user-scope is outside this job's `llm_wiki`+`roadmap`
+allowlist and keeps its own schedule.
+
+### Install / dry-run / operate
+
+```bash
+# Render + lint every scheduled plist into an isolated $HOME without calling
+# launchctl, mutating live cron JSON, or signaling the gateway. Use this to
+# verify the daily-repo-export template before touching a real machine.
+HOME=/tmp/dry-run-home INSTALL_DRY_RUN=1 \
+  AO_GO_BIN="$HOME/.local/bin/ao-go" \
+  bash scripts/install-hermes-scheduled-jobs.sh
+
+# Real install (resolves AO_GO_BIN from env or the stable default path;
+# fails loudly and skips only this one job if the binary is missing or is
+# the rejected Node AO CLI — every other scheduled job still installs):
+AO_GO_BIN="$HOME/.local/bin/ao-go" bash scripts/install-hermes-scheduled-jobs.sh
+
+# Inspect the loaded job
+launchctl print "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+
+# Run it once, on demand, instead of waiting for 3:20 AM
+launchctl kickstart -k "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+
+# Logs
+tail -n 100 "$HOME/.smartclaw/logs/scheduled-jobs/daily-repo-export.out.log"
+tail -n 100 "$HOME/.smartclaw/logs/scheduled-jobs/daily-repo-export.err.log"
+
+# Per-repo state (run id/phase/local+remote SHA/AO session id/harness/attempt)
+cat "$HOME/.smartclaw/logs/scheduled-jobs/auto-push-llm-wiki-state.json"
+cat "$HOME/.smartclaw/logs/scheduled-jobs/ao-recovery-llm-wiki-state.json"
+```
+
+**Success is defined as a freshly fetched local `HEAD` equal to
+`refs/remotes/origin/main`** — not merely a zero process exit code. A run
+that exits 0 without actually reconciling the remote is not a successful
+run; `scripts/ao-go-repo-recovery.sh` only exits 0 once it has verified this
+condition itself, independent of what the AO session reports about itself.
+
+### AO Go recovery — session lookup
+
+On a mutating failure (`git add`/`git commit`/`git push`/remote-verify),
+the adapter spawns one durable AO session with the configured primary
+harness (default `codex`), polls the real remote-head condition, and — if
+the primary stalls, terminates, or times out without resolving it — calls
+`ao session switch <id> --harness claude-code` on that **same** session
+before sending a continuation prompt with the still-unmet exit criteria.
+Harness order is AO project configuration
+(`AO_PRIMARY_HARNESS`/`AO_FALLBACK_HARNESS`), not shell keyword routing.
+
+```bash
+ao session get <id> --json --project llm-wiki-auto-export
+ao session get <id> --json --project roadmap-auto-export
+```
+
+### Rollback
+
+```bash
+launchctl bootout "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+rm -f "$HOME/Library/LaunchAgents/ai.smartclaw.schedule.daily-repo-export.plist"
+# Re-render the previous tracked per-repository templates:
+bash scripts/install-hermes-scheduled-jobs.sh
+```
+
+Rollback does **not** restore the direct `codex exec --yolo` /
+`--no-verify` fallback path — that path is permanently removed, and
+`tests/test_auto_push_to_main.sh` fails if it is reintroduced into
+`scripts/auto-push-to-main.sh`.
 
 ## Adding a New Scheduled Job
 

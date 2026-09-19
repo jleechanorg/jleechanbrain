@@ -22,11 +22,17 @@
         <key>SLACK_5B_CHANNELS</key>
         <string>C0AH3RY3DK6 C0BA4MCBPFB ${SLACK_CHANNEL_ID} ${SLACK_CHANNEL_ID}</string>
         <key>SLACK_5B_ALERT_CHANNEL</key>
-        <string>${SLACK_CHANNEL_ID}</string>
+        <string>C0AJQ5M0A0Y</string>
     </dict>
 
     <key>StartInterval</key>
-    <integer>300</integer>
+    <!-- Reduced from 300s (every 5 min) to 12h. The detector is a safety
+         net for sub-class 5b/5e misroutes; it is QUIET ON SUCCESS (no
+         stdout/stderr when clean), so a 12h cadence is enough to catch
+         real leaks within one polling cycle without 288x/day log noise.
+         Jeffrey (operator) confirmed 12h cadence is acceptable in the
+         2026-06-23 "reduce frequency" thread. -->
+    <integer>43200</integer>
 
     <key>RunAtLoad</key>
     <true/>

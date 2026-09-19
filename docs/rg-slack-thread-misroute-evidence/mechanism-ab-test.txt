@@ -1,0 +1,12 @@
+thread root ts: 1786944592.927039 
+
+A) numeric thread_ts -> ok=True ts=1786944593.342119
+B) string  thread_ts -> ok=True ts=1786944593.747899
+
+=== WHERE DID EACH LAND? (raw thread_ts field from conversations.history) ===
+  AB_NUMERIC thread_ts sent as JSON number     ts=1786944593.342119  thread_ts=<ABSENT = CHANNEL ROOT>
+
+=== thread view of root 1786944592.927039 ===
+   1786944592.927039 | [mechanism A/B - ignore] thread_ts type test root
+   1786944593.747899 | AB_STRING thread_ts sent as JSON string
+   1786944595.670079 | :arrow_right_hook: Redirected current run. I'll adjust using

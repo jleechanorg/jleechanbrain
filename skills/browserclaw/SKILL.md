@@ -19,6 +19,7 @@ This file documents the **cookies** subcommands. The capture / infer / generate 
 
 Use this pair when:
 
+- **The user pastes a `share.gemini.google/...`, `chatgpt.com/share/...`, or "anyone with the link" Google Doc URL and asks you to read it.** Anonymous fetch (`curl`, `web_extract`, headless `browser_navigate`) returns a sign-in shell — the content loads client-side only after auth. Verified 5-step recipe: `references/gemini-share-link-as-user.md`. Do NOT declare the link unreadable or grind on failing `web_extract`/`terminal` calls; reach for the recipe on the first refusal (anti-pattern history: `references/gemini-share-link-stopping-pattern.md`).
 - The site is behind a login that requires MFA / SSO / WebAuthn (programmatic re-auth is impractical).
 - The user has Chrome open and already logged into the target site.
 - You need a Playwright session that **appears as the user** — same cookies, same session, same auth tokens.
@@ -102,6 +103,26 @@ browserclaw cookies decrypt \
   --keychain-service 'Brave Safe Storage' \
   --keychain-account 'Brave'
 ```
+
+### Example — Aside browser (2026-06-27, primary browser)
+
+Aside uses the same Chromium v24 cookie schema but its own Keychain entry (`Aside Safe Storage`). The DB path is `~/Library/Application Support/Aside/Default/Cookies`.
+
+```bash
+browserclaw cookies decrypt \
+  --db ~/Library/Application\ Support/Aside/Default/Cookies \
+  --output /tmp/aside-cookies.json \
+  --keychain-service 'Aside Safe Storage' \
+  --keychain-account 'Aside'
+```
+
+**Keychain prerequisite:** the `Aside Safe Storage` entry is only created after Aside writes its first cookie to disk. If you see `Keychain lookup failed for service='Aside Safe Storage' account='Aside'`, log into a site in Aside once (any login), then re-run. Verify the entry exists:
+
+```bash
+security find-generic-password -s 'Aside Safe Storage' -a 'Aside' -w
+```
+
+**Cross-browser portability warning:** the underlying PBKDF2 password is per-browser (each browser has its own Keychain entry). Even after `cookies decrypt` succeeds, cookies decrypted from Aside cannot be replayed into a Chrome session and vice versa without re-encryption under the target's password — `browserclaw` does NOT do this re-encryption. Use the `cookies decrypt` + `cookies inject` cycle only on the same browser that produced the cookies.
 
 ### Edge cases / failure modes
 

@@ -1,0 +1,60 @@
+# entrypoint-git-fallback.template
+# Apply to: testing_mcp/infra/entrypoint.sh
+# Purpose: when .git/ is absent from the runtime image, fall back to GIT_COMMIT env var
+# so the exact-HEAD guard doesn't crash the whole daily cron.
+#
+# Verified pattern: 2026-08-13 investigation on the wa-daily-level-up-test-mr6dk run.
+# Pair with the Dockerfile COPY fix in templates/dockerfile-test-runner-git-ref.template.
+
+# In entrypoint.sh, locate the line that runs the test runner, and ADD the env var:
+export GIT_COMMIT="${GIT_COMMIT:-${GIT_COMMIT_OVERRIDE:-}}"
+
+# In testing_mcp/core/test_level_up_organic.py, replace the _configure_exact_head_python_runtime()
+# body (line 5348) with this guard-aware version:
+
+"""
+def _configure_exact_head_python_runtime() -> dict[str, str]:
+    \"\"\"Use fresh bytecode and prove the loaded parser matches checked-out HEAD.
+
+    Fallback: when .git/ is absent (e.g. the Cloud Run Job runtime image ships
+    source-only, not a git checkout), trust the GIT_COMMIT env var. The cargo-cult
+    PYTHONPYCACHEPREFIX still works because the env var is a SHA -- the prefix
+    is unique per build either way.
+    \"\"\"
+    import hashlib
+    import json
+    import os
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    git_dir = repo_root / \".git\"
+
+    if git_dir.exists():
+        head_sha = subprocess.check_output(
+            [\"git\", \"rev-parse\", \"HEAD\"], cwd=repo_root, text=True
+        ).strip()
+        commit_time = subprocess.check_output(
+            [\"git\", \"show\", \"-s\", \"--format=%cI\", head_sha], cwd=repo_root, text=True
+        ).strip()
+    else:
+        head_sha = os.environ.get(\"GIT_COMMIT\", \"\").strip()
+        if not head_sha:
+            raise RuntimeError(
+                \".git/ is absent and GIT_COMMIT env var is not set. \"
+                \"Either ship .git/ in the Docker image, or set GIT_COMMIT=... \"
+                \"on the Cloud Run Job.\"
+            )
+        commit_time = \"\"
+        print(f\"[guard] _configure_exact_head_python_runtime: \\".git/\\\" absent; \"
+              f\"using GIT_COMMIT={head_sha[:12]} from env var\")
+
+    pycache_prefix = tempfile.mkdtemp(prefix=f\"worldarchitect-pycache-{head_sha[:12]}-\")
+    os.environ[\"PYTHONPYCACHEPREFIX\"] = pycache_prefix
+
+    from mvp_site import llm_parser as evidence_llm_parser
+
+    # ... rest of the original guard body ...
+    return {\"head_sha\": head_sha, \"commit_time\": commit_time, \"pycache_prefix\": pycache_prefix}
+"""

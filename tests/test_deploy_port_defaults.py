@@ -24,5 +24,5 @@ def test_deploy_port_defaults_correct() -> None:
     # 2. Verify that it is propagated to hermes-health.sh
     assert 'HERMES_HEALTH_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-health.sh"' in content
 
-    # 3. Verify that it is propagated to hermes-canary.sh
-    assert 'HERMES_CANARY_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-canary.sh"' in content
+    # 3. Verify that it is propagated to hermes-health.sh (for the Stage 5 health check too)
+    assert content.count('HERMES_HEALTH_PORT="$PROD_PORT" bash "$SCRIPT_DIR/hermes-health.sh"') >= 2

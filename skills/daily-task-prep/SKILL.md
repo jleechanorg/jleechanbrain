@@ -48,6 +48,16 @@ Quietly prepare today's `## Today` section before {{OWNER_NAME}} wakes up.
 
 Use `gog` via shell to inspect {{OWNER_NAME}}'s visible calendars before adding meeting tasks.
 
+### Discover which accounts are configured first
+
+Run `gog auth list` BEFORE iterating calendar accounts — only query accounts that the tool actually has credentials for. Iterating placeholder emails wastes calls and pollutes logs with "No auth for …" errors.
+
+```bash
+gog auth list
+## Calendar workflow
+
+Use `gog` via shell to inspect {{OWNER_NAME}}'s visible calendars before adding meeting tasks.
+
 Check these calendars when visible:
 - `{{PERSONAL_EMAIL}}`
 - `{{SECONDARY_CALENDAR_EMAIL_1}}`
@@ -55,14 +65,54 @@ Check these calendars when visible:
 - `{{SECONDARY_CALENDAR_EMAIL_2}}`
 - `{{SECONDARY_CALENDAR_EMAIL_3}}`
 - Family calendar only as a conflict source, not as a source of {{OWNER_NAME}} tasks
+- Reclaim / Clockwise / other auto-scheduling calendars (often source focus-time blocks)
 
 Only add calendar items that {{OWNER_NAME}} himself is expected to attend.
 
 Useful shell pattern:
 
 ```bash
-gog calendar events --all -a {{ASSISTANT_EMAIL}} --days=1 --max=100 --json --results-only
+gog calendar events --all -a {{ASSISTANT_EMAIL}} --days=1 --max=200 --json --results-only
 ```
+
+### Pitfalls
+
+- **`--all` is required, not optional.** Without it, `gog` only returns events from a single default calendar (typically the Gmail personal calendar) and silently misses everything on work, Snapchat, Reclaim, family, and other connected calendars. Always pass `--all`, then post-filter in Python by `start.dateTime` (or `start.date` for all-day events) in {{OWNER_NAME}}'s local timezone. See `references/calendar-discovery.md` for the full parsing recipe.
+- **Transparent + self-organized + no attendees = task block, not meeting.** Items like `task: water plants`, `Budget`, `sierra credit`, `🔒 🎯 Focus time` are personal task blocks or focus holds — even when they fall in {{OWNER_NAME}}'s working hours. Do NOT add them as meeting tasks. The skill's "Exclude personal or family calendar blocks" rule covers these.
+- **Distinguish meeting signals:** real meetings typically have either (a) other attendees, (b) a `conferenceData.entryPoints[].uri` (Meet/Zoom link), (c) `transparency: opaque` (shows as busy), or (d) a creator email that is NOT one of {{OWNER_NAME}}'s own addresses. Lacking all four, treat the event as a task block and skip it.
+
+If calendar access fails on all configured accounts, still do file-based prep and only notify {{OWNER_NAME}} if the failure matters.
+
+## Calendar event classification
+
+Not every event on the calendar is a task. Filter into one of these buckets before adding anything to `## Today`:
+
+| Bucket | Action | Examples |
+|---|---|---|
+| Owner-attended meeting/call | ADD to `## Today` (chronological) | "Cat sitter meeting", "1:1 with X" |
+| Owner all-day recurring personal event | ADD to `## Today` (all-day section at top of meetings) | "Mom's Bday.", "Anniversary" |
+| Imported calendar event (organizer = `*import.calendar.google.com` or another person) | SKIP, but flag as a CONFLICT if it overlaps an existing `## Today` slot | Partiful imports, friend-shared events |
+| Auto-block / focus time (organizer = `reclaim.ai`, `clockwise`, `motion.ai`) | SKIP — these are not tasks | "Focus time", "Focus block" |
+| Public holiday (organizer = `en.usa#holiday@group.v.calendar.google.com` etc.) | SKIP — no action needed | "Independence Day", "Christmas" |
+| Multi-day travel plan that spans today | SKIP — not today's work | "Trip to Dublin" running Jun–Aug |
+| Lunch / walk / personal block with no external attendee | SKIP unless {{OWNER_NAME}} explicitly asks | — |
+
+### Pitfall: UTC events look like "tomorrow" but are today
+
+Calendar APIs return `start.dateTime` in the event's own timezone or UTC. Events like `2026-07-05T00:00:00Z` are actually **2026-07-04 17:00 PT** (during DST). Before deciding an event is "tomorrow", convert `Z`-suffixed timestamps to local time and re-check. Use Python or `date -u -d`:
+
+```python
+import datetime
+utc = datetime.datetime.fromisoformat("2026-07-05T00:00:00+00:00")
+pt = utc.astimezone(datetime.timezone(datetime.timedelta(hours=-7)))
+# → 2026-07-04T17:00:00-07:00
+```
+
+If the converted local time lands on today AND the event is owner-attended (not imported), treat it as today's event.
+
+### Pitfall: imported events that overlap an existing block
+
+If an imported calendar event (Partiful, friend-shared, etc.) lands on today's date in local time AND overlaps a slot already in `## Today` (e.g. the cat sitter call 17:00–19:00), it's a conflict source, not a task. Surface it as a heads-up in the final reply only if it would genuinely surprise {{OWNER_NAME}} — otherwise skip silently.
 
 ## Task text rules
 
@@ -73,6 +123,7 @@ gog calendar events --all -a {{ASSISTANT_EMAIL}} --days=1 --max=100 --json --res
 - If a backlog due-date item is promoted into `## Today`, remove the backlog copy immediately.
 - For recurring reminders, keep the recurring source entry in place and only add the due instance into `## Today`.
 - Use recurring reminder lines in this shape when present: `- [ ] Task — due YYYY-MM-DD[ HH:MM TZ] — recurs <period> every <n>`.
+- For calendar all-day events (e.g. recurring birthdays), use the literal event summary as the task title, followed by the date — keep it short and recognizable so {{OWNER_NAME}} spots it: `- [ ] Mom's Bday. — 2026-07-04 (all-day)`.
 
 ## Safety
 

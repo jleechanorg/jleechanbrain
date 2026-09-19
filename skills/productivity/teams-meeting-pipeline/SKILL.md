@@ -39,7 +39,7 @@ Multilingual trigger examples (not exhaustive):
 
 ## Prerequisites
 
-Before using the pipeline, verify these are set in `~/.smartclaw/.env`:
+Before using the pipeline, verify these are set in `${HERMES_HOME:-~/.smartclaw}/.env`:
 
 ```bash
 MSGRAPH_TENANT_ID=...

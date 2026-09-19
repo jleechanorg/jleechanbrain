@@ -19,7 +19,7 @@ When `/auto` is invoked alone (no goal), treat the next user message as the goal
 
 ## When invoked
 
-1. Load the skill: `~/.smartclaw_prod/skills/finish-the-job/SKILL.md`
+1. Load the skill: `~/.smartclaw/skills/finish-the-job/SKILL.md`
 2. Pass the goal through Phases 0-4 of the skill
 3. End-state must be provable (green PR / merged fix / dry-run / local state verified)
 
@@ -34,4 +34,4 @@ When `/auto` is invoked alone (no goal), treat the next user message as the goal
 - "hands off", "no questions", "just finish"
 - "ship it", "merge it"
 
-See skill: `~/.smartclaw_prod/skills/finish-the-job/SKILL.md` for the full contract.
+See skill: `~/.smartclaw/skills/finish-the-job/SKILL.md` for the full contract.

@@ -21,6 +21,7 @@ Any of these messages should fire this skill — load it BEFORE taking the first
 | "next time don't ask me, just finish the work" / "dont ask me just finish" | Do NOT pause to confirm between (push, CI, review fixes, merge). Execute the whole sequence. |
 | "stop stopping halfway" / "why did you stop halfway?" | Reflect root-cause + load this skill on the next iteration |
 | Any task that ends with a PR — the work is not done until the PR is MERGED | Apply the full sequence below |
+| "Investigate" / "Investigate <PR>" / "Look into this deploy alert" | Apply the investigation-side recipe in `references/chainguard-python-entrypoint-deploy-debug.md` BEFORE chasing the commit named in the alert — see "Pitfall 1" |
 
 ## Rule (the anti-stop-halfway contract)
 
@@ -50,11 +51,16 @@ If you find yourself mid-task and realize you forgot to load these, stop and loa
 ### Step 1 — Locate and read the PR
 
 ```bash
-gh pr view <N> --repo <owner>/<repo> --json headRefOid,headRefName,reviewDecision,mergeStateStatus,statusCheckRollup
+gh pr view <N> --repo <owner>/<repo> --json headRefOid,headRefName,reviewDecision,mergeStateStatus,statusCheckRollup,state,mergedAt,isDraft
 gh pr diff <N> --repo <owner>/<repo> --name-only
 ```
 
 Record the `headRefOid` (the SHA you'll need for the worktree).
+
+**PITFALL — never infer merge state from PR body context (added 2026-06-28, PR #7971 misread):**
+The PR body's prose may say "this PR builds on merged PR #N" or list a predecessor whose `state == MERGED`. That says nothing about the PR you are inspecting. The source of truth for the PR's own merge state is the `state` / `mergedAt` / `mergeCommit` fields returned by `gh pr view --json state,mergedAt,mergeMergeCommit`. Read those directly — never conclude "merged" from body text, commit counts, or related PRs. Reported as "MERGED" when the PR was actually OPEN is the exact failure that erodes user trust; the user-visible cost is one extra "this PR is not mered?" correction round-trip.
+
+Also note: `isDraft: true` PRs are not merge-eligible and gate runners behave differently.
 
 ### Step 2 — Diagnose every red signal
 
@@ -65,6 +71,27 @@ Read each signal in this order; do not propose fixes before diagnosis is complet
 3. **CodeRabbit / Cursor Bugbot / chatgpt-codex reviews** — read each as a numbered list of concrete issues. Mark each resolved / unresolved / escalated.
 4. **Human review comments** — same; address or escalate.
 5. **Review state** — `reviewDecision: ""` is good; `CHANGES_REQUESTED` is blocking; `APPROVED` is good.
+
+**PITFALL — skeptic verdicts are stale once a new commit lands (added 2026-06-28, PR #7971):**
+The skeptic verdict on a PR (`<!-- skeptic-gate-N:FAIL -->` markers, gate-level failure attribution) is generated against a specific `headRefOid`. Every commit push re-runs CI but does NOT auto-regenerate the skeptic verdict. A common misread: treating a `skeptic-gate-7:FAIL` comment as authoritative when the failure was already addressed in a later commit. Verification recipe before acting on a skeptic failure:
+
+```bash
+# 1. Confirm current PR head
+PR_HEAD=$(gh pr view <N> --repo <owner>/<repo> --json headRefOid -q .headRefOid)
+
+# 2. Find the SHA the skeptic verdict ran against
+VERDICT_SHA=$(gh api 'repos/<owner>/<repo>/issues/<N>/comments?per_page=20' \
+  | jq -r '.[] | select(.body | contains("skeptic-head-sha-")) | .body' \
+  | grep -oE 'skeptic-head-sha-[a-f0-9]+' | head -1 | cut -d- -f4)
+
+# 3. Compare — if they differ, the verdict is stale; re-trigger skeptic-cron
+if [ "$PR_HEAD" != "$VERDICT_SHA" ]; then
+  echo "Stale verdict: ran against $VERDICT_SHA, current head $PR_HEAD — re-trigger with /skeptic"
+  ~/.smartclaw/scripts/gh-safe-publish pr comment <N> --body "/skeptic"
+fi
+```
+
+Without this check, agents spend cycles re-fixing issues the latest commit already addressed — or worse, propose patches for code that no longer exists.
 
 ### Step 3 — Worktree at the explicit PR head SHA (not the ref)
 
@@ -130,7 +157,39 @@ done
 
 `detect-changes`, `import-validation`, `Directory tests`, `Green Gate`, `Merge commit validation` are the critical ones. `SKIPPED` is fine (means the change didn't trigger that matrix). `NEUTRAL` (Cursor Bugbot) is fine.
 
-### Step 7b — Clear GraphQL gate 5 (unresolved bot threads) [NEW 2026-06-14]
+### Step 7a — Trigger Skeptic Self-Verify manually when the cron is idle (added 2026-07-04, PR #8139)
+
+The Green Gate polls for `VERDICT: PASS` posted by `skeptic-self-verify.yml` (workflow id varies per repo — list via `gh workflow list --jq '.[] | select(.name | test("Skeptic"; "i"))'`). Skeptic Cron only runs on its own schedule — when the cron hasn't ticked, posting `/skeptic` as a PR comment does **not** trigger a VERDICT within Green Gate's poll window (~29 min). Green Gate then fails on "Poll for VERDICT" even though Skeptic Cron eventually posts `SKEPTIC_CRON_TRIGGER` later.
+
+**Recipe when `/skeptic` triggers SKEPTIC_CRON_TRIGGER but no VERDICT arrives within Green Gate's poll window:**
+
+```bash
+# 1. Find the Skeptic Self-Verify workflow id in the PR's repo
+gh workflow list --repo <owner>/<repo> --json id,name --jq \
+  '.[] | select(.name | test("Skeptic"; "i"))'
+
+# 2. Dispatch Skeptic Self-Verify explicitly with pr_number (the cron
+#    trigger by itself won't run Self-Verify in time for the poll)
+gh workflow run <skeptic-self-verify-workflow-id> \
+  --repo <owner>/<repo> --ref <branch> -f pr_number=<N>
+
+# 3. Poll for VERDICT comment (usually lands within ~5 min after dispatch)
+for i in {1..15}; do
+  sleep 30
+  CNT=$(gh api "repos/<owner>/<repo>/issues/<N>/comments" --jq \
+    '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("VERDICT")))] | length')
+  [ "${CNT:-0}" -gt 0 ] && { echo "VERDICT landed"; break; }
+done
+
+# 4. Re-run the failed Green Gate job (the previous run timed out before VERDICT arrived)
+gh api -X POST "repos/<owner>/<repo>/actions/runs/<failed-green-gate-run-id>/rerun-failed-jobs"
+```
+
+**What Skeptic Self-Verify evaluates** (verified PR #8139, verdict ts 2026-07-05T01:14:08Z): all 7 gates plus gate 8 (Smoke Gate Wait). Skeptic reads live PR data — when CodeRabbit completed its review but the GitHub UI `reviewDecision` field is still `CHANGES_REQUESTED` or empty, Skeptic returns `PASS(status-only)` for gate 3. Documented global-infra failures (self-hosted runner flakes, GitHub API propagation timeouts, Chainguard ENTRYPOINT deploy-preview failures, etc.) are explicitly treated as non-blocking per the same-name rule (see `qa-test-failure-dismissal-anti-pattern` skill), so a PR with `mergeStateStatus=UNSTABLE` because of infra fails can still receive `VERDICT: PASS`.
+
+**Bottom line**: a PR can be Skeptic `VERDICT: PASS` while `mergeStateStatus=UNSTABLE` and `state=OPEN`. Skeptic's verdict is the source of truth for "code-level 7-green," not the GitHub UI merge state field. Surface this distinction in the final reply so the human understands what they are signing off on — `MERGE APPROVED` against a `mergeStateStatus=UNSTABLE` PR means "ok to merge despite the documented infra failures," not "ok because every CI gate is green UI-status-pass."
+
+### Step 7b — Clear GraphQL gate 5 (unresolved bot threads) [NEW 2026-06-14] **Green
 
 **Green Gate gate 5 reads GraphQL `isResolved` on review threads, not REST comment count.** `gh pr comment` (REST) does **not** flip `isResolved`. CodeRabbit threads auto-resolve on CR's own confirm-fix reply (it carries the resolved marker), but `chatgpt-codex-connector[bot]` and other non-CR bot threads do **not** auto-resolve — gate 5 stays FAIL until a GraphQL `resolveReviewThread` mutation is called per thread.
 
@@ -228,6 +287,7 @@ When dispatching, the task prompt MUST include:
 - **"Report CodeRabbit issues but don't fix them"** — when given the green-up-and-merge instruction, you own the fixes.
 - **"Wait 5 min between push and CI check"** — CI is usually <2 min for this repo; poll in 30s loops and break on first signal change.
 - **"Re-ask for force-push approval when authorization was already given"** — see Step 6 trigger list.
+- **"Investigate the commit in the email subject"** — see `references/chainguard-python-entrypoint-deploy-debug.md` Pitfall 1. The email-triggering commit is rarely the commit that actually failed.
 
 ## Slack narration threading (anti-misroute rule)
 
@@ -257,7 +317,7 @@ mcp__slack__conversations_add_message(
 
 **Why this rule exists:** 2026-06-13 PR #7524 incident — drive-pr-to-green agent posted 4 of 6 status narrations to channel root instead of threading. Same bug reproduced in #agentf for ao-6363 (5+ root posts). User's complaint at C0AJ3SD5C79/p1781394553470139: "Why are replies still going out of thread?" This is a **behavioral fix**, not a code fix — the Slack MCP already supports `thread_ts`; the LLM must actively pass it on every narration call.
 
-**Reference:** `~/.claude/projects/-Users-jleechan--hermes/memory/feedback_2026-06-14_llm_narration_unthreaded.md`.
+**Reference**: `~/.claude/projects/-Users-jleechan--hermes/memory/feedback_2026-06-14_llm_narration_unthreaded.md`.
 
 ## Pitfall — what "green" actually means
 
@@ -269,6 +329,14 @@ Translation:
 - **Not acceptable**: "local changes ready" with no PR, or PR open with red CI, or PR open with CHANGES_REQUESTED review
 
 For trigger-style PRs (workflow files, CI changes) the bar is the same. For `mvp_site/` production code changes, AGENTS.md requires `/es` evidence — that's a separate gate, not part of "green" for this skill.
+
+## AO spawn-rejected: zombie sessions + cap override
+
+When `ao spawn -p <project>` rejects with `20 active sessions >= cap (20)` but the active project has few live workers, the orchestrator's session table is full of `[spawning]` zombie rows from prior abandoned dispatches. The recipe (kill zombies + raise `AO_MAX_CONCURRENT_SESSIONS` env var) is at `references/ao-spawn-cap-zombie-recovery.md`. Apply BEFORE retrying spawn, otherwise the rejection repeats on every cycle.
+
+## Deploy-debug reference: Chainguard ENTRYPOINT ↔ CMD conflict + investigation pitfalls
+
+When `deploy-preview` fails with `container failed to start and listen on the port` and the Cloud Run logs show `/usr/bin/python: can't open file '/app/<subdir>/gunicorn'`, the project's Dockerfile base image is one with `ENTRYPOINT ["/usr/bin/python"]` (e.g. Chainguard's `:latest-dev`) and the runtime is prepending it to the project's `CMD ["gunicorn", …]`. The container is launching `python gunicorn` instead of `gunicorn`. Recipe + fix paths + same-name rule for global infra + investigation-side pitfalls (the "FAILED" deploy email usually names the trigger commit, not the actually-broken commit) are at `references/chainguard-python-entrypoint-deploy-debug.md`.
 
 ## Worked example — 2026-06-12 PR #7484 (this skill's origin case)
 

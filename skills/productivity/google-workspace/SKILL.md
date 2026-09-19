@@ -1,33 +1,76 @@
 ---
 name: google-workspace
-description: "Gmail, Calendar, Drive, Docs, Sheets via gws CLI or Python."
-version: 1.1.0
+description: "Gmail, Calendar, Drive, Docs, Sheets via gog CLI. (gws-bridge deleted 2026-08-22 — gws is BANNED for personal Workspace calls per SOUL.md ## COMMIT: gws-banned-for-personal-workspace.)"
+version: 1.2.0
 author: Nous Research
 license: MIT
 platforms: [linux, macos, windows]
-required_credential_files:
-  - path: google_token.json
-    description: Google OAuth2 token (created by setup script)
-  - path: google_client_secret.json
-    description: Google OAuth2 client credentials (downloaded from Google Cloud Console)
 metadata:
   hermes:
     tags: [Google, Gmail, Calendar, Drive, Sheets, Docs, Contacts, Email, OAuth]
     homepage: https://github.com/NousResearch/hermes-agent
-    related_skills: [himalaya]
+    related_skills: [himalaya, google-workspace-via-gog]
+deprecated_cli: gws
+canonical_cli: gog
 ---
 
-# Google Workspace
+# Google Workspace (via `gog`)
 
-Gmail, Calendar, Drive, Contacts, Sheets, and Docs — through Hermes-managed OAuth and a thin CLI wrapper. When `gws` is installed, the skill uses it as the execution backend for broader Google Workspace coverage; otherwise it falls back to the bundled Python client implementation.
+> **Updated 2026-08-22:** `gws` is BANNED for personal Workspace calls (Gmail/Drive/Docs/Sheets/Slides). Canonical CLI is now `gog` (v0.37.0+). See SOUL.md `## COMMIT: gws-banned-for-personal-workspace` and `~/.smartclaw/skills/google-workspace-via-gog/SKILL.md` (canonical).
 
-## References
+This skill is preserved for historical reference and the bundled `scripts/setup.py` + `scripts/google_api.py` Python OAuth helpers (still functional). New work should use `gog` directly via the `google-workspace-via-gog` skill. The `gws_bridge.py` script was deleted on 2026-08-22 because `gws` no longer has a permitted role for personal Workspace calls.
 
-- `references/gmail-search-syntax.md` — Gmail search operators (is:unread, from:, newer_than:, etc.)
+## Why `gog` over `gws`
 
-## Scripts
+- **Token persistence** — `gog` keeps the OAuth refresh_token in macOS Keychain / Linux keyring. Survives reboots, sleep/wake, shell restarts. `gws` keeps a flat-file token that drifts.
+- **Coverage** — `gog` covers Gmail, Drive, Docs, Slides, Sheets, Calendar, Tasks, Contacts, People, Classroom, Chat. `gws` was partial.
+- **Stability** — `gog` has no permanent-401 bug class. `gws` had bugs #904 (null expires_at → 401) and #891 (decryption failure wipes creds).
+- **Auth partitioning** — `gws` was wired to `firebase-adminsdk-fbsvc@worldarchitecture-ai.iam.gserviceaccount.com` which has no personal scopes. Every personal call returned silent 401/empty-results. `gog` is wired to OAuth refresh tokens for `jleechan@gmail.com`.
 
-- `scripts/setup.py` — OAuth2 setup (run once to authorize)
+## Quick start (canonical)
+
+```bash
+unset GOG_KEYRING_BACKEND
+ACCT=jleechan@gmail.com
+
+# 1. Verify auth is live
+gog auth status
+# Expect: credentials_exists: true, accounts includes jleechan@gmail.com with auth_preferred: oauth
+
+# 2. Test the canonical call
+gog --account "$ACCT" drive ls --max 3
+
+# 3. Read a doc
+gog --account "$ACCT" docs cat <DOC_ID>
+
+# 4. Search Gmail
+gog --account "$ACCT" gmail search "is:unread" --max 10
+
+# 5. List upcoming calendar events
+gog --account "$ACCT" calendar list --start $(date -u +%Y-%m-%dT%H:%M:%SZ) --max 10
+```
+
+## Setup if auth is missing
+
+The OAuth re-consent flow is in `~/.smartclaw/skills/google-workspace-via-gog/SKILL.md` "OAuth re-consent flow" section. Run:
+
+```bash
+unset GOG_KEYRING_BACKEND
+gog login jleechan@gmail.com --client default \
+    --services gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people \
+    --drive-scope full --manual --remote --force-consent --no-input --step 1
+# → prints JSON with auth_url
+# → open auth_url in browser, sign in, copy the final redirect URL
+# → re-run with --step 2 --auth-url '<paste redirect>'
+# → verify: gog drive ls --max 3 --account jleechan@gmail.com --client default
+```
+
+## Scripts (Python helpers, kept for compatibility)
+
+- `scripts/setup.py` — OAuth2 setup (legacy path, prefer `gog login`)
+- `scripts/google_api.py` — Python client (legacy, prefer `gog` directly)
+- `scripts/_hermes_home.py` — helper
+- ~~`scripts/gws_bridge.py`~~ — **DELETED 2026-08-22** (gws banned for personal calls)
 - `scripts/google_api.py` — compatibility wrapper CLI. It prefers `gws` for operations when available, while preserving Hermes' existing JSON output contract.
 
 ## First-Time Setup

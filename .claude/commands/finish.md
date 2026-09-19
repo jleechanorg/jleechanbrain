@@ -16,7 +16,7 @@ execution_mode: immediate
 
 ## When invoked
 
-1. Load the skill: `~/.smartclaw_prod/skills/finish-the-job/SKILL.md`
+1. Load the skill: `~/.smartclaw/skills/finish-the-job/SKILL.md`
 2. Pass the full argument as the goal
 3. Follow the skill's Phase 0 → Phase 4 contract (classify → /fs if non-trivial → dispatch → drive to conclusion → final reply with proof artifact)
 
@@ -35,4 +35,4 @@ execution_mode: immediate
 - ❌ "Tests pass locally, want me to push?" — push and merge
 - ❌ Investigation with no commit/PR/dry-run — drive to action
 
-See skill: `~/.smartclaw_prod/skills/finish-the-job/SKILL.md` for the full contract.
+See skill: `~/.smartclaw/skills/finish-the-job/SKILL.md` for the full contract.

@@ -37,7 +37,7 @@ WORKDIR="$(mktemp -d)"
 BIN_DIR="$WORKDIR/bin"
 LOG_DIR="$WORKDIR/logs"
 FIXTURES_DIR="$WORKDIR/fixtures"
-mkdir -p "$BIN_DIR" "$LOG_DIR" "$FIXTURES_DIR"
+mkdir -p "$BIN_DIR" "$LOG_DIR" "$FIXTURES_DIR" "$WORKDIR/empty-anchor"
 CURL_LOG="$LOG_DIR/curl.log"
 
 # Helper to write a fixture file used by the fake curl.
@@ -165,7 +165,7 @@ fi
 TMP_STATE="$WORKDIR/state2.json"
 rm -f "$TMP_STATE"
 set +e
-OUT=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" 2>&1)
+OUT=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" "$WORKDIR/empty-anchor" 2>&1)
 RC=$?
 set -e
 if [[ $RC -eq 1 ]] && echo "$OUT" | grep -q "ALERT ts=1781731123.137169" && \
@@ -206,9 +206,9 @@ fi
 TMP_STATE="$WORKDIR/state5.json"
 rm -f "$TMP_STATE"
 set +e
-OUT1=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" 2>&1)
+OUT1=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" "$WORKDIR/empty-anchor" 2>&1)
 RC1=$?
-OUT2=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" 2>&1)
+OUT2=$(run_detector "$TMP_STATE" "C0BA4MCBPFB" "$WORKDIR/empty-anchor" 2>&1)
 RC2=$?
 set -e
 if [[ $RC1 -eq 1 && $RC2 -eq 0 ]]; then
@@ -291,16 +291,17 @@ else
   fail "test 9: expected exit 1 + ALERT, got rc=$RC out=$OUT"
 fi
 
-# ── Test 10: stale anchor (mtime > grace) → still treated as a real leak ──
-# Anchor file exists, matches ts, but mtime is 30 min old (beyond the
-# 10-min DAILY_ANCHOR_GRACE_MIN default). Detector must alert.
+# ── Test 10: anchor with non-matching ts → real leak ───────────────────────
+# Anchor file exists but its stored ts is DIFFERENT from the candidate ts.
+# Even with a fresh mtime, the ts mismatch means this is NOT the recorded
+# anchor for that job → detector must alert.
 TMP_STATE="$WORKDIR/state10.json"
 ANCHOR_ROOT_10="$WORKDIR/var10/slack"
 mkdir -p "$ANCHOR_ROOT_10/babysit-wa-2366-rev-5deak"
-printf '1781800000.000001' > "$ANCHOR_ROOT_10/babysit-wa-2366-rev-5deak/daily-thread.ts"
-# Force mtime 30 min in the past.
-touch -t "$(date -v-30M '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '30 minutes ago' '+%Y%m%d%H%M.%S')" \
-  "$ANCHOR_ROOT_10/babysit-wa-2366-rev-5deak/daily-thread.ts"
+# Stored ts = 1111111111.111111 (not 1781800000.000001, the candidate).
+printf '1111111111.111111' > "$ANCHOR_ROOT_10/babysit-wa-2366-rev-5deak/daily-thread.ts"
+# Force mtime to NOW (so any mtime gate would pass).
+touch "$ANCHOR_ROOT_10/babysit-wa-2366-rev-5deak/daily-thread.ts"
 rm -f "$TMP_STATE"
 set +e
 OUT=$(run_detector "$TMP_STATE" "C0TEST0002" "$ANCHOR_ROOT_10" 2>&1)
@@ -308,9 +309,34 @@ RC=$?
 set -e
 if [[ $RC -eq 1 ]] && echo "$OUT" | grep -q "ALERT ts=1781800000.000001" && \
    ! echo "$OUT" | grep -q "intentional-anchor"; then
-  pass "test 10: stale anchor (30m) → real leak, exit 1"
+  pass "test 10: anchor with non-matching ts → real leak, exit 1"
 else
   fail "test 10: expected exit 1 + ALERT + no anchor log, got rc=$RC out=$OUT"
+fi
+
+# ── Test 13: regression for jleechan-rv8e — stale anchor with matching ts ──
+# Verified passing under stored-ts-as-truth logic.
+# Anchor file exists, ts matches candidate, but mtime is 30 min old (well
+# past the 10-min DAILY_ANCHOR_GRACE_MIN default). The OLD mtime-gated
+# logic would alert on this even though the ts is a valid recorded anchor.
+# The NEW stored-ts-as-truth logic must treat this as intentional and skip.
+TMP_STATE="$WORKDIR/state13.json"
+ANCHOR_ROOT_13="$WORKDIR/var13/slack"
+mkdir -p "$ANCHOR_ROOT_13/babysit-wa-2366-rev-5deak"
+printf '1781800000.000001' > "$ANCHOR_ROOT_13/babysit-wa-2366-rev-5deak/daily-thread.ts"
+# Force mtime 30 min in the past (beyond grace).
+touch -t "$(date -v-30M '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '30 minutes ago' '+%Y%m%d%H%M.%S')" \
+  "$ANCHOR_ROOT_13/babysit-wa-2366-rev-5deak/daily-thread.ts"
+rm -f "$TMP_STATE"
+set +e
+OUT=$(run_detector "$TMP_STATE" "C0TEST0002" "$ANCHOR_ROOT_13" 2>&1)
+RC=$?
+set -e
+if [[ $RC -eq 0 ]] && ! echo "$OUT" | grep -q "ALERT ts=1781800000.000001" && \
+   echo "$OUT" | grep -q "intentional-anchor"; then
+  pass "test 13: jleechan-rv8e regression — stale (30m) anchor with matching ts → intentional, exit 0"
+else
+  fail "test 13: expected exit 0 + intentional-anchor log, got rc=$RC out=$OUT"
 fi
 
 # ── Test 11: pagination — detector follows next_cursor across pages ────────
@@ -349,8 +375,8 @@ fi
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 echo "=============================="
-echo "PASSED: $PASSED / 12"
-echo "FAILED: $FAILED / 12"
+echo "PASSED: $PASSED / 13"
+echo "FAILED: $FAILED / 13"
 echo "=============================="
 
 # Cleanup

@@ -1,0 +1,14 @@
+=== GREEN2: channel scan for GREEN2_MARKER_C1 ===
+{
+ "ts": "1786945273.480939",
+ "thread_ts": "1786945273.480939",
+ "text": "[rg GREEN2 test - ignore] Two steps: (1) run `sleep 15` with the termi"
+}
+
+=== GREEN2: thread view of root 1786945273.480939 ===
+   1786945273.480939 | [rg GREEN2 test - ignore] Two steps: (1) run `sleep 15` with the terminal tool
+   1786945286.965009 | :computer: terminal
+```
+sleep 15 &amp;&amp; echo "sleep 15 complete"
+```
+   1786945304.346559 | GREEN2_MARKER_C1 progress narration

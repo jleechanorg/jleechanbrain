@@ -51,7 +51,7 @@
 <div class="container">
 
 <h1>Hermes Cron → Launchd Migration</h1>
-<p class="updated">Last updated: 2026-03-21</p>
+<p class="updated">Last updated: 2026-07-10</p>
 
 <div class="info">
   <strong>Live vs Tracked:</strong> Infrastructure/scheduled jobs are tracked as launchd plist
@@ -86,6 +86,7 @@
     <tr><td><code>ai.smartclaw.schedule.harness-analyzer-9am.plist</code></td><td><code>ai.smartclaw.schedule.harness-analyzer-9am</code></td><td>9:00 AM PT M–F</td><td><code>scripts/harness-analyzer.sh</code></td><td>Harness engineering analysis</td></tr>
     <tr><td><code>ai.smartclaw.schedule.orch-health-weekly.plist</code></td><td><code>ai.smartclaw.schedule.orch-health-weekly</code></td><td>Mon 9:30 AM PT</td><td><code>orchestration.cron_runner</code></td><td>Orchestration health report</td></tr>
     <tr><td><code>ai.smartclaw.schedule.github-intake.plist</code></td><td><code>ai.smartclaw.schedule.github-intake</code></td><td>9:00 AM PT daily</td><td><code>scripts/github-intake.sh</code></td><td>GitHub notification intake</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.daily-repo-export.plist.template</code></td><td><code>ai.smartclaw.schedule.daily-repo-export</code></td><td>3:20 AM local daily</td><td><code>scripts/auto-push-to-main.sh --repo ...</code></td><td>Export <code>llm_wiki</code> + <code>roadmap</code> to <code>origin/main</code>; AO Go recovery on failure — see <a href="#daily-export">Daily Repository Export</a> below</td></tr>
     <tr><td><code>ai.agento.dashboard.plist</code></td><td><code>ai.agento.dashboard</code></td><td>KeepAlive</td><td><code>npx next start</code></td><td>AO web dashboard (port 3020)</td></tr>
     <tr><td><code>ai.smartclaw.lifecycle-manager.plist</code></td><td><code>ai.smartclaw.lifecycle-manager</code></td><td>KeepAlive</td><td>inline bash</td><td>AO lifecycle workers</td></tr>
     <tr><td><code>ai.smartclaw.config-sync.plist</code></td><td><code>ai.smartclaw.config-sync</code></td><td>1 hr</td><td><code>scripts/sync-hermes-config.sh</code></td><td>Config sync to live dir</td></tr>
@@ -202,6 +203,90 @@ done</code></pre>
   <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/config.yaml</code> — tokens and secrets, gitignored</li>
   <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/webhook.json</code> — webhook secrets, gitignored</li>
 </ul>
+
+<h2 id="daily-export">Daily Repository Export (llm_wiki + roadmap, AO Go recovery)</h2>
+<div class="info">
+  Governing design and plan:
+  <code>docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.md</code>,
+  <code>docs/superpowers/plans/2026-07-10-ao-go-daily-repo-export.md</code>.
+  Issue: <a href="https://github.com/jleechanorg/jleechanbrain/issues/755">jleechanorg/jleechanbrain#755</a>.
+</div>
+<p><code>ai.smartclaw.schedule.daily-repo-export</code> replaces the two overlapping per-repository
+jobs below with one daily coordinator run. It uses the existing deterministic Git fast path in
+<code>scripts/auto-push-to-main.sh</code> (<code>--repo PATH:NAME</code> coordinator mode,
+preserving the legacy <code>&lt;repo_path&gt; &lt;repo_name&gt;</code> two-argument interface for
+other callers) and delegates exceptional recovery — merge conflicts, hook failures, secret-scan
+blockers — to <code>scripts/ao-go-repo-recovery.sh</code>, a narrow shell boundary around the
+<strong>Go</strong> Agent Orchestrator CLI. It never calls <code>codex</code> or
+<code>claude</code> directly.</p>
+
+<p><strong>Superseded</strong> (booted out and removed by the installer once the new label loads
+successfully):</p>
+<ul>
+  <li><code>ai.smartclaw.schedule.auto-push-llm-wiki</code> (tracked in this repo)</li>
+  <li><code>com.jleechan.git-push-llm-wiki</code> (live-only; wraps the older
+    <code>scripts/git-push-or-codex.sh</code>, which called <code>codex exec --yolo</code>
+    directly and staged untracked files with <code>--no-verify</code>)</li>
+</ul>
+<p><code>ai.smartclaw.schedule.auto-push-user-scope</code> and
+<code>com.jleechan.git-push-user-scope</code> are <strong>not</strong> touched — user-scope is
+outside this job's <code>llm_wiki</code>+<code>roadmap</code> allowlist and keeps its own
+schedule.</p>
+
+<h3>Install / dry-run / operate</h3>
+<pre><code># Render + lint every scheduled plist into an isolated $HOME without calling
+# launchctl, mutating live cron JSON, or signaling the gateway.
+HOME=/tmp/dry-run-home INSTALL_DRY_RUN=1 \
+  AO_GO_BIN="$HOME/.local/bin/ao-go" \
+  bash scripts/install-hermes-scheduled-jobs.sh
+
+# Real install (resolves AO_GO_BIN from env or the stable default path;
+# fails loudly and skips only this one job if the binary is missing or is
+# the rejected Node AO CLI — every other scheduled job still installs):
+AO_GO_BIN="$HOME/.local/bin/ao-go" bash scripts/install-hermes-scheduled-jobs.sh
+
+# Inspect the loaded job
+launchctl print "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+
+# Run it once, on demand
+launchctl kickstart -k "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+
+# Logs
+tail -n 100 "$HOME/.smartclaw/logs/scheduled-jobs/daily-repo-export.out.log"
+tail -n 100 "$HOME/.smartclaw/logs/scheduled-jobs/daily-repo-export.err.log"
+
+# Per-repo state (run id/phase/local+remote SHA/AO session id/harness/attempt)
+cat "$HOME/.smartclaw/logs/scheduled-jobs/auto-push-llm-wiki-state.json"
+cat "$HOME/.smartclaw/logs/scheduled-jobs/ao-recovery-llm-wiki-state.json"</code></pre>
+
+<div class="warning">
+  <strong>Success is a freshly fetched local <code>HEAD</code> equal to
+  <code>refs/remotes/origin/main</code></strong> — not merely a zero process exit code.
+  <code>scripts/ao-go-repo-recovery.sh</code> only exits 0 once it has verified this condition
+  itself, independent of what the AO session reports about itself.
+</div>
+
+<h3>AO Go recovery — session lookup</h3>
+<p>On a mutating failure (<code>git add</code>/<code>git commit</code>/<code>git push</code>/
+remote-verify), the adapter spawns one durable AO session with the configured primary harness
+(default <code>codex</code>), polls the real remote-head condition, and — if the primary stalls,
+terminates, or times out without resolving it — calls
+<code>ao session switch &lt;id&gt; --harness claude-code</code> on that <strong>same</strong>
+session before sending a continuation prompt with the still-unmet exit criteria. Harness order
+is AO project configuration (<code>AO_PRIMARY_HARNESS</code>/<code>AO_FALLBACK_HARNESS</code>),
+not shell keyword routing.</p>
+<pre><code>ao session get &lt;id&gt; --json --project llm-wiki-auto-export
+ao session get &lt;id&gt; --json --project roadmap-auto-export</code></pre>
+
+<h3>Rollback</h3>
+<pre><code>launchctl bootout "gui/$UID/ai.smartclaw.schedule.daily-repo-export"
+rm -f "$HOME/Library/LaunchAgents/ai.smartclaw.schedule.daily-repo-export.plist"
+# Re-render the previous tracked per-repository templates:
+bash scripts/install-hermes-scheduled-jobs.sh</code></pre>
+<p>Rollback does <strong>not</strong> restore the direct <code>codex exec --yolo</code> /
+<code>--no-verify</code> fallback path — that path is permanently removed, and
+<code>tests/test_auto_push_to_main.sh</code> fails if it is reintroduced into
+<code>scripts/auto-push-to-main.sh</code>.</p>
 
 </div>
 </body>

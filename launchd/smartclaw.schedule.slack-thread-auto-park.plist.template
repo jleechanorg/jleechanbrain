@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.slack-thread-auto-park</string>
+
+    <!--
+      Added 2026-07-07. Idea 3 of the Slack-triage plan: every work thread
+      gets a bead filed the moment it is created (direct in-process hook in
+      human_channel_bridge.run_bridge() calling
+      orchestration.thread_lifecycle.register_thread()), and this nightly
+      job parks any thread with no activity for 48h, attaching a
+      deterministic one-line "no activity since <ts>" rollup. No LLM call:
+      silence is a plain timestamp comparison, not a semantic judgment (see
+      module docstring for the ZFC reasoning).
+
+      This job also runs sync_new_threads_from_bridge() as a backfill pass
+      before scanning for staleness, so threads that predate this feature
+      (or a run where the in-process hook failed) still get picked up.
+
+      Wrapped in launchd-env-wrapper.sh (sources ~/.bash_profile /
+      ~/.profile / ~/.bashrc) per secrets-no-env / secrets-no-plist policy;
+      this job itself needs no Slack token (it only reads local JSON state
+      and calls `br create`), but the wrapper is the repo-standard entry
+      point for every scheduled job regardless.
+
+      Routed through scripts/orchestration_thread_lifecycle.sh (not the
+      venv python module directly) so the launcher's overlap lock,
+      HERMES_HOME/venv preflight checks, and fail-fast behavior are always
+      exercised in production, not just when an operator runs the script by
+      hand. The launcher inherits its env (tokens, HOME, PYTHONPATH) from
+      this wrapper, so its own bashrc-fallback path is a no-op here.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/orchestration_thread_lifecycle.sh</string>
+        <string>--threshold-hours</string>
+        <string>48</string>
+    </array>
+
+    <!-- Nightly, 03:00 local: a maintenance/cleanup task, not urgent. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PYTHONPATH</key>
+        <string>@HOME@/.smartclaw/src</string>
+        <key>PATH</key>
+        <string>@HERMES_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/slack-thread-auto-park.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/slack-thread-auto-park.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: 24h = 86400s, the natural cadence of this job. -->
+    <key>ThrottleInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>

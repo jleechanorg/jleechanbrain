@@ -10,6 +10,12 @@ HERMES_STAGING_SLACK_APP_TOKEN="${HERMES_STAGING_SLACK_APP_TOKEN:-}"
 # Snapshot plist-set Slack tokens BEFORE sourcing dotfiles, which overwrite them.
 _PLIST_SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN:-}"
 _PLIST_SLACK_APP_TOKEN="${SLACK_APP_TOKEN:-}"
+# Snapshot plist-set HERMES_STATE_DIR before dotfiles too: ~/.bashrc
+# unconditionally exports HERMES_STATE_DIR=<prod> and that line must stay a
+# literal value (monitor-agent.sh reads it via sed, no var expansion), so it
+# cannot be made conditional there. Without this snapshot+restore the staging
+# gateway inherits prod's state dir and both compete for session locks.
+_PLIST_HERMES_STATE_DIR="${HERMES_STATE_DIR:-}"
 
 [ -f "$HOME/.bash_profile" ] && source "$HOME/.bash_profile" 2>/dev/null
 [ -f "$HOME/.profile" ] && source "$HOME/.profile" 2>/dev/null
@@ -40,6 +46,7 @@ _extract_bashrc_var SLACK_BOT_TOKEN
 _extract_bashrc_var OPENCLAW_SLACK_BOT_TOKEN
 _extract_bashrc_var SLACK_MCP_XOXB_TOKEN
 _extract_bashrc_var HERMES_OPS_SLACK_CHANNEL
+_extract_bashrc_var SLACK_HOME_CHANNEL
 unset -f _extract_bashrc_var
 
 # Plumb the umbrella ops channel through to all launchd jobs. The watchdog,
@@ -50,16 +57,33 @@ unset -f _extract_bashrc_var
 # umbrella pattern (PR #681, #687) — the plist is the source of truth.
 export HERMES_OPS_SLACK_CHANNEL="${HERMES_OPS_SLACK_CHANNEL:-}"
 
-# If HERMES_HOME is set (by plist), select the correct Slack tokens.
-# .profile exports the PROD tokens as SLACK_BOT_TOKEN/SLACK_APP_TOKEN,
-# but staging gateways need their own app+bot pair.
-# Restore the plist-set tokens (which were staging) since .profile overwrote them.
-if [ -n "$HERMES_HOME" ] && [ "$HERMES_HOME" != "$HOME/.smartclaw_prod" ]; then
+# Plist is the source of truth for HERMES_STATE_DIR too. ~/.bashrc clobbered it
+# to the prod path during the dotfile chain above; restore the plist snapshot so
+# the staging gateway keeps its own state dir (~/.smartclaw) instead of competing
+# with prod for session locks in ~/.smartclaw. Empty snapshot (prod plist sets
+# no HERMES_STATE_DIR) is a no-op, leaving the .bashrc prod value intact.
+[ -n "$_PLIST_HERMES_STATE_DIR" ] && export HERMES_STATE_DIR="$_PLIST_HERMES_STATE_DIR"
+
+# If the plist explicitly selects the staging profile/port, select staging Slack
+# tokens. Production may now run from ~/.smartclaw, so HERMES_HOME alone is not a
+# staging signal.
+if [ "${HERMES_PROFILE:-}" = "staging" ] || [ "${HERMES_GATEWAY_PORT:-}" = "8644" ] || [ "${API_SERVER_PORT:-}" = "8644" ]; then
   export SLACK_BOT_TOKEN="${_PLIST_SLACK_BOT_TOKEN:-${HERMES_STAGING_SLACK_BOT_TOKEN}}"
   export SLACK_APP_TOKEN="${_PLIST_SLACK_APP_TOKEN:-${HERMES_STAGING_SLACK_APP_TOKEN}}"
   export SLACK_MCP_XOXB_TOKEN="${SLACK_BOT_TOKEN}"
-  # Staging must not hold Discord — only prod may use the Discord bot token.
+  # Staging must not hold Discord/Telegram/API Server Port configs from prod
   unset DISCORD_BOT_TOKEN
+  unset TELEGRAM_BOT_TOKEN
+  export API_SERVER_ENABLED=true
+  export API_SERVER_PORT=8644
+  unset API_SERVER_KEY
+else
+  # Prod path: api_server is not deployed. Force-disable to suppress the
+  # "Refusing to start: API_SERVER_KEY is required" 5-min retry loop when
+  # ~/.bashrc accidentally exports API_SERVER_ENABLED=true (2026-07-02 incident).
+  unset API_SERVER_ENABLED
+  unset API_SERVER_PORT
+  unset API_SERVER_KEY
 fi
 
 # Drift check: ~/.bashrc and ~/.profile may each export SLACK_APP_TOKEN /
