@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.jleechan.agy-shim.plist — local OpenAI-compat HTTP shim in front of `agy`.
+
+  Purpose: lets Hermes (and any OpenAI-compat client) call `agy --print` as
+  if it were a normal chat-completions HTTP endpoint, so agy can be wired
+  as a fallback provider via:
+
+      providers:
+        agy-shim:
+          base_url: http://127.0.0.1:8766/v1
+          api_key: not-needed
+          api_mode: chat_completions
+          model: gemini-3.5-flash-medium
+      fallback_providers: [agy-shim]
+
+  Primary (model.default) stays unchanged. The shim only activates when
+  minimax returns an error and Hermes falls back to `agy-shim`.
+
+  Install: scripts/install-agy-shim.sh
+  Uninstall: launchctl bootout gui/$UID/com.jleechan.agy-shim
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jleechan.agy-shim</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>@VENV_PY@</string>
+        <string>@HOME@/.smartclaw/scripts/agy_openai_shim.py</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AGY_SHIM_HOST</key>
+        <string>127.0.0.1</string>
+        <key>AGY_SHIM_PORT</key>
+        <string>8766</string>
+        <key>AGY_SHIM_TIMEOUT</key>
+        <string>120</string>
+        <key>AGY_SHIM_ADD_DIR</key>
+        <string>@HOME@</string>
+        <key>AGY_DEFAULT_MODEL</key>
+        <string>Gemini 3.5 Flash (Medium)</string>
+        <key>GEMINI_CLI_TRUST_WORKSPACE</key>
+        <string>true</string>
+        <!-- PATH must include ~/.local/bin so the shim can locate `agy` -->
+        <key>PATH</key>
+        <string>@PATH_AGY@</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>@HOME@/Library/Logs/agy-shim.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/Library/Logs/agy-shim.stderr.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

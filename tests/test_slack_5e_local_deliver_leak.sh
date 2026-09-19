@@ -11,14 +11,14 @@
 #   • author == hermes bot (U0AEZC7RX1Q)
 #   • text mentions BOTH a cron job name AND any other PR/thread identifiers
 #     from the cron job's prompt (here: PR #7570 + wa-2366 / rev-5deak)
-#   • parent job in ~/.smartclaw_prod/cron/jobs.json has `deliver: local`
+#   • parent job in ~/.smartclaw/cron/jobs.json has `deliver: local`
 #
 # Real incident: ts 1781793603.149289, 1781793611.471479, 1781793618.797789
 # in #worldai (C0AH3RY3DK6). Should have threaded under 1781477039.080969
 # (babysit-wa-2366-rev-5deak origin thread). 3 channel-root orphans.
 #
 # Strategy:
-#   1. Stage a fake ~/.smartclaw_prod/cron/jobs.json with the babysit job.
+#   1. Stage a fake ~/.smartclaw/cron/jobs.json with the babysit job.
 #   2. Stage fake conversations.history fixtures with the 3 leak messages
 #      plus decoy posts that should NOT alert (proper thread, other channel,
 #      user-authored, no cron-job-name match, etc.).
@@ -43,7 +43,7 @@ WORKDIR="$(mktemp -d)"
 BIN_DIR="$WORKDIR/bin"
 LOG_DIR="$WORKDIR/logs"
 FIXTURES_DIR="$WORKDIR/fixtures"
-FAKE_PROD_HOME="$WORKDIR/hermes_prod"
+FAKE_PROD_HOME="$WORKDIR/prod-home"
 FAKE_CRON_DIR="$FAKE_PROD_HOME/cron"
 FAKE_VAR_SLACK="$FAKE_PROD_HOME/var/slack"
 mkdir -p "$BIN_DIR" "$LOG_DIR" "$FIXTURES_DIR" "$FAKE_CRON_DIR" "$FAKE_VAR_SLACK/babysit-wa-2366-rev-5deak"

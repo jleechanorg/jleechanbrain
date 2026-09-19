@@ -12,7 +12,7 @@ description: jleechanbrain / Hermes-specific harness — gateway, canary, deploy
 - Gateway "down" for Slack while **`curl /health` is 200**
 - Deploy, canary, or launchd questions
 - **`lane wait exceeded`** / **`queueAhead`** in `gateway.err.log`
-- Staging vs prod confusion (`~/.smartclaw/` vs `~/.smartclaw_prod/`)
+- Staging vs prod confusion (`~/.smartclaw` canonical root vs retired compatibility path)
 
 ## Read first (mandatory)
 

@@ -70,10 +70,10 @@ HOME="$HOME_DIR"
 PORT="$(/usr/bin/plutil -extract EnvironmentVariables.HERMES_GATEWAY_PORT raw -o - "$PLIST")"
 INFERRED="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "$PORT")"
 
-if [[ "$INFERRED" == "$HOME_DIR/.smartclaw_prod" ]]; then
+if [[ "$INFERRED" == "$HOME_DIR/.smartclaw" ]]; then
   pass "doctor infers prod profile from gateway port 8643"
 else
-  fail "doctor inferred '$INFERRED' instead of '$HOME_DIR/.smartclaw_prod'"
+  fail "doctor inferred '$INFERRED' instead of '$HOME_DIR/.smartclaw'"
 fi
 
 INFERRED_STAGING="$(HOME="$HOME_DIR" infer_gateway_profile_dir_from_port "8644")"

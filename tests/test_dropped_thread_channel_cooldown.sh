@@ -144,7 +144,7 @@ THREAD="1781078086.705169"   # the real thread nudged 5x over 27h
 # ── Test 8: legacy bare-string state migrates without error ───────────────────
 test_legacy_bare_string_migrates() {
   log_info "Test: legacy bare-ISO-string .nudged value migrates to count=1, gave_up=false"
-  # Exactly the live format in ~/.smartclaw_prod/logs/dropped-thread-state.json.
+  # Exactly the live format in ~/.smartclaw/logs/dropped-thread-state.json.
   printf '{"nudged":{"%s_%s":"2026-06-10T20:00:00Z"}}' "$CH" "$THREAD" > "$DROP_STATE_FILE"
   local count last gu
   count="$(nudge_count "$CH" "$THREAD")"

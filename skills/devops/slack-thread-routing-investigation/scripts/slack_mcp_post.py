@@ -180,7 +180,100 @@ def post_via_slack_api(channel_id: str, thread_ts: Optional[str], text: str,
         return json.loads(resp.read().decode())
 
 
-def main() -> int:
+def post_via_xoxp(channel_id: str, thread_ts: Optional[str], text: str,
+                  content_type: str = DEFAULT_CONTENT_TYPE,
+                  identity_disclosure: bool = True) -> dict:
+    """Cross-workspace fallback: chat.postMessage with XOX-P user token.
+
+    Used when the bot token is scoped to a different workspace than the channel
+    lives in (Failure 5f in slack-thread-routing-investigation skill). The user
+    token crosses workspace boundaries where the bot token cannot. The post
+    appears as the user (jleechan), not the hermes bot — pass
+    identity_disclosure=False to suppress the disclaimer if you've already
+    included one in the body text.
+    """
+    token = os.environ.get("SLACK_USER_TOKEN")
+    if not token:
+        # Fallback chain mirrors launchd-env-wrapper.sh:_extract_bashrc_var pattern.
+        # Order matters: check ~/.bashrc BEFORE ~/.profile. .bashrc is the live
+        # source of truth for tokens (especially ones defined after the interactive
+        # guard `if [ -z "$PS1" ]; then return; fi`); .profile is sourced earlier
+        # in the dotfile chain and may carry a stale token that would shadow the
+        # rotated .bashrc value. This is the same failure mode that produced
+        # bashrc-profile-xapp-drift-blocks-launchd (memory).
+        for source_path in ("~/.bashrc", "~/.profile"):
+            try:
+                path = os.path.expanduser(source_path)
+                if not os.path.exists(path):
+                    continue
+                with open(path) as f:
+                    for line in f:
+                        # match `export SLACK_USER_TOKEN=...` (with optional leading spaces)
+                        stripped = line.lstrip()
+                        if not stripped.startswith("export SLACK_USER_TOKEN="):
+                            continue
+                        val = stripped.split("=", 1)[1].strip()
+                        # strip surrounding quotes (single or double) per bashrc convention
+                        if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+                            val = val[1:-1]
+                        if val:
+                            token = val
+                            break
+                if token:
+                    break
+            except Exception:
+                # Don't mask a found token in a later source due to an earlier source
+                # failing to read; just continue to the next.
+                continue
+    if not token:
+        raise RuntimeError(
+            "SLACK_USER_TOKEN not found in env, ~/.profile, or ~/.bashrc. "
+            "For xoxp cross-workspace fallback, set SLACK_USER_TOKEN (xoxp-...) in "
+            "one of those locations. Launchd processes should use the "
+            "~/.smartclaw/scripts/launchd-env-wrapper.sh _extract_bashrc_var pattern "
+            "(see SOUL.md COMMIT `slack-cross-workspace-fallback-xoxp`)."
+        )
+    # Identity disclosure: prepend a one-line note that this came from user identity
+    if identity_disclosure and not text.startswith("(posted via"):
+        text = (
+            "(posted via jleechan identity — cross-workspace bot-token hard-block "
+            "would have stalled this reply; using XOX-P user token per SOUL.md "
+            "COMMIT `slack-cross-workspace-fallback-xoxp`.)\n\n"
+            + text
+        )
+    body = {"channel": channel_id, "text": text}
+    if thread_ts:
+        body["thread_ts"] = thread_ts
+    if content_type == "text/plain":
+        body["mrkdwn"] = False
+    req = urllib.request.Request(
+        SLACK_API_URL,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json; charset=utf-8",
+                 "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _is_slack_ok(payload: object) -> bool:
+    """chat.postMessage returns HTTP 200 with {"ok": false, "error": "..."}
+    on workspace-scope failures (not_in_channel, channel_not_found,
+    missing_scope, etc.). Treat those as fallthrough triggers, not success."""
+    if not isinstance(payload, dict):
+        return False
+    # ok=True is required; sometimes "warning" is also set alongside ok=True
+    if payload.get("ok") is True:
+        return True
+    # Explicit "ok": false → definite fallthrough
+    if payload.get("ok") is False:
+        return False
+    # Older payloads without "ok" field: assume success if we got a "ts"
+    return "ts" in payload
+
+
+def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("--channel", help="Slack channel id (Cxxxxx) or #name")
     p.add_argument("--thread-ts", default=None,
@@ -196,11 +289,16 @@ def main() -> int:
                    help="Initialize session + list server tools, then exit")
     p.add_argument("--probe-session", action="store_true",
                    help="Initialize session + print session id, then exit")
-    p.add_argument("--fallback", choices=["mcp", "slack-api", "auto"],
+    p.add_argument("--fallback", choices=["mcp", "slack-api", "xoxp", "auto"],
                    default="auto",
-                   help="Post path: mcp (HTTP-direct), slack-api, or auto (try mcp then slack-api)")
-    args = p.parse_args()
+                   help="Post path: mcp (HTTP-direct), slack-api (bot token chat.postMessage), "
+                        "xoxp (user token cross-workspace fallback per Failure 5f), "
+                        "or auto (try mcp then slack-api with xoxp fallthrough on ok=false)")
+    return p
 
+
+def _run(args: argparse.Namespace) -> int:
+    """Run with an already-parsed Namespace. Testable entrypoint."""
     if args.probe_tools:
         names, sid = probe_tools()
         print(f"Session: {sid}")
@@ -226,20 +324,74 @@ def main() -> int:
             try:
                 result = post_via_mcp(args.channel, thread_ts, args.text,
                                       args.content_type)
-                print(json.dumps({"path": "mcp", "result": result}, indent=2))
-                return 0
+                # post_via_mcp wraps in JSON-RPC; check the inner result
+                inner = ((result.get("result") or {}).get("result")
+                         if isinstance(result, dict) else None)
+                if isinstance(inner, dict) and not _is_slack_ok(inner):
+                    if args.fallback == "mcp":
+                        raise RuntimeError(f"MCP returned Slack error: {inner}")
+                    print(f"mcp path Slack error: {inner.get('error')}; falling back",
+                          file=sys.stderr)
+                else:
+                    print(json.dumps({"path": "mcp", "result": result}, indent=2))
+                    return 0
             except Exception as e:
                 if args.fallback == "mcp":
                     raise
                 print(f"mcp path failed: {e}; falling back to chat.postMessage",
                       file=sys.stderr)
+
+        if args.fallback == "xoxp":
+            result = post_via_xoxp(args.channel, thread_ts, args.text,
+                                   args.content_type)
+            print(json.dumps({"path": "xoxp", "result": result}, indent=2))
+            return 0
+
+        # --fallback auto OR --fallback slack-api: try bot-token chat.postMessage first
         result = post_via_slack_api(args.channel, thread_ts, args.text,
                                     args.content_type)
+        if not _is_slack_ok(result):
+            err = result.get("error", "unknown")
+            # In --fallback auto mode, fall through to XOX-P ONLY for cross-workspace
+            # bot-token hard-block signatures. Other bot/config errors (missing_scope,
+            # invalid_auth, account_inactive, etc.) should surface normally — a token
+            # rotation gap or a wrong-channel typo should not silently promote to
+            # the user-identity post path.
+            CROSS_WORKSPACE_ERRORS = {
+                "not_in_channel",
+                "channel_not_found",
+                "restricted_action",
+                "team_access_not_granted",
+                "missing_scope",  # scope is workspace-scoped on free-tier bot tokens
+            }
+            if args.fallback == "auto" and err in CROSS_WORKSPACE_ERRORS:
+                print(
+                    f"slack-api path returned ok=false ({err}); "
+                    f"auto-falling-back to xoxp (cross-workspace hard-block per "
+                    f"SOUL.md COMMIT slack-cross-workspace-fallback-xoxp)",
+                    file=sys.stderr,
+                )
+                result = post_via_xoxp(args.channel, thread_ts, args.text,
+                                       args.content_type)
+                print(json.dumps({"path": "xoxp", "result": result}, indent=2))
+                return 0
+            # slack-api mode OR non-cross-workspace error in auto mode: report loudly
+            # (don't exit 0 on Slack error so callers can detect the wrong-channel case)
+            print(
+                f"slack-api returned ok=false: error={err} result={result}",
+                file=sys.stderr,
+            )
+            return 3  # distinct exit code for Slack API error
         print(json.dumps({"path": "slack-api", "result": result}, indent=2))
         return 0
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint. Pass argv for testability; None uses sys.argv[1:]."""
+    return _run(_build_parser().parse_args(argv))
 
 
 if __name__ == "__main__":

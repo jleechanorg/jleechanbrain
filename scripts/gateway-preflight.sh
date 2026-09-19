@@ -14,7 +14,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ACTIVE_PLIST="$HOME/Library/LaunchAgents/ai.smartclaw.prod.plist"
 REPO_GATEWAY_PLIST="$REPO_DIR/launchd/ai.smartclaw.prod.plist"
 STAGING_CONFIG="$HOME/.smartclaw/config.yaml"
-PROD_CONFIG="$HOME/.smartclaw_prod/config.yaml"
+PROD_CONFIG="$HOME/.smartclaw/config.yaml"
 
 read_plist_key() {
   python3 - "$1" "$2" <<'PY'

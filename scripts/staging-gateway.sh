@@ -42,11 +42,10 @@ start_gateway() {
         return 0
     fi
 
-    # Install + load the plist if not already
-    if [[ ! -f "${HERMES_DIR}/ai.smartclaw.staging.plist" ]]; then
-        echo "Installing launchd plist..."
-        install -m 644 /dev/null "${HERMES_DIR}/ai.smartclaw.staging.plist"
-        cat > "${HERMES_DIR}/ai.smartclaw.staging.plist" << PLIST
+    # Install + load the plist
+    echo "Installing launchd plist..."
+    install -m 644 /dev/null "${HERMES_DIR}/ai.smartclaw.staging.plist"
+    cat > "${HERMES_DIR}/ai.smartclaw.staging.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -61,6 +60,8 @@ start_gateway() {
 		<string>${HOME}</string>
 		<key>PATH</key>
 		<string>${HOMEBREW_PREFIX:-/opt/homebrew}/bin:${HOME}/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>HERMES_HOME</key>
+		<string>${HERMES_DIR}</string>
 		<key>HERMES_STATE_DIR</key>
 		<string>${HERMES_DIR}</string>
 		<key>HERMES_CONFIG_PATH</key>
@@ -69,20 +70,24 @@ start_gateway() {
 		<string>${STAGING_PORT}</string>
 		<key>HERMES_PROFILE</key>
 		<string>staging</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
 		<key>HERMES_RAW_STREAM</key>
 		<string>1</string>
 		<key>HERMES_RAW_STREAM_PATH</key>
 		<string>/tmp/hermes/staging-raw-stream.jsonl</string>
 	</dict>
+	<key>WorkingDirectory</key>
+	<string>${HERMES_DIR}</string>
 	<key>KeepAlive</key>
 	<true/>
 	<key>ProgramArguments</key>
 	<array>
-		<string>${NODE_BIN}</string>
-		<string>${HERMES_DIST_JS}</string>
+		<string>/bin/bash</string>
+		<string>${HERMES_DIR}/scripts/launchd-env-wrapper.sh</string>
+		<string>${HOMEBREW_PREFIX:-/opt/homebrew}/bin/hermes</string>
 		<string>gateway</string>
-		<string>--port</string>
-		<string>${STAGING_PORT}</string>
+		<string>run</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -93,7 +98,6 @@ start_gateway() {
 </dict>
 </plist>
 PLIST
-    fi
 
     launchctl bootout gui/$(id -u)/${STAGING_LABEL} 2>/dev/null || true
     launchctl bootstrap gui/$(id -u) "${HERMES_DIR}/ai.smartclaw.staging.plist" 2>&1

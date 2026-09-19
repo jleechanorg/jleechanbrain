@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP Inventory & Token-Cost Reduction Proposal</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+           font-size: 15px; line-height: 1.65; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+    h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; padding-bottom: 0.3rem;
+         border-bottom: 1px solid var(--border); color: var(--accent2); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.5rem; color: var(--accent4); }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px;
+            font-size: 0.88em; font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+          padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--table-header); padding: 0.5rem 0.75rem;
+         text-align: left; border: 1px solid var(--border); color: var(--accent); }
+    td { padding: 0.45rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    .warning { background: rgba(247,129,102,0.1); border-left: 3px solid var(--accent3);
+               padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .info { background: rgba(88,166,255,0.1); border-left: 3px solid var(--accent);
+            padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .done { color: var(--accent2); font-weight: 600; }
+    .not-migrated { color: var(--accent3); font-weight: 600; }
+    .section-divider { margin: 2rem 0; border: none; border-top: 1px dashed var(--border); }
+    .checklist-item { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.25rem 0; }
+    .checklist-item input { accent-color: var(--accent2); }
+    .updated { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+<h1>MCP server inventory + token-cost removal proposal</h1>
+<p><strong>Status:</strong> Proposal (investigation only — no config changes in this PR)
+<strong>Bead:</strong> orch-51op
+<strong>Date:</strong> 2026-07-07
+<strong>Scope:</strong> Read-only investigation of <code>~/.claude.json</code> (<code>mcpServers</code> section) and
+<code>~/.claude/mcp-strict.json</code>. <strong>No file under either path was edited to produce this
+document.</strong> Any actual server removal/consolidation requires Jeff's explicit sign-off —
+this doc only proposes candidates and rationale.</p>
+<h2>Background</h2>
+<p>Every MCP server's tool schemas get injected into the system prompt on every API
+turn, regardless of whether that turn uses the tool. <code>llm_inspector</code>'s own measurement
+(<code>docs/on-demand-tool-profiles-solution.md</code> in that repo) put MCP tool defs at <strong>~15-20%
+of ~53K tokens of fixed per-turn overhead</strong> in past captures — a real, recurring cost
+paid on every single Claude Code turn across every project. This doc inventories what's
+currently configured and flags consolidation/removal candidates.</p>
+<h2>Goals</h2>
+<ol>
+<li>Enumerate MCP servers configured in <code>~/.claude.json</code> and <code>~/.claude/mcp-strict.json</code>
+without exposing the secrets embedded in those files.</li>
+<li>Establish a real, repeatable token-cost measurement methodology (not guesses) using
+<code>llm-inspector</code>'s existing per-server breakdown, and show what it outputs for real
+captured requests.</li>
+<li>Estimate current server cost using known/observed tool counts where precise live
+captures weren't available, clearly labeling estimates vs. measured numbers.</li>
+<li>Propose removal/consolidation candidates with rationale, each requiring Jeff's
+sign-off before any config file is touched.</li>
+</ol>
+<h2>Tenets</h2>
+<ul>
+<li>Read-only investigation — <code>~/.claude.json</code> and <code>~/.claude/mcp-strict.json</code> were only
+<code>cat</code>/parsed, never written.</li>
+<li>No secret values (API keys, bearer tokens) are reproduced in this document — only
+server names, transport type, and tool counts.</li>
+<li>Measured data preferred over guessed data; every estimate below is labeled as such.</li>
+<li>Any recommendation to remove/consolidate is a <strong>candidate for Jeff's review</strong>, not an
+action taken.</li>
+</ul>
+<h2>Current inventory</h2>
+<h3><code>~/.claude/mcp-strict.json</code> — 12 servers</h3>
+<p>This is the curated &quot;strict mode&quot; MCP config (referenced from repo CLAUDE.md:
+<em>&quot;Register new MCPs in <code>~/.claude/settings.json</code> and <code>~/.claude/mcp-strict.json</code>&quot;</em>), used
+via <code>--mcp-config</code>/<code>--strict-mcp-config</code> for scoped sessions (e.g. agent-orchestrator
+worktrees — confirmed via <code>~/.claude/history.jsonl</code> references from those worktrees). It
+is <strong>not</strong> the default config auto-loaded by a plain <code>claude</code> invocation — that pulls from
+<code>~/.claude.json</code> instead (see below). Roughly mirrors <code>~/.codex/config.toml</code>'s
+<code>[mcp_servers.*]</code> sections (13 entries there, near-identical set).</p>
+<table>
+<thead>
+<tr>
+<th>Server</th>
+<th>Transport</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcp_mail</code></td>
+<td>HTTP (<code>localhost:8765</code>)</td>
+<td>Inter-agent messaging (mcp-agent-mail)</td>
+</tr>
+<tr>
+<td><code>sequential-thinking</code></td>
+<td>stdio (npx)</td>
+<td>Structured reasoning scratchpad</td>
+</tr>
+<tr>
+<td><code>context7</code></td>
+<td>stdio (npx)</td>
+<td>Library/API documentation lookup</td>
+</tr>
+<tr>
+<td><code>gemini-cli-mcp</code></td>
+<td>stdio (npx)</td>
+<td>Gemini CLI bridge</td>
+</tr>
+<tr>
+<td><code>grok</code></td>
+<td>stdio (npx)</td>
+<td>Grok/xAI second-opinion queries</td>
+</tr>
+<tr>
+<td><code>playwright-mcp</code></td>
+<td>stdio (npx)</td>
+<td>Browser automation</td>
+</tr>
+<tr>
+<td><code>perplexity-ask</code></td>
+<td>stdio (npx)</td>
+<td>Perplexity search</td>
+</tr>
+<tr>
+<td><code>openclaw</code></td>
+<td>stdio (local binary)</td>
+<td>OpenClaw gateway bridge</td>
+</tr>
+<tr>
+<td><code>beads</code></td>
+<td>stdio (local binary)</td>
+<td><code>br</code> issue tracker access</td>
+</tr>
+<tr>
+<td><code>chrome-superpower</code></td>
+<td>stdio (node, plugin)</td>
+<td>Chrome browser automation (superpowers-chrome plugin)</td>
+</tr>
+<tr>
+<td><code>second-opinion-tool</code></td>
+<td>stdio (remote URL)</td>
+<td>AI Universe multi-model second opinion</td>
+</tr>
+<tr>
+<td><code>slack</code></td>
+<td>stdio (local Go binary)</td>
+<td>Slack API access</td>
+</tr>
+</tbody>
+</table>
+<h3><code>~/.claude.json</code> — <code>mcpServers</code> section</h3>
+<ul>
+<li><strong>Top-level <code>mcpServers</code>:</strong> 1 entry — <code>slack</code> (separate from the <code>mcp-strict.json</code>
+Slack server; this is the connector registered globally, used outside strict-mode
+sessions).</li>
+<li><strong>Per-project <code>mcpServers</code>:</strong> scanned all 22 <code>projects</code> entries in <code>~/.claude.json</code>.
+Only <strong>1 of 22</strong> projects has a project-scoped MCP server: <code>worldai-debug</code>, registered
+under the <code>worldarchitect.ai</code> project only (<code>mvp_site.worldai_mcp_stdio</code>, per
+<code>claude mcp list</code> inside that repo).</li>
+<li><strong><code>claude mcp list</code> inside the <code>worldarchitect.ai</code> project</strong> additionally shows
+<code>claude.ai Google Drive</code> (a hosted connector, <code>https://drivemcp.googleapis.com/mcp/v1</code>)
+— this is a Claude-native connector, not something registered in either JSON file
+directly, but it does add to the same per-turn tool-definition budget and should be
+counted in any full accounting.</li>
+</ul>
+<p><strong>Net picture:</strong> <code>~/.claude.json</code> itself is lean (1 global + 1 project-scoped server).
+Nearly all of the MCP surface area lives in <code>~/.claude/mcp-strict.json</code>'s 12 servers,
+which is the config most sessions actually run under day to day (confirmed by observing
+<code>--mcp-config ~/.claude/mcp-strict.json</code> invocations in <code>~/.claude/history.jsonl</code>).</p>
+<h2>Token-cost measurement methodology (real data)</h2>
+<p><code>llm-inspector</code>'s <code>analyze</code> command already breaks MCP costs down <strong>per server</strong>, from a
+real captured request body (<code>src/analyzer.ts:116-175</code>). Ran against 5 real historical
+captures in that repo (<code>docs/captures/*.json</code>, captured 2026-04-21) via:</p>
+<pre><code class="language-bash">LLM_INSPECTOR_CAPTURE_DIR=$HOME/projects_other/llm_inspector/docs/captures \
+  node dist/cli.js analyze --last 5
+</code></pre>
+<p>Consistent real numbers across all 5 captures (that session's server set — different from
+today's <code>mcp-strict.json</code> list, since server configs drift over time, but this establishes
+the <em>measurement methodology</em> and shows real per-tool cost variance):</p>
+<table>
+<thead>
+<tr>
+<th>Server (that capture's config)</th>
+<th style="text-align:right">Tools</th>
+<th style="text-align:right">Bytes</th>
+<th style="text-align:right">Tokens</th>
+<th style="text-align:right">Tokens/tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcp-agent-mail</code></td>
+<td style="text-align:right">11</td>
+<td style="text-align:right">19,961</td>
+<td style="text-align:right">5,705</td>
+<td style="text-align:right">519</td>
+</tr>
+<tr>
+<td><code>worldai</code></td>
+<td style="text-align:right">10</td>
+<td style="text-align:right">4,738</td>
+<td style="text-align:right">1,357</td>
+<td style="text-align:right">136</td>
+</tr>
+<tr>
+<td><code>plugin_superpowers-chrome_chrome</code></td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">3,695</td>
+<td style="text-align:right">1,053</td>
+<td style="text-align:right">1,053</td>
+</tr>
+<tr>
+<td><code>grok-mcp</code></td>
+<td style="text-align:right">3</td>
+<td style="text-align:right">2,668</td>
+<td style="text-align:right">763</td>
+<td style="text-align:right">254</td>
+</tr>
+<tr>
+<td><code>claude_ai_Google_Drive</code></td>
+<td style="text-align:right">2</td>
+<td style="text-align:right">1,467</td>
+<td style="text-align:right">419</td>
+<td style="text-align:right">210</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key finding: tokens/tool varies 4-8x across servers</strong> (136 to 1,053 in this sample) —
+tool <em>count</em> alone is a weak proxy for cost. A single Chrome-automation tool with a large
+JSON schema (1,053 tokens) costs more than worldai-debug's entire 10-tool surface (1,357
+tokens total). Any cost-cutting decision needs per-server <em>measured</em> tokens, not just a
+tool-count heuristic.</p>
+<p><strong>Limitation of this doc:</strong> producing current, live per-server numbers for today's 12
+<code>mcp-strict.json</code> servers requires running <code>llm-inspector start</code> and making a real Claude
+Code request through the capture proxy (<code>ANTHROPIC_BASE_URL=http://localhost:9000</code>). That
+changes the active session's routing, which is a live-environment action beyond a
+read-only doc investigation — flagged here as the concrete next step (see &quot;Recommended
+next step&quot; below), not performed in this pass.</p>
+<h3>Estimated current tool counts (not measured — for triage prioritization only)</h3>
+<p>Known/estimated tool counts for today's <code>mcp-strict.json</code> servers, from public
+documentation and this session's own live deferred-tool list (which includes the
+<code>worldai-debug</code> and <code>slack</code> connector tool sets actually loaded for
+<code>worldarchitect.ai</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Server</th>
+<th>Tool count</th>
+<th>Source</th>
+<th>Estimated tokens (using measured avg ~344/tool, ±the 136-1053 range above)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>worldai-debug</code></td>
+<td>10</td>
+<td>measured (same server, still 10 tools per <code>claude mcp list</code> output)</td>
+<td>~1,357 (measured value, unchanged)</td>
+</tr>
+<tr>
+<td><code>slack</code> (connector, <code>mcp__slack__*</code>)</td>
+<td>14</td>
+<td>counted from this session's live tool list</td>
+<td>~2,400-4,800 (est.)</td>
+</tr>
+<tr>
+<td><code>context7</code></td>
+<td>2</td>
+<td>public: <code>resolve-library-id</code>, <code>get-library-docs</code></td>
+<td>~400-1,200 (est.)</td>
+</tr>
+<tr>
+<td><code>sequential-thinking</code></td>
+<td>1</td>
+<td>public: single <code>sequentialthinking</code> tool</td>
+<td>~200-1,000 (est.)</td>
+</tr>
+<tr>
+<td><code>perplexity-ask</code></td>
+<td>1</td>
+<td>public: single search tool</td>
+<td>~200-1,000 (est.)</td>
+</tr>
+<tr>
+<td><code>grok</code></td>
+<td>3</td>
+<td>measured in April capture (<code>grok-mcp (3)</code> = 763 tok)</td>
+<td>~763 (measured, likely stable)</td>
+</tr>
+<tr>
+<td><code>playwright-mcp</code></td>
+<td>~20-25</td>
+<td>public: full browser-automation tool surface (navigate, click, type, screenshot, etc.)</td>
+<td>~2,700-26,000 (est., wide range — needs live measurement, likely the single largest server here)</td>
+</tr>
+<tr>
+<td><code>chrome-superpower</code></td>
+<td>1</td>
+<td>measured in April capture (<code>plugin_superpowers-chrome_chrome (1)</code> = 1,053 tok)</td>
+<td>~1,053 (measured, likely stable)</td>
+</tr>
+<tr>
+<td><code>gemini-cli-mcp</code></td>
+<td>unknown</td>
+<td>not probed</td>
+<td>unknown — needs live measurement</td>
+</tr>
+<tr>
+<td><code>openclaw</code></td>
+<td>unknown</td>
+<td>not probed</td>
+<td>unknown — needs live measurement</td>
+</tr>
+<tr>
+<td><code>beads</code></td>
+<td>unknown</td>
+<td>not probed</td>
+<td>unknown — needs live measurement</td>
+</tr>
+<tr>
+<td><code>second-opinion-tool</code></td>
+<td>unknown</td>
+<td>not probed</td>
+<td>unknown — needs live measurement</td>
+</tr>
+<tr>
+<td><code>mcp_mail</code> (mcp-agent-mail)</td>
+<td>11</td>
+<td>measured in April capture</td>
+<td>~5,705 (measured, likely stable — this was the single most expensive server measured)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Caveat:</strong> the &quot;estimated tokens&quot; column for unmeasured servers uses the observed
+136-1,053 tokens/tool range as bounds, not a precise number. Treat this table as a
+<em>triage</em> prioritization aid (which servers are worth measuring first), not a budget.</p>
+<h2>Removal / consolidation candidates</h2>
+<p>All of the following require Jeff's explicit sign-off before any <code>mcpServers</code> entry is
+edited or removed. None have been acted on.</p>
+<ol>
+<li><strong>Browser automation is triple-registered: <code>playwright-mcp</code> + <code>chrome-superpower</code> +
+the <code>claude-in-chrome</code> connector.</strong> The repo's own <code>browser-testing</code> skill already
+states a preference order — aside CLI/aside-mcp is primary, Playwright MCP is an
+explicit fallback, and <code>mcp__claude-in-chrome__*</code> is forbidden for browser-testing
+use. Despite that documented preference, all three tool surfaces still load into
+every turn's budget. <code>playwright-mcp</code> alone is the single largest estimated server
+above (~20-25 tools). <strong>Candidate: demote <code>playwright-mcp</code> and <code>chrome-superpower</code>
+to on-demand/session-scoped loading</strong> (per the on-demand toggling design already
+proposed in <code>llm_inspector</code>'s <code>docs/on-demand-tool-profiles-solution.md</code>) rather than
+always-on, since the documented primary path (Aside) doesn't route through MCP at
+all.</li>
+<li><strong>Three overlapping &quot;ask another model&quot; servers: <code>grok</code>, <code>gemini-cli-mcp</code>,
+<code>second-opinion-tool</code>.</strong> The skill catalog already has <code>/secondo</code>,
+<code>/second_opinion</code>, <code>advice</code>, and <code>ai-universe-second-opinion-workflow</code> doing
+multi-model fan-out via CLI subprocess calls (not MCP tool-call overhead sitting in
+the request). <strong>Candidate: audit whether <code>grok</code>/<code>gemini-cli-mcp</code>/<code>second-opinion-tool</code>
+MCP servers are still exercised directly (vs. the skill-based dispatch paths), and
+consolidate to whichever path is actually used</strong> — this needs the dormant-usage data
+from the companion <code>llm_inspector --skills-usage</code> proposal
+(<code>docs/llm_inspector_skills_usage_proposal.md</code>) extended to MCP tool calls, not just
+Skill-tool/slash-command usage, since MCP tool_use invocations aren't currently
+tracked by that scanner either.</li>
+<li><strong><code>context7</code> and <code>perplexity-ask</code></strong> are both narrow, single/dual-purpose lookup
+tools (library docs; web search) that overlap with the general-purpose <code>WebSearch</code>/
+<code>WebFetch</code> built-ins and <code>research</code>/<code>deep-research</code> skills. <strong>Candidate: measure
+actual invocation frequency before deciding</strong> — low marginal cost each (1-2 tools),
+so this is a lower-priority candidate than #1/#2 above.</li>
+<li><strong>Two independent Slack integrations</strong>: the <code>slack</code> entry in <code>mcp-strict.json</code> (Go
+binary, stdio) and the top-level <code>slack</code> connector in <code>~/.claude.json</code>. Worth
+confirming these aren't both loaded simultaneously in the same session (redundant
+tool schemas for the same underlying API) — flagged for verification, not a
+confirmed duplicate since they may serve genuinely different scopes (strict-mode
+worktree sessions vs. default sessions).</li>
+</ol>
+<h2>Recommended next step (not performed here — read-only scope)</h2>
+<p>Run <code>llm-inspector start</code> + a single real Claude Code turn through the capture proxy,
+then <code>llm-inspector analyze --skills-usage</code>-style per-server breakdown against <strong>today's</strong>
+12-server <code>mcp-strict.json</code> config, to replace the &quot;estimated&quot; column above with measured
+numbers before Jeff decides on any removals. This is a live-environment action (changes
+<code>ANTHROPIC_BASE_URL</code> for one test session) and was intentionally not done in this
+doc-only, read-only investigation pass.</p>
+<h2>Testing</h2>
+<p>N/A — this is a read-only investigation and proposal document. No code or config was
+changed; nothing to test. The &quot;measured&quot; numbers above came from re-running
+<code>llm-inspector analyze</code> against pre-existing capture files already checked into that
+repo's <code>docs/captures/</code> — that command was executed and its real output is quoted above,
+not fabricated.</p>
+<h2>Known Limitations</h2>
+<ul>
+<li>Per-server token costs for 5 of 12 <code>mcp-strict.json</code> servers (<code>gemini-cli-mcp</code>,
+<code>openclaw</code>, <code>beads</code>, <code>second-opinion-tool</code>, and current-config <code>playwright-mcp</code>/
+<code>slack</code>) are estimates or unknowns, not measurements — see &quot;Recommended next step.&quot;</li>
+<li>This doc does not attempt to resolve whether <code>mcp-strict.json</code> and <code>~/.claude.json</code>
+servers are ever loaded simultaneously in the same session (transport/precedence
+semantics weren't fully traced) — flagged as candidate #4 above for follow-up, not
+resolved here.</li>
+<li>No MCP server was disabled, removed, or edited to produce this document.</li>
+</ul>
+
+  </div>
+</body>
+</html>

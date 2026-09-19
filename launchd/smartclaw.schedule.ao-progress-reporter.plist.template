@@ -8,6 +8,22 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
+        <!--
+          CRITICAL: launchd does NOT source ~/.bashrc, so the user login PATH
+          (which includes nvm: ${HOME}/.nvm/versions/node/v22.22.0/bin)
+          is NOT visible here. Without nvm on PATH, the `ao` CLI is missing
+          and fetch_ao_sessions() silently returns an empty array,
+          causing every 30-min tick to post the lying
+          "AO Progress Report — no active sessions detected" message even when
+          many sessions are alive.
+
+          launchd-env-wrapper.sh sources ~/.bash_profile, then ~/.bashrc, then
+          exports the user PATH, so the `ao`, `jq`, `gh`, etc. binaries all
+          resolve correctly.
+          Verified 2026-06-27: 22 sessions were visible from the wrapper PATH
+          but invisible to the launchd-inherited PATH.
+        -->
+        <string>${HOME}/.smartclaw/scripts/launchd-env-wrapper.sh</string>
         <string>${HOME}/.smartclaw/scripts/ao-progress-reporter.sh</string>
     </array>
 
@@ -15,8 +31,15 @@
     <dict>
         <key>HOME</key>
         <string>/Users/jleechan</string>
+        <!--
+          Belt-and-suspenders PATH in case the wrapper itself fails. Includes
+          nvm so the `ao` binary resolves even if the wrapper source chain
+          breaks. Audit 2026-06-27: previously the plist listed only
+          /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin — `ao` was invisible
+          and the report lied every 30 min for the entire day.
+        -->
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>${HOME}/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>SLACK_BOT_TOKEN</key>
         <string>@SLACK_BOT_TOKEN@</string>
         <key>AOPR_SLACK_THREAD_TS</key>

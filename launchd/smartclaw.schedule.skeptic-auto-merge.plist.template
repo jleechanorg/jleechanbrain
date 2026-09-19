@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.skeptic-auto-merge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>@REPO_ROOT@/scripts/skeptic_auto_merge.py</string>
+        <!-- Operator-set flags here (e.g. --verbose). --dry-run is implicit when SKEPTIC_DRY_RUN is unset. -->
+    </array>
+
+    <!-- Cadence — every 20 minutes. Same as the deleted skeptic-cron.yml schedule.
+         The companion watchdog catches silent failures per `dropped-thread-watcher-of-watchers` -->
+    <key>StartInterval</key>
+    <integer>1200</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- KeepAlive.SuccessfulExit=false: a silent 0-exit must NOT skip subsequent ticks.
+         This is the 2026-07-03 dropped-thread-watcher-of-watchers invariant. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Throttle a wedged tick to one per minute; normal cadence is 20 min. -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <!-- Limit cascading restarts to one per 10 minutes (prevents tight-loop on persistent failure). -->
+    <key>ExitTimeOut</key>
+    <integer>600</integer>
+
+    <key>WorkingDirectory</key>
+    <string>@REPO_ROOT@</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/skeptic-auto-merge.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/skeptic-auto-merge.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>${HOME}/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+
+        <!-- Operating mode — operator toggles these to enable real merges.
+             Defaults: SKEPTIC_AUTO_MERGE="" (off), SKEPTIC_DRY_RUN unset → defaults to TRUE. -->
+        <key>SKEPTIC_AUTO_MERGE</key>
+        <string>false</string>
+        <key>SKEPTIC_DRY_RUN</key>
+        <string>true</string>
+
+        <!-- Repository glob — defaults to all jleechanorg/*; override for narrower scope. -->
+        <key>SKEPTIC_REPOS_GLOB</key>
+        <string>jleechanorg/*</string>
+
+        <!-- Per-PR opt-out — comma-separated PR numbers. Example: "1234,5678". -->
+        <!-- Leave empty for no denylist. -->
+        <key>SKEPTIC_AUTO_MERGE_DENYLIST</key>
+        <string></string>
+
+        <!-- Dark-factory checkout — provides skeptic_gate_cli.py and skeptic_gate.py. -->
+        <key>DARK_FACTORY_HOME</key>
+        <string>@HOME@/repos/jleechanorg/dark-factory</string>
+
+        <!-- SHA pin for skeptic_gate_cli.py — must match a known-good rev of
+             feat/issue-278 (PR #281). Update when PR #281 merges. -->
+        <key>SKEPTIC_CLI_PINNED_SHA</key>
+        <string>7acfde5</string>
+
+        <!-- GH token resolution: prefers the launched session's gh auth.
+             bashrc-profile-xapp-drift-blocks-launchd: do NOT export GITHUB_TOKEN
+             here — the script does its own _resolve_gh_token() via gh auth token. -->
+    </dict>
+</dict>
+</plist>

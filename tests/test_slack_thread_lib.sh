@@ -14,7 +14,8 @@
 # state cleanup, anchor file race, env vs caller channel resolution).
 set -uo pipefail
 
-LIB="${HOME}/.smartclaw/.worktrees/slack-cronjob-consolidate/lib/slack_thread_lib.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB="$SCRIPT_DIR/../lib/slack_thread_lib.sh"
 [[ -f "$LIB" ]] || { echo "FAIL: lib not found at $LIB"; exit 1; }
 
 PASSED=0

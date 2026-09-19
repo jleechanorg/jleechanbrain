@@ -19,7 +19,7 @@ If no PR is found, tell the user: "No open PR found for the current branch."
 ## Step 2: Post CodeRabbit re-review ping
 Post exactly this (correct handle is `coderabbitai`, no hyphen):
 ```bash
-gh pr comment <PR_NUMBER> --body "@coderabbitai all good?"
+~/.smartclaw/scripts/gh-safe-publish pr comment <PR_NUMBER> --body "@coderabbitai all good?"
 ```
 
 ## Step 3: Request evidence review (if PR has evidence)
@@ -40,7 +40,7 @@ else
 fi
 
 # Post the evidence review request
-gh pr comment <PR_NUMBER> --body "@coderabbitai please also run /er on the evidence bundle at $EVIDENCE_PATH and verify the evidence meets standards. See: $EVIDENCE_URL"
+~/.smartclaw/scripts/gh-safe-publish pr comment <PR_NUMBER> --body "@coderabbitai please also run /er on the evidence bundle at $EVIDENCE_PATH and verify the evidence meets standards. See: $EVIDENCE_URL"
 ```
 
 ## Step 4: Confirm

@@ -91,7 +91,7 @@ fi
 # ── Hermes monitoring config ─────────────────────────────────────────
 HERMES_MONITOR_SYSTEMS="${MONITOR_SYSTEMS:-hermes}"
 HERMES_MONITOR_STAGING_HOME="${MONITOR_HERMES_HOME:-$HOME/.smartclaw}"
-HERMES_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.smartclaw_prod}"
+HERMES_MONITOR_PROD_HOME="${MONITOR_HERMES_PROD_HOME:-$HOME/.smartclaw}"
 # HERMES_MONITOR_ALERT_CHANNEL — channel for monitor alerts. Previously
 # hardcoded C0AJQ5M0A0Y (ai-general) as fallback; that bled monitor alerts
 # into the busy ai-general channel when the plist env was unset. Empty
@@ -155,7 +155,7 @@ resolve_bearer_token_ref() {
 }
 
 resolve_monitor_config_path() {
-  local _h_cfg="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw_prod}/config.yaml"
+  local _h_cfg="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw}/config.yaml"
   if [ -f "$_h_cfg" ]; then
     printf '%s' "$_h_cfg"
     return 0
@@ -169,7 +169,7 @@ resolve_monitor_config_path() {
 }
 
 resolve_monitor_base_config_path() {
-  local _h_cfg="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw_prod}/config.yaml"
+  local _h_cfg="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw}/config.yaml"
   if [ -f "$_h_cfg" ]; then
     printf '%s' "$_h_cfg"
     return 0
@@ -253,7 +253,7 @@ resolve_doctor_sh_path() {
     "$PWD/doctor.sh" \
     "$MONITOR_REPO_ROOT/doctor.sh" \
     "$HOME/.smartclaw/scripts/doctor.sh" \
-    "$HOME/.smartclaw_prod/scripts/doctor.sh"; do
+    "$HOME/.smartclaw/scripts/doctor.sh"; do
     if [ -f "$candidate" ]; then
       printf '%s' "$candidate"
       return 0
@@ -280,7 +280,7 @@ apply_hermes_env_from_gateway_launchd() {
 
 run_monitor_doctor_sh() {
   if [ "$GATEWAY_MODE" = "hermes" ] && [ -n "$HERMES_BIN" ]; then
-    HERMES_HOME="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw_prod}" \
+    HERMES_HOME="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw}" \
       timeout 60 "$HERMES_BIN" doctor 2>&1
     return $?
   fi
@@ -1578,7 +1578,7 @@ run_memory_lookup_probe || true
 # WS churn check: detect Slack WebSocket cycling (event loop blocked → pong timeout → reconnect)
 WS_CHURN_RC=0
 WS_CHURN_SUMMARY="skipped"
-LOG_TODAY="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw_prod}/logs/gateway.log"
+LOG_TODAY="${HERMES_MONITOR_PROD_HOME:-$HOME/.smartclaw}/logs/gateway.log"
 # Hermes gateway log is at the prod home path above; no legacy fallback needed.
 if [ -f "$LOG_TODAY" ]; then
   WS_THRESHOLD="${HERMES_MONITOR_WS_CHURN_THRESHOLD:-30}"
@@ -1633,9 +1633,27 @@ is_gateway_connectivity_failure_output() {
 
 PHASE1_REMEDIATION_ACTIONS=()
 if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
+  # Lift these out of inner scope so the cooldown gate below can reference
+  # them without re-deriving.  Plain assignments (NOT `local`) — bash 3.2
+  # rejects `local` outside a function context, which is where this block
+  # runs since monitor-agent.sh is a top-level script (no main() wrapper).
+  _launchd_label="gui/$(id -u)/ai.smartclaw.prod"
+  _cooldown_file="$MONITOR_REPO_ROOT/locks/monitor-agent-gateway-cycle.cooldown"
+  mkdir -p "$(dirname "$_cooldown_file")" 2>/dev/null || true
+
   hard_gateway_down=0
+  # Per /advice Reviewer B (2026-07-12): the HTTP /health probe against
+  # http://127.0.0.1:8643/health is structurally a false-positive on a
+  # Socket-Mode gateway (port 8643 never binds; api_server is force-disabled
+  # in launchd plist).  Replace the single-signal test with a dual
+  # corroboration: HTTP failure AND launchctl print state != running.
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
-    hard_gateway_down=1
+    if launchctl print "$_launchd_label" 2>/dev/null | grep -q "state = running"; then
+      log "HTTP_GATEWAY_RC=$HTTP_GATEWAY_RC but launchctl print reports state=running — false-positive; skipping hard_gateway_down"
+      PHASE1_REMEDIATION_ACTIONS+=("http_probe_false_positive_skipped")
+    else
+      hard_gateway_down=1
+    fi
   fi
   # Optional: allow WS churn to force restart when explicitly enabled.
   if [ "$WS_CHURN_RC" -ne 0 ] && [ "$WS_CHURN_RESTART_ENABLED" = "1" ]; then
@@ -1665,9 +1683,32 @@ if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   if [ "$GATEWAY_PROBE_RC" -ne 0 ] && is_gateway_connectivity_failure_output "$GATEWAY_PROBE_OUTPUT"; then
     should_kickstart=1
   fi
+  # Per /advice Reviewer B (2026-07-12): the canonical 2026 monitor
+  # pattern requires a persistent cooldown file keyed to the target label
+  # to break the kickstart-cycle race.  Without this, two monitors (or
+  # one monitor twice in 30s under load) will SIGTERM-cycle the gateway
+  # into a lock-storm.  Window matches the modal ThrottleInterval of the
+  # gateway plist (10s, but we use 300s to be conservative given
+  # observed loadavg-30 swings that take 1-2 min to subside).
   if [ "$should_kickstart" -ne 0 ]; then
-    local _launchd_label="gui/$(id -u)/ai.smartclaw.prod"
+    _now_epoch="$(date +%s)"
+    _last_kick=0
+    [ -f "$_cooldown_file" ] && _last_kick="$(cat "$_cooldown_file" 2>/dev/null || echo 0)"
+    _cooldown_window="${MONITOR_AGENT_KICK_COOLDOWN_SEC:-300}"
+    if [ "$_now_epoch" -lt "$_last_kick" ] || [ $((_now_epoch - _last_kick)) -lt "$_cooldown_window" ]; then
+      _age=$((_now_epoch - _last_kick))
+      log "kickstart throttled — last kickstart ${_age}s ago (< ${_cooldown_window}s window). Cooldown file=$_cooldown_file"
+      PHASE1_REMEDIATION_ACTIONS+=("kickstart_throttled_cooldown")
+      should_kickstart=0
+    fi
+  fi
+  if [ "$should_kickstart" -ne 0 ]; then
     if launchctl kickstart -k "$_launchd_label" >> "$LOG_FILE" 2>&1; then
+      # Record cooldown timestamp AFTER successful kickstart.  Per /research:
+      # never rely on `kickstart -k` exit status as the remediation signal;
+      # only re-probe after the cooldown window, and record against
+      # `last_kickstart` (so the *next* invocation can skip).
+      date +%s > "$_cooldown_file" 2>/dev/null || true
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_failed")
@@ -1745,14 +1786,15 @@ ICON_RED="🔴"
 _row() { printf '%-22s  %s' "$1" "$2"; }
 
 run_hermes_monitor() {
-  # Probe Hermes staging and Hermes prod
+  # Probe Hermes prod gateway (staging instance removed 2026-07-16).
   # Sets: HERMES_STATUS, Hermes_RED_ROWS[@], Hermes_YELLOW_ROWS[@], Hermes_ACTION_LINES[@]
   Hermes_RED_ROWS=()
   Hermes_YELLOW_ROWS=()
   Hermes_ACTION_LINES=()
   local _h_status="GOOD"
 
-  for _h_env in staging prod; do
+  # Staging instance removed (2026-07-16, per Jeffrey) — only monitor prod.
+  for _h_env in prod; do
     local _h_home=""
     local _h_label=""
     local _h_proc_ok=0
@@ -1761,27 +1803,14 @@ run_hermes_monitor() {
     local _h_api_ok=0
     local _h_log_age=0
 
-    if [ "$_h_env" = "staging" ]; then
-      _h_home="$HERMES_MONITOR_STAGING_HOME"
-      _h_label="Hermes staging"
-    else
-      _h_home="$HERMES_MONITOR_PROD_HOME"
-      _h_label="Hermes prod"
-    fi
+    _h_home="$HERMES_MONITOR_PROD_HOME"
+    _h_label="Hermes prod"
 
     # 1. Process check
-    if [ "$_h_env" = "staging" ]; then
-      if pgrep -f "hermes_cli.main.*staging" >/dev/null 2>&1 || \
-         pgrep -f "HERMES_GATEWAY_PORT=8644" >/dev/null 2>&1 || \
-         pgrep -f "hermes-staging" >/dev/null 2>&1; then
-        _h_proc_ok=1
-      fi
-    else
-      if pgrep -f "hermes_cli.main gateway run" >/dev/null 2>&1 || \
-         pgrep -f "/opt/homebrew/bin/hermes gateway run" >/dev/null 2>&1 || \
-         pgrep -f "HERMES_GATEWAY_PORT=8643" >/dev/null 2>&1; then
-        _h_proc_ok=1
-      fi
+    if pgrep -f "hermes_cli.main gateway run" >/dev/null 2>&1 || \
+       pgrep -f "/opt/homebrew/bin/hermes gateway run" >/dev/null 2>&1 || \
+       pgrep -f "HERMES_GATEWAY_PORT=8643" >/dev/null 2>&1; then
+      _h_proc_ok=1
     fi
 
     # 2. Log activity (< 90s old)

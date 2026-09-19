@@ -633,8 +633,8 @@ else
 fi
 
 # --- production directory setup ---
-# ~/.smartclaw/ = staging (repo checkout), ~/.smartclaw_prod/ = production (separate dir)
-PROD_DIR="$HOME/.smartclaw_prod"
+# ~/.smartclaw/ = staging (repo checkout), ~/.smartclaw/ = production (separate dir)
+PROD_DIR="$HOME/.smartclaw"
 
 normalize_prod_hermes_config_paths() {
   local cfg_path="$PROD_DIR/config.yaml"
@@ -719,10 +719,10 @@ fi
 normalize_prod_hermes_config_paths
 
 # --- gateway (production) ---
-# Production gateway reads from ~/.smartclaw_prod/config.yaml.
+# Production gateway reads from ~/.smartclaw/config.yaml.
 # Do NOT inject tokens into plists; config.yaml is the single source of truth.
 if [[ "$OS" == "macos" ]]; then
-  # ai.smartclaw.prod: KeepAlive plist, logs to ~/.smartclaw_prod/logs/gateway.log
+  # ai.smartclaw.prod: KeepAlive plist, logs to ~/.smartclaw/logs/gateway.log
   # HERMES_BIN is already validated earlier (exit 1 if missing) — no redundant check needed.
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Install canonical gateway plist. Clean up legacy ai.smartclaw.gateway if present.
@@ -1108,7 +1108,7 @@ fi
 echo ""
 echo "Log locations:"
 echo "  qdrant:        ~/.smartclaw/logs/qdrant.log"
-echo "  gateway:       ~/.smartclaw_prod/logs/gateway.log"
+echo "  gateway:       ~/.smartclaw/logs/gateway.log"
 echo "  startup check: ~/.smartclaw/logs/startup-check.log"
 if [[ "$OS" == "macos" ]]; then
   echo "  MC backend:    /tmp/mc-backend.log"

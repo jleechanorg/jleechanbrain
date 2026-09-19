@@ -32,12 +32,12 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Stub canary: honors STUB_CANARY_FAIL_COUNT env var, fails that many
+# Stub health: honors STUB_HEALTH_FAIL_COUNT env var, fails that many
 # times then exits 0. Records call count in $STUB_CALLS_LOG file because
 # each invocation is a subshell (cannot mutate parent env).
-cat > "$TMP/hermes-canary.sh" <<'STUB'
+cat > "$TMP/hermes-health.sh" <<'STUB'
 #!/usr/bin/env bash
-n=${STUB_CANARY_FAIL_COUNT:-0}
+n=${STUB_HEALTH_FAIL_COUNT:-0}
 # Atomic increment of a per-stub counter file.
 counter_file="$STUB_CALLS_LOG"
 touch "$counter_file"
@@ -45,16 +45,16 @@ current=$(wc -l < "$counter_file" | tr -d ' ')
 call_n=$((current + 1))
 echo "call ${call_n}" >> "$counter_file"
 if [[ "$call_n" -le "$n" ]]; then
-  echo "STUB: canary call ${call_n}/${n} (failing)"
+  echo "STUB: health check call ${call_n}/${n} (failing)"
   exit 1
 fi
-echo "STUB: canary call ${call_n} (success)"
+echo "STUB: health check call ${call_n} (success)"
 exit 0
 STUB
-chmod +x "$TMP/hermes-canary.sh"
+chmod +x "$TMP/hermes-health.sh"
 STUB_CALLS_LOG="$TMP/calls.log" export STUB_CALLS_LOG
 
-# Extract the Stage 5 block from deploy.sh (from "Stage 5: Canary Check"
+# Extract the Stage 5 block from deploy.sh (from "Stage 5: Health Check"
 # up to but not including "Stage 5.5").
 extract_stage5() {
   awk '
@@ -65,18 +65,18 @@ extract_stage5() {
 }
 
 # Wrap Stage 5 in a script that uses our stub instead of the real
-# hermes-canary.sh. We do this by overriding SCRIPT_DIR via env.
+# hermes-health.sh. We do this by overriding SCRIPT_DIR via env.
 build_stage5_runner() {
   local fail_count="$1"
   local out="$TMP/run_stage5.sh"
   cat > "$out" <<WRAP
 #!/usr/bin/env bash
 set -euo pipefail
-# override SCRIPT_DIR so "\$SCRIPT_DIR/hermes-canary.sh" hits our stub
+# override SCRIPT_DIR so "\$SCRIPT_DIR/hermes-health.sh" hits our stub
 export SCRIPT_DIR="$TMP"
 export STUB_DIR="$TMP"
 export STUB_CALLS_LOG="$STUB_CALLS_LOG"
-export STUB_CANARY_FAIL_COUNT="$fail_count"
+export STUB_HEALTH_FAIL_COUNT="$fail_count"
 export PROD_PORT=8643
 # Provide the section() and die() helpers that deploy.sh uses upstream
 ts()      { date '+%Y-%m-%d %H:%M:%S'; }
@@ -94,7 +94,7 @@ RUNNER=$(build_stage5_runner 0)
 STUB_DIR="$TMP" bash "$RUNNER" && rc=0 || rc=$?
 CALLS=$(wc -l < "$STUB_CALLS_LOG" | tr -d ' ')
 if [[ "$rc" -eq 0 ]] && [[ "$CALLS" -eq 1 ]]; then
-  pass "first-try success: deploy Stage 5 passes with 1 canary call"
+  pass "first-try success: deploy Stage 5 passes with 1 health check call"
 else
   fail "first-try success: rc=$rc calls=$CALLS (expected rc=0 calls=1)"
 fi
@@ -115,9 +115,9 @@ rm -f "$STUB_CALLS_LOG"
 RUNNER=$(build_stage5_runner 2)
 STUB_DIR="$TMP" bash "$RUNNER" >/dev/null 2>&1 && rc=0 || rc=$?
 CALLS=$(wc -l < "$STUB_CALLS_LOG" | tr -d ' ')
-# Expect non-zero (die ran) and exactly 2 canary attempts (no 3rd)
+# Expect non-zero (die ran) and exactly 2 health check attempts (no 3rd)
 if [[ "$rc" -ne 0 ]] && [[ "$CALLS" -eq 2 ]]; then
-  pass "persistent failure: deploy dies after 2 canary calls (rc=$rc calls=$CALLS)"
+  pass "persistent failure: deploy dies after 2 health check calls (rc=$rc calls=$CALLS)"
 else
   fail "persistent failure: rc=$rc calls=$CALLS (expected non-zero rc, 2 calls)"
 fi
@@ -135,8 +135,7 @@ fi
 # Guards against a regression where someone changes `sleep 30` to e.g.
 # `sleep 5` (too short — re-races the same cron window) or `sleep 60`
 # (blocks deploy for too long on a genuine outage). The 30s value is
-# deliberate: long enough for the cron anchor to clear the gateway event
-# loop, short enough that a real outage is surfaced within ~1 minute.
+# deliberate.
 if grep -qE '^\s*sleep[[:space:]]+30\s*$' "$DEPLOY_SH"; then
   pass "Stage 5 retry uses documented 30s backoff"
 else
@@ -161,7 +160,7 @@ fi
 rm -f "$STUB_CALLS_LOG"
 RUNNER=$(build_stage5_runner 2)
 STUB_DIR="$TMP" bash "$RUNNER" >/dev/null 2>"$TMP/case6.err" && rc=0 || rc=$?
-EXPECTED="Canary failed twice — production gateway may be unhealthy. Check logs."
+EXPECTED="Health check failed twice — production gateway may be unhealthy. Check logs."
 if [[ "$rc" -ne 0 ]] && grep -qF "$EXPECTED" "$TMP/case6.err"; then
   pass "persistent failure: die() prints exact operator-facing message"
 else
@@ -170,29 +169,24 @@ fi
 
 # ── Case 7: comment block above Stage 5 captures the race rationale ─────────
 # Catches a future edit where someone strips the operator-facing comment
-# block (which documents the 4 false-positive instances, the WS-pong
-# discipline, and the 30s backoff derivation). Without this guard, a
-# drive-by refactor could delete the rationale and leave future operators
-# to re-derive the entire diagnosis from logs.
+# block. Without this guard, a drive-by refactor could delete the rationale.
 STAGE5_BLOCK="$(awk '
   /^# ── Stage 5:/ { capturing = 1; next }
   /^# ── Stage 5\.5:/ { exit }
   capturing { print }
 ' "$DEPLOY_SH")"
-if echo "$STAGE5_BLOCK" | grep -qE '(hermes-canary.sh|anchor|race|SlackSocket|event-loop|30s)'; then
-  pass "Stage 5 comment block documents the canary-race rationale"
+if echo "$STAGE5_BLOCK" | grep -qE '(hermes-health.sh|SlackSocket|event-loop|30s)'; then
+  pass "Stage 5 comment block documents the health check/restart-race rationale"
 else
-  fail "Stage 5 comment block missing race rationale (cron anchor / SlackSocket / 30s backoff)"
+  fail "Stage 5 comment block missing restart-race rationale (hermes-health.sh / SlackSocket / 30s backoff)"
 fi
 
 # ── Case 8: file-based counter is the documented retry mechanism ───────────
-# Bash subshells can't mutate parent env vars, so the canary-stub counter
+# Bash subshells can't mutate parent env vars, so the health-stub counter
 # is persisted to a per-test file (`STUB_CALLS_LOG`). This test asserts the
-# stub itself increments via the file (not env), so future refactors don't
-# silently regress the persistence path and break the "exactly 2 canary
-# calls" assertion in case 3.
+# stub itself increments via the file (not env).
 rm -f "$STUB_CALLS_LOG"
-STUB_DIR="$TMP" bash -c 'export STUB_CALLS_LOG="'"$STUB_CALLS_LOG"'"; export STUB_CANARY_FAIL_COUNT="0"; '"$TMP"'/hermes-canary.sh; '"$TMP"'/hermes-canary.sh; '"$TMP"'/hermes-canary.sh' >/dev/null 2>&1
+STUB_DIR="$TMP" bash -c 'export STUB_CALLS_LOG="'"$STUB_CALLS_LOG"'"; export STUB_HEALTH_FAIL_COUNT="0"; '"$TMP"'/hermes-health.sh; '"$TMP"'/hermes-health.sh; '"$TMP"'/hermes-health.sh' >/dev/null 2>&1
 CALLS=$(wc -l < "$STUB_CALLS_LOG" | tr -d ' ')
 if [[ "$CALLS" -eq 3 ]]; then
   pass "file-based counter increments across 3 invocations (3 calls)"
@@ -201,6 +195,6 @@ else
 fi
 
 echo ""
-echo "Stage 5 canary-retry: $PASS pass, $FAIL fail"
+echo "Stage 5 health-retry: $PASS pass, $FAIL fail"
 [[ "$FAIL" -eq 0 ]] || exit 1
 exit 0

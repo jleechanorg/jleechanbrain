@@ -30,6 +30,8 @@ Create a memory file at `memory/agent-errors.md` tracking all agent mistakes.
 
 **Success criteria**: `memory/agent-errors.md` exists and is git-tracked.
 
+**Why this works despite `.gitignore` ignoring `memory/`**: the repo's `.gitignore` ignores `memory/` as a whole (it's machine-specific runtime), but `memory/agent-errors.md` is allow-listed with `!memory/agent-errors.md` so `git add memory/agent-errors.md` works normally. The exception is intentional: this file is the cross-machine mistake registry, not a runtime artifact — losing it loses the whole skill's value. Do not generalize the exception to other `memory/*` files; they remain machine-specific.
+
 ### 2. Instrument Session Replay
 
 After every agent session, extract error patterns:
@@ -56,14 +58,23 @@ For each unique error pattern, add an entry to `memory/agent-errors.md`:
 
 **Success criteria**: At least 3 error patterns documented.
 
-### 4. Create a Pre-Action Check
+### 4. Pre-Action Verify (verify-before-upstream-claim gate)
 
-Add a check at the start of every agent session: before taking major actions, consult `memory/agent-errors.md` to see if this mistake was made before.
+Before any claim that involves:
+- An upstream repo's current state (language, file layout, branch, default branch, CI status)
+- A local path on this machine (file, directory, binary, command output)
+- A thread, channel, or message on a connected platform
 
-**Success criteria**: Agent reads error memory before high-stakes actions.
+**run the actual verification command in the same turn and cite its output.** Do not fill the gap from training-data memory of what the project used to be in a prior architecture, and do not say "I can't fetch that" for tools the runtime exposes (Slack MCP, Playwright MCP, `gh api`, `web_extract`).
+
+See `references/2026-06-25-verify-before-upstream-claim.md` for the worked example, the three failure modes from that thread, and the paste-able pre-flight gate.
 
 ### 5. Track Error Recurrence
 
 If an error from the memory is repeated, increment its occurrence count and add a new timeline entry.
 
 **Success criteria**: `memory/agent-errors.md` shows decreasing recurrence for documented errors.
+
+## Anti-Patterns (worked examples in references/)
+
+- **2026-06-25 verify-before-upstream-claim** — three failures in one Slack thread: hallucinated a `~/.smartclaw/agent-orchestrator/` Python folder that didn't exist, assumed upstream's TS→Go rewrite also rewrote the user's TS fork, and said "I can't fetch Slack URLs" when `mcp_slack_conversations_replies` was sitting right there. See `references/2026-06-25-verify-before-upstream-claim.md`.

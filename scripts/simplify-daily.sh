@@ -10,6 +10,9 @@ fi
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GH_SAFE_PUBLISH="$SCRIPT_DIR/gh-safe-publish"
+
 REPOS_DIR="${HOME}/projects"
 REPOS_DIR_FALLBACK="${HOME}/projects_other"
 REPOS_DIR_AGENT_ORCHESTRATOR="${HOME}/project_agento"
@@ -197,7 +200,7 @@ for repo_name in "${!GH_REPOS[@]}"; do
     pr_body="Automated code simplification via daily simplify run.
 
 ${_n_commits_ahead} commit(s) — review and merge if looks good."
-    if gh pr create \
+    if "$GH_SAFE_PUBLISH" pr create \
       --repo "$gh_repo" \
       --title "$pr_title" \
       --body "$pr_body" \

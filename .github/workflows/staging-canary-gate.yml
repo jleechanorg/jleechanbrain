@@ -20,6 +20,7 @@ name: Staging Canary Gate
 on:
   pull_request:
     types: [opened, synchronize, edited, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: staging-canary-gate-${{ github.event.pull_request.number }}
@@ -33,7 +34,7 @@ permissions:
 jobs:
   staging-canary:
     name: Staging Canary Gate
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     timeout-minutes: 10
     steps:
@@ -45,7 +46,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # Detect which config files changed in this PR using git diff.
-      # config.yaml is gitignored in jleechanclaw so sparse-checkout can't
+      # config.yaml is gitignored in jleechanbrain so sparse-checkout can't
       # fetch it — git diff --name-only against base branch finds it regardless.
       - name: Find changed config files in PR
         id: find_config

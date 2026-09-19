@@ -75,6 +75,72 @@ def _make_qdrant_client(host: str, port: int) -> Any:
     return QdrantClient(host=host, port=port, check_compatibility=False)
 
 
+# Lazy import for dim-mismatch detection — qdrant_client may not be on path
+# until _make_qdrant_client is first called.
+_DIM_MISMATCH_EXC: tuple = ()
+_DIM_RECREATE_DONE = False
+
+
+def _init_dim_recovery() -> None:
+    """Initialize dim-mismatch recovery globals once the qdrant client loads."""
+    global _DIM_MISMATCH_EXC
+    try:
+        from qdrant_client.http import exceptions as _qexc
+
+        _DIM_MISMATCH_EXC = (_qexc.UnexpectedResponse,)
+    except Exception:
+        _DIM_MISMATCH_EXC = ()
+
+
+def _recreate_collection_at_embedder_dim() -> dict:
+    """Drop the qdrant `hermes_mem0` collection and recreate it at the dim
+    declared by the configured embedder. Idempotent and one-shot per process:
+    a successful recreate disables further recovery so we don't loop on a
+    persistent mismatch.
+
+    Returns a small status dict; raises if the embedder config does not expose
+    `embedding_dims` (caller cannot recover automatically in that case).
+    """
+    global _DIM_RECREATE_DONE
+    if _DIM_RECREATE_DONE:
+        raise RuntimeError(
+            "mem0 dim-mismatch recovery already attempted this process — refusing "
+            "to loop. Restart the process or run `python3 ~/.smartclaw/scripts/mem0_health_check.py`."
+        )
+    _DIM_RECREATE_DONE = True
+
+    cfg = _load_hermes_mem0_config()
+    vs_cfg = cfg["vector_store"]["config"]
+    emb_cfg = cfg.get("embedder", {}).get("config") or {}
+    expected_dim = emb_cfg.get("embedding_dims") or emb_cfg.get("embedding_model_dims")
+    if not expected_dim:
+        raise RuntimeError(
+            "mem0 embedder config has no `embedding_dims` — cannot auto-recover. "
+            "Set embedding_dims on the embedder block or recreate the qdrant collection manually."
+        )
+
+    collection = vs_cfg["collection_name"]
+    host, port = vs_cfg["host"], vs_cfg["port"]
+    client = _make_qdrant_client(host, port)
+    try:
+        client.delete_collection(collection_name=collection)
+    except Exception as exc:
+        print(f"WARN: dim-recovery delete failed for {collection}: {exc}", file=sys.stderr)
+    client.create_collection(
+        collection_name=collection,
+        vectors_config={"size": int(expected_dim), "distance": "Cosine"},
+    )
+    print(
+        f"[mem0] dim-recovery: recreated {collection} at dim={expected_dim} "
+        f"to match embedder {emb_cfg.get('model', '?')}",
+        file=sys.stderr,
+    )
+    # Drop the cached Memory instance so it re-initializes against the fresh collection.
+    global _MEMORY_INSTANCE
+    _MEMORY_INSTANCE = None
+    return {"collection": collection, "dim": int(expected_dim)}
+
+
 def _load_hermes_mem0_config() -> dict:
     global _MEM0_CONFIG_CACHE
     if _MEM0_CONFIG_CACHE is not None:
@@ -436,7 +502,15 @@ def add_memory(
     if agent_id:
         meta["agent_id"] = agent_id
 
-    result = m.add(text, user_id=user_id, metadata=meta, infer=infer)
+    try:
+        result = m.add(text, user_id=user_id, metadata=meta, infer=infer)
+    except _DIM_MISMATCH_EXC as exc:
+        # Idempotent recovery: the qdrant collection's vectors.size was created
+        # at a different dim than the configured embedder. Drop + recreate at the
+        # embedder's expected dim, retry once. This was the historical failure
+        # mode that broke every mem0 add since 2026-05 (see project_2026-06-09).
+        _recreate_collection_at_embedder_dim()
+        result = m.add(text, user_id=user_id, metadata=meta, infer=infer)
 
     # Raise if infer=True returned nothing — makes the silent LLM drop visible.
     # infer=False always returns results, so this check only fires for the infer path.

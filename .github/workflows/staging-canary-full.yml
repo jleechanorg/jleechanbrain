@@ -11,6 +11,7 @@ name: Staging Canary Full (self-hosted)
 on:
   pull_request:
     types: [opened, synchronize, edited, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: staging-canary-full-${{ github.event.pull_request.number }}
@@ -22,15 +23,13 @@ permissions:
 jobs:
   find-config-yaml:
     if: |
-      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["self-hosted","self-hosted-mikey"]') }}
     outputs:
       found: ${{ steps.find.outputs.found }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: Detect config.yaml in PR diff
         id: find
         run: |
@@ -57,8 +56,6 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: Run staging-canary.sh
         env:
           STAGING_CANARY_PORT: ${{ vars.STAGING_CANARY_PORT }}

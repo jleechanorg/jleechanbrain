@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.ms-proactive-firing-audit</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/launchd-env-wrapper.sh</string>
+        <string>/opt/homebrew/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/audit_ms_proactive_firing.sh</string>
+    </array>
+
+    <!--
+      Daily at 08:30 PT, 7 days/week. Runs `audit_ms_proactive_firing.sh`
+      against ~/.smartclaw/state.db and POSTS A SLACK ALERT ONLY WHEN the
+      firing rate drops below threshold (default 50%). Quiet on success.
+
+      Wiring added 2026-07-02 per /advice Reviewer A flag: the audit
+      script existed (commit 7b5271c8e5) but was never auto-invoked, so
+      any future regression would be silent.
+
+      Detector script at ~/.smartclaw/scripts/audit_ms_proactive_firing.sh.
+      Pairs with `check_ms_proactive_firing` in scripts/doctor.sh.
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>8</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>HERMES_HOME</key>
+        <string>@HOME@/.smartclaw</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <key>MS_AUDIT_THRESHOLD_PCT</key>
+        <string>50</string>
+        <key>MS_AUDIT_WINDOW_DAYS</key>
+        <string>7</string>
+        <key>MS_AUDIT_ALERT_CHANNEL</key>
+        <string>@MS_AUDIT_ALERT_CHANNEL@</string>
+        <key>SLACK_BOT_TOKEN</key>
+        <string>@SLACK_BOT_TOKEN@</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/ms-proactive-firing-audit.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/ms-proactive-firing-audit.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: 23h = 82800s, slightly under natural 24h cadence. -->
+    <key>ThrottleInterval</key>
+    <integer>82800</integer>
+</dict>
+</plist>

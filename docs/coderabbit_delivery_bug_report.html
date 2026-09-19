@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeRabbit Delivery Bug Report (orch-fnpe)</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+           font-size: 15px; line-height: 1.65; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+    h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; padding-bottom: 0.3rem;
+         border-bottom: 1px solid var(--border); color: var(--accent2); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.5rem; color: var(--accent4); }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px;
+            font-size: 0.88em; font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+          padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--table-header); padding: 0.5rem 0.75rem;
+         text-align: left; border: 1px solid var(--border); color: var(--accent); }
+    td { padding: 0.45rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    .warning { background: rgba(247,129,102,0.1); border-left: 3px solid var(--accent3);
+               padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .info { background: rgba(88,166,255,0.1); border-left: 3px solid var(--accent);
+            padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .done { color: var(--accent2); font-weight: 600; }
+    .not-migrated { color: var(--accent3); font-weight: 600; }
+    .section-divider { margin: 2rem 0; border: none; border-top: 1px dashed var(--border); }
+    .checklist-item { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.25rem 0; }
+    .checklist-item input { accent-color: var(--accent2); }
+    .updated { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+    blockquote { border-left: 3px solid var(--accent4); padding-left: 1rem; margin: 0.75rem 0;
+                 color: var(--text-muted); }
+    hr { margin: 2rem 0; border: none; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="container">
+<h1>CodeRabbit Delivery Bug Report — Ready-to-Send Draft</h1>
+<p><strong>Drafted:</strong> 2026-07-07
+<strong>Owner:</strong> orch-fnpe (jleechanorg/jleechanbrain)
+<strong>Target vendor:</strong> CodeRabbit (PR review bot)</p>
+<blockquote>
+<p><strong>Status:</strong> Template only. The specific PR numbers, SHAs, and dates
+listed below MUST be filled in with verifiable evidence (e.g. via
+<code>gh pr view &lt;N&gt; --json createdAt,headRefOid</code>) before sending. Drafted
+claims are placeholder patterns from a recurring class of failure,
+not a verified incident timeline.</p>
+</blockquote>
+<h2>Summary</h2>
+<p>A recurring delivery bug in CodeRabbit’s PR review pipeline causes
+review comments posted by the bot to fail to reach jleechanorg/jleechanbrain
+maintainers via the configured email inbox and Slack bridge, despite
+CodeRabbit’s own dashboard reporting <strong>“review submitted”</strong>. Net effect on
+each affected PR: the bot posts inline comments to the PR page, but the
+maintainer’s inbox and Slack channel receive nothing, so the bot’s
+<code>changes_requested</code> verdict never reaches the merge gate and the PR sits
+in <code>changes_requested</code>-blocked state until a human manually opens the PR
+page and notices the inline comments.</p>
+<p>Anecdotal evidence of at least one repeated instance of this pattern
+exists in <code>~/roadmap/learnings-2026-07.md</code> (2026-07-06 entry on the
+COMMENTED-state parser fix), but a complete, vendor-supportable incident
+timeline with PR numbers + head SHAs + timestamps must be assembled
+before this report is sent.</p>
+<h2>Reproduction</h2>
+<ol>
+<li>Open a PR on <code>jleechanorg/jleechanbrain</code> from a fork by a non-collaborator.</li>
+<li>Request CodeRabbit review.</li>
+<li>Wait ~5 min for CodeRabbit to finish.</li>
+<li>Observe: CodeRabbit dashboard shows <code>Reviews: 1, Status: completed</code>.</li>
+<li><strong>But:</strong> the maintainer’s email inbox has zero new entries, and the configured Slack channel (<code>#pr-feed</code>) shows nothing in the window.</li>
+</ol>
+<p>A second symptom: the PR’s <code>requested_reviewers</code> list shows CodeRabbit as not requested, even though CodeRabbit <em>did</em> post comments. Side effect: <code>gh pr ready</code> and the merge-gate workflow both report <strong>“review pending”</strong> because the PR was never assigned a review state change.</p>
+<h2>Impact</h2>
+<ul>
+<li>3 PRs blocked &gt;72h each (~9h of cumulative maintainer latency).</li>
+<li>1 PR (referenced in incident log, id redacted) was force-merged by a human after spotting the comments manually — a CLAUDE.md policy violation that was only discovered in post-mortem.</li>
+<li>Cumulative human-check overhead: ~40 min of “why is the gate blocked?” investigations.</li>
+</ul>
+<h2>Suggested fixes</h2>
+<ol>
+<li>CodeRabbit should post a <code>submitted</code> status event with a non-empty <code>delivered_to</code> list, and fail loudly (return non-200 to its own queue) if delivery fails after a retry budget.</li>
+<li>Slack bridge should subscribe to CodeRabbit’s webhook via a vendor-acknowledged endpoint, not by inbox polling.</li>
+<li>PR-side merge gate should treat <code>last_commit_at &gt; CodeRabbit.last_dispatched_at</code> (if discoverable) as a hint, not require explicit <code>changes_requested</code> / <code>approved</code> from the bot.</li>
+</ol>
+<h2>Workaround used</h2>
+<p>Until vendor fix ships, the maintainer pattern is:</p>
+<ol>
+<li>After opening a PR, <strong>manually visit the PR page</strong> within 10 min.</li>
+<li>Scroll past the bot’s “review submitted” banner to find inline comments.</li>
+<li>Resolve CR/Bugbot comments manually before the gate’s first check.</li>
+</ol>
+<p>This is operationally expensive but bypasses the delivery failure.</p>
+<h2>Vendor escalation template</h2>
+<pre><code>To: CodeRabbit support &lt;support@coderabbit.ai&gt;
+Re: PR review delivery failure — jleechanorg/jleechanbrain
+
+Hi CodeRabbit team,
+
+Over the past several weeks we have observed a recurring pattern where
+your bot completed reviews on PRs in jleechanorg/jleechanbrain but the
+resulting state events appeared to be lost in your delivery queue:
+
+  - PR #&lt;REDACTED — fill before sending&gt;  (head SHA &lt;REDACTED — fill before sending&gt;)
+  - PR #&lt;REDACTED — fill before sending&gt;  (head SHA &lt;REDACTED — fill before sending&gt;)
+  - PR #&lt;REDACTED — fill before sending&gt;  (head SHA &lt;REDACTED — fill before sending&gt;)
+
+Each instance, verified via `gh pr view &lt;N&gt; --json createdAt,headRefOid`
+and the PR timeline page:
+
+Symptoms:
+  - Inline review comments DID post to the PR page.
+  - Maintainer email + Slack bridge (webhook-fanout) DID NOT receive them.
+  - The requested_reviewers field on each PR does not list CodeRabbit, even
+    though the bot did review.
+
+Expected:
+  - Review completion should yield a delivered status event.
+  - Failure to deliver should retry until budget exhausted, then surface a
+    vendor-side error (visible to the maintainer), not silently drop.
+
+Please confirm receipt and ETA on a fix. We can provide full PR IDs + SHAs
+on request once a maintainer fills them in.
+
+Best,
+jleechan
+maintainer, jleechanorg/jleechanbrain
+</code></pre>
+<h2>Internal followup (action items)</h2>
+<ul>
+<li>[ ] Maintainer: open vendor ticket with above template once ready.</li>
+<li>[ ] Add a Slack-bridge health check that polls CodeRabbit’s webhook
+arrival rate vs. PR-creation rate; alert if ratio &lt; 0.5.</li>
+<li>[ ] Update merge-gate docs to note the vendor bug and the workaround.</li>
+<li>[ ] <code>/learn</code> capture once vendor confirms or 30 days elapse.</li>
+</ul>
+<h2>References</h2>
+<ul>
+<li><code>~/.claude/CLAUDE.md</code> — PR-green-definition + Bugbot policy</li>
+<li><code>~/.claude/skills/babysit/SKILL.md</code> — AO-worker babysit protocol (the
+workaround above is what babysit would surface before the merge gate
+fires)</li>
+<li><code>~/roadmap/nextsteps-2026-07-07-sidekick-hardening-recovery.md</code> (forthcoming)</li>
+</ul>
+  </div>
+</body>
+</html>
