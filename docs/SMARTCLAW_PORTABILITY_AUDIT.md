@@ -1,12 +1,12 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-08-24 21:12:59 PDT
+Generated: 2026-09-18 17:08:17 PDT
 
 ## Summary
 
-- Candidate files evaluated: 1574
-- Included in export map: 1553
-- Excluded as non-portable/private/runtime: 21
+- Candidate files evaluated: 2131
+- Included in export map: 2107
+- Excluded as non-portable/private/runtime: 24
 
 ## Selection Rules
 
@@ -106,3 +106,6 @@ Non-portable paths are excluded when they contain:
 - `docs/superpowers/specs/2026-03-28-self-hosted-runner-pypi-design.md`
 - `docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.html`
 - `docs/superpowers/specs/2026-07-10-ao-go-daily-repo-export-design.md`
+- `scripts/ao-progress-reporter.sh.pre-817.bak`
+- `scripts/ao-progress-reporter.sh.pre-828merge.bak`
+- `tests/test_ao_progress_reporter_cross_machine.sh.pre-828merge.bak`

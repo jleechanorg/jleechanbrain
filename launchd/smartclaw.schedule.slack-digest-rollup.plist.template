@@ -22,19 +22,19 @@
         #needs-jeff   = C0BGM3A4ZC0 (public, sibling channel for idea 1)
       Override via SLACK_DIGEST_CHANNEL env if the channel is recreated.
 
-      NOTE: this job does NOT yet disable slack-thread-roadmap-report --
+      NOTE: this job does NOT yet disable slack-thread-roadmap-report —
       that cutover is a deliberate separate decision (Jeffrey should compare
       a few days of #agent-digest output against the roadmap-report docs
       before retiring the old pipeline). Both slack-thread-roadmap-report
       (scripts/slack-thread-roadmap-report.sh +
       launchd/ai.smartclaw.schedule.slack-thread-roadmap-report.plist.template)
-      and this new digest job live in THIS repo (jleechanbrain) -- no
+      and this new digest job live in THIS repo (jleechanbrain) — no
       cross-repo blocker. See bead orch-lrzg for the retirement follow-up
       plan.
 
       Wrapped in launchd-env-wrapper.sh (sources ~/.bash_profile /
       ~/.profile / ~/.bashrc) so SLACK_BOT_TOKEN and
-      ANTHROPIC_API_KEY are picked up from the shell profile -- never
+      ANTHROPIC_API_KEY are picked up from the shell profile — never
       hardcoded in this plist (secrets-no-env / secrets-no-plist policy).
 
       Routed through scripts/orchestration_slack_catchup_daily.sh (not the
@@ -54,7 +54,7 @@
         <string>24</string>
     </array>
 
-    <!-- Once daily, 08:00 local (every day -- weekend Slack activity should
+    <!-- Once daily, 08:00 local (every day — weekend Slack activity should
          still surface in Monday's digest, so no Weekday filter). -->
     <key>StartCalendarInterval</key>
     <dict>

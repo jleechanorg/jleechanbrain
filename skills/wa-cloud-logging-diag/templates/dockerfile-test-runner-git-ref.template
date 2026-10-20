@@ -1,0 +1,40 @@
+# Dockerfile.test-runner (testing_mcp/infra/Dockerfile.test-runner)
+# Template for the "ship .git HEAD so the exact-HEAD guard runs in Cloud Run" fix.
+#
+# The current Dockerfile installs `git` (line 12) but never COPYs the .git/ tree,
+# so the `_configure_exact_head_python_runtime()` guard at test_level_up_organic.py:5348
+# crashes on `git rev-parse HEAD` with "fatal: not a git repository".
+#
+# Apply this template by adding the two COPY lines (marked # <-- ADD) AFTER the
+# `COPY --chown=appuser:appuser testing_mcp/ ./testing_mcp/` block, and the
+# GIT_COMMIT env-var fallback in the entrypoint.
+#
+# Verified pattern: 2026-08-13 investigation on the wa-daily-level-up-test-mr6dk run.
+
+# --- existing block (for context) ---
+# COPY --chown=appuser:appuser testing_mcp/ ./testing_mcp/
+# COPY --chown=appuser:appuser mvp_site/ ./mvp_site/
+# COPY --chown=appuser:appuser testing_utils/ ./testing_utils/
+# COPY --chown=appuser:appuser infrastructure/ ./infrastructure/
+# COPY --chown=appuser:appuser testing_mcp/infra/entrypoint.sh ./entrypoint.sh
+
+# --- add these two lines (cheapest fix: only HEAD + ref, not full .git) ---
+# COPY --chown=appuser:appuser .git/HEAD ./.git/HEAD
+# COPY --chown=appuser:appuser .git/refs/heads/ ./.git/refs/heads/
+# ---------------------------------------------------------------------
+#
+# Alternative (preferred when build-time GIT_COMMIT is known): pass as build-arg
+# and write a synthetic .git/HEAD + .git/refs/heads/main in the build step.
+#
+# ARG GIT_COMMIT
+# RUN if [ -n "$GIT_COMMIT" ]; then \
+#       mkdir -p ./.git/refs/heads/main && \
+#       echo "ref: refs/heads/main" > ./.git/HEAD && \
+#       echo "$GIT_COMMIT" > ./.git/refs/heads/main/COMMIT_SHA && \
+#       chown -R appuser:appuser ./.git; \
+#     fi
+# ---------------------------------------------------------------------
+#
+# Pair this with the entrypoint fallback (see template: entrypoint-git-fallback.sh)
+# so that if a future Dockerfile change accidentally drops the COPY, the test still
+# runs (with a stderr warning) instead of crashing the whole daily cron.

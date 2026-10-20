@@ -12,13 +12,27 @@ Run: cd ~/.smartclaw && python3 -m pytest tests/test_bq_coverage_watcher.py -v
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
+import re
 from pathlib import Path
 
 import pytest
 
 
-WATCHER_PATH = Path.home() / ".smartclaw" / "scripts" / "bq_coverage_watcher.py"
+def _resolve_watcher_path():
+    """Resolve the watcher path relative to the repo root, not Path.home().
+
+    `Path.home()` resolves at test runtime to a path that may not exist on CI.
+    Use `Path(__file__).resolve().parents[2]` so the fixture loads THIS repo's
+    copy, with `$WATCHER_PATH` as an escape hatch. (Codex P2 on PR #844.)
+    """
+    import os
+    repo_root = Path(__file__).resolve().parents[2]
+    return Path(os.environ.get("WATCHER_PATH", repo_root / "scripts" / "bq_coverage_watcher.py"))
+
+
+WATCHER_PATH = _resolve_watcher_path()
 
 
 def _load_watcher(monkeypatch, **env_overrides):
@@ -323,3 +337,106 @@ def test_legacy_cumulative_alert_includes_remediation_hint(monkeypatch, tmp_stre
     assert "Remediation:" in msg, f"missing remediation hint: {msg[:400]}"
     # Legacy mode should also suggest switching to recent-rate
     assert "BQ_WATCH_USE_RECENT_RATE=true" in msg, f"missing recent-rate opt-in hint: {msg[:400]}"
+
+
+# ---------------------------------------------------------------------------
+# Regression guards for the three Trap-class GCP-auth bugs
+# (gcp-sa-auth-from-script skill). Recurrence verified 2026-09-13 16:30 UTC:
+# `bq-coverage-watcher` was failing because the production script still had
+# all three bugs 13 days after the fix was documented in the skill's
+# references/ directory. These tests pin the recipe on disk so the script
+# cannot silently revert.
+# ---------------------------------------------------------------------------
+
+
+def _source_text() -> str:
+    return WATCHER_PATH.read_text(encoding="utf-8")
+
+
+def test_oauth_token_requires_cloud_platform_scope():
+    """Trap 1: google.auth.default() MUST be called with scopes= (Trap 1).
+
+    A bare default() loads the SA from $GOOGLE_APPLICATION_CREDENTIALS but
+    produces a JWT grant with no `scope` claim, which oauth2.googleapis.com
+    rejects with `invalid_scope`. urllib3 then chains the rejection under a
+    misleading `SSLEOFError` / `Max retries exceeded` message.
+    """
+    src = _source_text()
+    # Find every executable `google.auth.default(` call (NOT inside backticks —
+    # the docstring mentions the function by name). Args may span multiple
+    # lines, so scan a 400-char window after the open paren and require
+    # `scopes=` somewhere in that window. Bare default() loads the SA but
+    # produces a JWT with no `scope` claim → oauth2.googleapis.com rejects
+    # with invalid_scope.
+    code = re.sub(r"`[^`]*`", "", src)  # strip backticked docstring mentions
+    opens = [m.start() for m in re.finditer(r"google\.auth\.default\(", code)]
+    assert opens, "no google.auth.default() call found in watcher"
+    for start in opens:
+        window = code[start:start + 400]
+        assert "scopes=" in window, (
+            "google.auth.default() called without scopes= in the call window — "
+            "produces JWT with no scope claim → oauth2.googleapis.com rejects "
+            f"with invalid_scope. Window: {window[:200]!r}"
+        )
+
+
+def test_no_pop_of_google_application_credentials():
+    """Trap 2: do NOT os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS").
+
+    The gcloud 2026-09 migration removed ~/.config/gcloud/application_default_credentials.json
+    (now lives in access_tokens.db). With the JSON gone and the env var popped,
+    google.auth.default() walks the ADC chain and finds nothing — the script
+    fails with `DefaultCredentialsError` / `Your default credentials were not found`
+    (the exact alert from the 2026-09-13 16:30 UTC incident).
+    """
+    src = _source_text()
+    assert not re.search(
+        r"os\.environ\.pop\(\s*[\"']GOOGLE_APPLICATION_CREDENTIALS[\"']",
+        src,
+    ), "watcher pops GOOGLE_APPLICATION_CREDENTIALS — env var stripped, ADC chain fails"
+
+
+def test_auth_failure_message_includes_chained_cause():
+    """Trap 3: alert body MUST surface the chained exception, not just the surface.
+
+    urllib3 + google.auth wrap `invalid_scope` under SSL/EOF bytes; bare
+    `f"{exc}"` only shows the outermost frame and misleads operators. The
+    2026-08-19 + 2026-09-06 + 2026-09-13 incidents all had this same shape.
+    """
+    src = _source_text()
+    assert "_chained_msg" in src, "watcher must use _chained_msg() to surface chained cause"
+    # Both branches must call _chained_msg. Use a flexible substring match —
+    # the f-string can be split across multiple lines.
+    assert "failed to auth" in src and "_chained_msg(exc)" in src, (
+        "auth-failure Slack branch must call _chained_msg(exc) — bare str(exc) buries root cause"
+    )
+    assert "query failed" in src and "_chained_msg(exc)" in src, (
+        "query-failure Slack branch must call _chained_msg(exc)"
+    )
+    # And neither branch should be using bare `{exc}` interpolation.
+    assert not re.search(
+        r"failed to auth:[^\n]*\bexc\b",
+        src,
+    ), "auth-failure branch is interpolating bare `{exc}` instead of _chained_msg(exc)"
+
+
+def test_bq_token_has_retry_helper():
+    """Trap 6: transient network failures MUST be retried.
+
+    First-cold TCP handshake to oauth2.googleapis.com:443 can fail once; a
+    transient BrokenPipeError is safe to retry. Non-transient errors
+    (invalid_scope, invalid_grant) surface immediately.
+    """
+    watcher = _load_watcher(None)  # type: ignore[arg-type]
+    assert hasattr(watcher, "_bq_token_with_retry"), "_bq_token_with_retry() missing"
+    assert hasattr(watcher, "_chained_msg"), "_chained_msg() missing"
+    # main() must call the retry helper, not the bare _bq_token()
+    main_src = inspect.getsource(watcher.main)
+    assert "_bq_token_with_retry()" in main_src, "main() must call _bq_token_with_retry()"
+
+
+def test_scope_constant_uses_cloud_platform():
+    """Pin the scope value. cloud-platform covers BQ + GCS + Logging + secrets."""
+    watcher = _load_watcher(None)  # type: ignore[arg-type]
+    assert hasattr(watcher, "_BQ_SCOPES"), "_BQ_SCOPES constant missing"
+    assert "https://www.googleapis.com/auth/cloud-platform" in watcher._BQ_SCOPES

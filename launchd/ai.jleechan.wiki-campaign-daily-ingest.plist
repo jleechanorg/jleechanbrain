@@ -12,19 +12,27 @@
     </array>
 
     <!--
-        Daily at 09:00 local time (after the 8am wiki-daily-worker slot).
+        Every 12 hours at 09:00 and 21:00 local time.
         Throttle 1h so a slow run can't trigger a duplicate.
     -->
     <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>9</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>21</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+    </array>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
 
     <key>StandardOutPath</key>
     <string>@HOME@/Library/Logs/wiki-campaign-daily-ingest.log</string>

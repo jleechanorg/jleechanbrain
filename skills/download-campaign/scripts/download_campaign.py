@@ -117,6 +117,11 @@ def download_one(uid: str, campaign_id: str, title: str, entry_count: int = 0,
     if not isinstance(story_context, list):
         raise RuntimeError(f"story is not a list: {type(story_context)}")
 
+    if not title or title == campaign_id:
+        title = campaign_data.get("name") or campaign_data.get("title") or "Untitled"
+    if not entry_count and isinstance(story_context, list):
+        entry_count = len(story_context)
+
     try:
         story_text = document_generator.get_story_text_from_context_enhanced(
             story_context, include_scenes=True
@@ -131,6 +136,15 @@ def download_one(uid: str, campaign_id: str, title: str, entry_count: int = 0,
     prefix = f"{safe_title}_{campaign_id[:8]}"
     raw_path = camp_dir / f"{prefix}.txt"
     raw_path.write_text(story_text, errors="replace")
+
+    # Human-readable markdown archive
+    md_path = camp_dir / f"{prefix}.md"
+    try:
+        document_generator.generate_md(
+            story_text, str(md_path), campaign_title=title, campaign_id=campaign_id
+        )
+    except Exception as e:
+        print(f"    [WARN] md export: {e}")
 
     # Game state
     try:
@@ -180,6 +194,37 @@ def download_one(uid: str, campaign_id: str, title: str, entry_count: int = 0,
     }
 
 
+def _paginated_count(collection_ref, page_size: int = 2000) -> int:
+    """Count docs in a Firestore collection by streaming pages of page_size."""
+    total = 0
+    offset = 0
+    while True:
+        page = list(collection_ref.limit(page_size).offset(offset).stream())
+        total += len(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return total
+
+
+def _count_collection(collection_ref, page_size: int = 2000) -> int:
+    """Count docs in a Firestore collection without caps or streaming timeouts.
+
+    Prefers native Firestore server-side aggregation count query (fast,
+    unary request, no streaming timeout or _UnaryStreamMultiCallable._retry
+    attribute bugs). Falls back to paginated streaming if count() is not
+    supported (e.g. in test mocks).
+    """
+    try:
+        if hasattr(collection_ref, "count"):
+            res = collection_ref.count().get()
+            if res and len(res) > 0 and len(res[0]) > 0 and hasattr(res[0][0], "value"):
+                return int(res[0][0].value)
+    except Exception:
+        pass
+    return _paginated_count(collection_ref, page_size=page_size)
+
+
 def query_candidates(uid: str, min_entries: int = 0, days: int = 0) -> list[dict]:
     """Scan all campaigns, return those matching the filters."""
     db = init_firebase()
@@ -191,7 +236,11 @@ def query_candidates(uid: str, min_entries: int = 0, days: int = 0) -> list[dict
         data = camp.to_dict() or {}
         title = data.get("name", data.get("title", "Untitled"))
         story_ref = camp.reference.collection("story")
-        entry_count = sum(1 for _ in story_ref.limit(2000).stream())
+        # entry_count: TRUE count via server aggregation count() query with
+        # fallback to pagination. Avoids the legacy .limit(2000) cap AND avoids
+        # streaming connection drops / _retry attribute crashes across large
+        # collections (regression test: tests/test_download_campaign.py).
+        entry_count = _count_collection(story_ref, page_size=2000)
         if entry_count < min_entries:
             continue
 
@@ -227,11 +276,13 @@ def query_candidates(uid: str, min_entries: int = 0, days: int = 0) -> list[dict
 
 
 def _stored_entry_count(wp_path: Path) -> int | None:
-    """Read `entry_count:` from the YAML frontmatter of an existing wiki source page.
+    """Read stored scene/entry count from an existing wiki source page.
 
-    Returns the integer value, or None if the file is missing, has no frontmatter,
-    or has no parseable entry_count field. Treats any unparseable / missing value
-    as stale so the next caller re-downloads.
+    Parses `entry_count:` (or `scene_total:` / `scene_count:`) from YAML
+    frontmatter, handling quotes, comments, indentation, BOM, and CRLF line endings.
+    If frontmatter has no parseable count but the markdown contains scenes,
+    falls back to counting `## Scene ` headings.
+    Returns the integer count, or None if the file is missing or has no scenes.
     """
     if not wp_path.exists():
         return None
@@ -239,16 +290,33 @@ def _stored_entry_count(wp_path: Path) -> int | None:
         text = wp_path.read_text(errors="replace")
     except OSError:
         return None
-    if not text.startswith("---\n"):
-        return None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None
-    fm = text[4:end]
-    m = re.search(r"^entry_count:\s*(\d+)\s*$", fm, re.MULTILINE)
-    if not m:
-        return None
-    return int(m.group(1))
+
+    # Strip BOM and leading whitespace/blank lines
+    text_stripped = text.lstrip("\ufeff \t\r\n")
+
+    # Extract frontmatter block between opening --- and closing ---
+    fm = ""
+    if text_stripped.startswith("---"):
+        fm_match = re.search(r"^---\s*\r?\n(.*?)\r?\n---\s*(?:\r?\n|$)", text_stripped, re.DOTALL)
+        if fm_match:
+            fm = fm_match.group(1)
+
+    if fm:
+        # Check entry_count / scene_total / scene_count (with optional quotes, indentation, comments)
+        m = re.search(
+            r"^\s*(?:entry_count|scene_total|scene_count):\s*[\"']?(\d+)[\"']?\s*(?:#.*)?$",
+            fm,
+            re.MULTILINE,
+        )
+        if m:
+            return int(m.group(1))
+
+    # Body fallback: count scene headings (e.g. ## Scene 1, ## Scene 2)
+    scenes = re.findall(r"^##\s*Scene\s+\d+", text, re.MULTILINE | re.IGNORECASE)
+    if scenes:
+        return len(scenes)
+
+    return None
 
 
 def _process_candidates(uid: str, user_email: str, candidates: list[dict],
@@ -288,6 +356,9 @@ def main():
     p = argparse.ArgumentParser(description="WorldArchitect.AI campaign downloader")
     p.add_argument("--mode", choices=["one", "batch", "all-users"], required=True)
     p.add_argument("--campaign-id", help="for --mode one")
+    p.add_argument("--email", default=None, help="user email override")
+    p.add_argument("--uid", default=None, help="user UID override")
+    p.add_argument("--title", default=None, help="campaign title override")
     p.add_argument("--min-entries", type=int, default=0)
     p.add_argument("--days", type=int, default=0, help="filter to last N days of activity")
     p.add_argument("--skip-existing", action="store_true")
@@ -304,14 +375,18 @@ def main():
     init_firebase()
 
     if args.mode == "one":
-        user = auth.get_user_by_email(EMAIL)
-        uid = user.uid
-        print(f"UID: {uid}")
+        user_email = args.email or EMAIL
+        uid = args.uid
+        if not uid:
+            user = auth.get_user_by_email(user_email)
+            uid = user.uid
+        print(f"UID: {uid}  email: {user_email}")
         if not args.campaign_id:
             print("--campaign-id required for --mode one", file=sys.stderr)
             sys.exit(1)
-        result = download_one(uid, args.campaign_id, args.campaign_id,
-                              campaigns_dir=campaigns_dir, user_email=EMAIL)
+        result = download_one(uid, args.campaign_id, args.title or "",
+                              entry_count=args.min_entries,
+                              campaigns_dir=campaigns_dir, user_email=user_email)
         with open(MANIFEST, "a") as f:
             f.write(json.dumps(result) + "\n")
         return

@@ -1,0 +1,32 @@
+{
+  "version": "v1",
+  "rubric_source": "<URL>",
+  "axes": ["axis_1", "axis_2", "axis_3"],
+  "anti_gaming_rule": "Probe items are private. Rotate across test runs so the product isn't tuned against the canonical items.",
+  "probes": [
+    {
+      "id": "P-01",
+      "name": "<short probe name>",
+      "axis": "<which axis this tests>",
+      "plant": "<what to seed in the system>",
+      "distract": "<how to flood context with unrelated turns>",
+      "re_query": "<the indirect query that exposes the failure>",
+      "pass_criteria": "<what success looks like>",
+      "fail_diagnosis": [
+        "exact recall -> real persistence (PASS)",
+        "plausible-but-wrong -> context window only, will degrade (~3.0)",
+        "asked-for-reminder -> no persistence layer (~1.5-2.0)"
+      ]
+    },
+    {
+      "id": "P-02",
+      "name": "<short probe name>",
+      "axis": "<which axis>",
+      "plant": "<what to seed>",
+      "distract": "<how to flood context>",
+      "re_query": "<indirect query>",
+      "pass_criteria": "<what success looks like>",
+      "fail_diagnosis": []
+    }
+  ]
+}

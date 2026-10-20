@@ -31,21 +31,43 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
-# Drop any SA-key env var so google.auth.default() picks ADC user creds.
-os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+# Honor $GOOGLE_APPLICATION_CREDENTIALS — do NOT pop it. The launchd-env-wrapper
+# sets it to ${HOME}/serviceAccountKey.json for exactly this script.
+# The gcloud 2026-09 migration removed ~/.config/gcloud/application_default_credentials.json
+# (now lives in access_tokens.db), so popping here would leave default() with no
+# fallback source — verified recurrence 2026-09-13 16:30 UTC (Trap 8).
 
 import google.auth
+from google.auth import exceptions as google_auth_exceptions  # noqa: E402
 from google.auth.transport.requests import Request  # noqa: E402
 
 PROJECT = "worldarchitecture-ai"
 DATASET = "llm_forensics"
 TABLE = "llm_payloads"
 BQ_API = f"https://bigquery.googleapis.com/bigquery/v2/projects/{PROJECT}/queries"
+
+# OAuth scope required for the BQ REST API. google.auth.default() MUST be called
+# with scopes= — there is no implicit default scope. Without this, the JWT
+# grant carries no `scope` claim and oauth2.googleapis.com rejects it with
+# `invalid_scope`, which urllib3 chains into a misleading `SSLEOFError` /
+# `Max retries exceeded` (Trap 1). Verified recurrence 2026-09-13 16:30 UTC.
+_BQ_SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
+
+# Transient errors that are safe to retry. Non-transient (invalid_scope,
+# invalid_grant) are surfaced immediately — retrying those wastes time and
+# obscures the real cause.
+_TRANSIENT_EXC = (
+    google_auth_exceptions.TransportError,
+    ConnectionError,
+    TimeoutError,
+    urllib.error.URLError,
+)
 
 # Thresholds (override via env). Lower is more conservative; alerts fire on <.
 STREAM_REQ_JSON_MIN_PCT = float(os.environ.get("BQ_WATCH_STREAM_REQ_JSON_MIN_PCT", "99.5"))
@@ -116,10 +138,49 @@ def _rows_as_lists(data: dict[str, Any]) -> list[list[str]]:
 
 
 def _bq_token() -> str:
-    creds, _ = google.auth.default()
+    creds, _ = google.auth.default(scopes=_BQ_SCOPES)
     if not creds.valid:
         creds.refresh(Request())
     return creds.token
+
+
+def _bq_token_with_retry(max_attempts: int = 4) -> str:
+    """Refresh a BQ token, retrying transient network failures (Trap 6).
+
+    Non-transient errors (invalid_scope, invalid_grant, DefaultCredentialsError)
+    surface immediately — retrying them wastes time and obscures the real cause.
+    """
+    last_exc: BaseException | None = None
+    for attempt in range(max_attempts):
+        try:
+            return _bq_token()
+        except google_auth_exceptions.RefreshError as exc:
+            msg = str(exc)
+            if any(s in msg for s in ("invalid_scope", "invalid_grant", "invalid_request")):
+                raise  # non-transient: surface immediately
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                time.sleep(min(2 ** attempt, 8))
+        except _TRANSIENT_EXC as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                time.sleep(min(2 ** attempt, 8))
+    assert last_exc is not None
+    raise last_exc
+
+
+def _chained_msg(exc: BaseException) -> str:
+    """Surface the chained exception so the OAuth root cause is visible.
+
+    urllib3 + google.auth wrap `invalid_scope` (and friends) under SSL/EOF
+    bytes — bare `f"{exc}"` only shows the outermost frame and misleads ops
+    (Trap 3, verified recurrence 2026-09-13 16:30 UTC).
+    """
+    root = exc.__cause__ or exc.__context__
+    msg = str(exc)
+    if root and root is not exc:
+        msg = f"{exc} (chained: {type(root).__name__}: {root})"
+    return msg
 
 
 # Streaming classifier for the llm_payloads schema. Matches the production
@@ -244,6 +305,7 @@ LEFT JOIN (
   WHERE ingested_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
     AND model LIKE '%gemini%'
     AND is_test IS NULL
+    AND revision_id IS NOT NULL
   GROUP BY d
 ) t USING (d)
 ORDER BY dr.d
@@ -253,12 +315,23 @@ ORDER BY dr.d
 def _total_gemini_in_window_query() -> str:
     # Denominator for is_test coverage percentage (codex P2: low-volume windows
     # with n_null < IS_TEST_NULL_ABS_THRESHOLD still need a pct check).
+    #
+    # Restricted to ``revision_id IS NOT NULL`` (Cloud Run production traffic)
+    # so the ``is_test`` populated % below cannot be dragged below 95% by
+    # integration-test fixture rows that legitimately land with ``is_test IS
+    # NULL`` (they never reach ``ensure_dataset_and_tables`` so the
+    # silent-drop belt+suspenders does not cover them). Codex review P2 on
+    # PR #847: the legacy ``USE_RECENT_RATE=false`` mode reads both this and
+    # ``_per_day_is_test_null_query``; if either lacked the filter, the
+    # 95%-threshold or the 3-day streak alerts could still fire on test
+    # fixtures.
     return f"""
 SELECT COUNT(*) AS n_total,
        COUNTIF(is_test IS NOT NULL) AS n_is_test_populated
 FROM `{PROJECT}.{DATASET}.{TABLE}`
 WHERE ingested_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {WINDOW_DAYS} DAY)
   AND model LIKE '%gemini%'
+  AND revision_id IS NOT NULL
 """
 
 
@@ -296,12 +369,12 @@ def _slack_post(channel: str, text: str) -> None:
 def main() -> int:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     try:
-        token = _bq_token()
+        token = _bq_token_with_retry()
     except Exception as exc:
         _slack_post(
             SLACK_CHANNEL_DEFAULT,
-            f":rotating_light: bq-coverage-watcher failed to auth: `{exc}` "
-            f"{INVESTIGATOR} (run at {now})",
+            f":rotating_light: bq-coverage-watcher failed to auth: "
+            f"`{_chained_msg(exc)}` {INVESTIGATOR} (run at {now})",
         )
         return 2
 
@@ -535,8 +608,8 @@ def main() -> int:
     except Exception as exc:
         _slack_post(
             SLACK_CHANNEL_DEFAULT,
-            f":rotating_light: bq-coverage-watcher query failed: `{exc}` "
-            f"{INVESTIGATOR} (run at {now})",
+            f":rotating_light: bq-coverage-watcher query failed: "
+            f"`{_chained_msg(exc)}` {INVESTIGATOR} (run at {now})",
         )
         return 3
 

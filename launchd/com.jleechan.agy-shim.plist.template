@@ -3,7 +3,7 @@
 <!--
   com.jleechan.agy-shim.plist — local OpenAI-compat HTTP shim in front of `agy`.
 
-  Purpose: lets Hermes (and any OpenAI-compat client) call `agy --print` as
+  Purpose: lets Hermes (and any OpenAI-compat client) call agy in print mode as
   if it were a normal chat-completions HTTP endpoint, so agy can be wired
   as a fallback provider via:
 

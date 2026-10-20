@@ -10,7 +10,7 @@
         <string>/usr/bin/env</string>
         <string>python3</string>
         <string>@REPO_ROOT@/scripts/skeptic_auto_merge.py</string>
-        <!-- Operator-set flags here (e.g. --verbose). --dry-run is implicit when SKEPTIC_DRY_RUN is unset. -->
+        <!-- Operator-set flags here (e.g. verbose mode). Dry-run is implicit when SKEPTIC_DRY_RUN is unset. -->
     </array>
 
     <!-- Cadence — every 20 minutes. Same as the deleted skeptic-cron.yml schedule.

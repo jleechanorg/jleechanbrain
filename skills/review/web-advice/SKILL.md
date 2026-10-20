@@ -16,6 +16,17 @@ description: "Use /web-advice to query ChatGPT/Gemini/Grok/Perplexity."
 5. **Pre-flight:** `bash ~/.claude-wa/skills/web-advice/scripts/e2e_smoke.sh` — diagnostic only, never submits a prompt. **Caveat (caught 2026-08-19):** the smoke script's rung-4 verdict is **shallow** — it only checks that the Chrome Cookies SQLite file exists and is non-empty (~896K), and reports UP. Empirically, cookie-DB-present ≠ headless-injection-works. After the smoke says "3 of 4 UP", **always run the empirical rung-4 probe** (`browserclaw cookies inject --cookies <decrypted.json> --goto https://gemini.google.com/app --browser-channel chromium --headless --screenshot /tmp/<v>.png --print-text 100000` with a 60–90s wall budget) to confirm the headless path actually lands, not just that the cookie file is readable. If `ls -la /tmp/<v>.png` shows 0 bytes after exit-code 0, rung 4 is DOWN despite the smoke's UP verdict — the agent must STOP per §1.
 6. **Share-URL drive (added 2026-08-19 per operator correction, supersedes the "operator-clicked Share is required" pitfall below).** For every vendor panel capture, drive the Share-button click in headless chrome with authed cookies AFTER response capture and BEFORE the synthesis is written. Per-vendor recipes are in canonical skill §1b.3. After the click, run `curl -s -L -I <url>` to confirm the share URL resolves to HTTP 200 without session cookies. Operator-clicked Share is FORBIDDEN — telling the operator "please click Share in the vendor UI" is itself a §1 hard-fail. If the headless click fails, mark the seat as DOWN with the raw `curl` output — do NOT synthesize a "needs operator click" caveat.
 
+### 1b.3 LLM-Driven Share-Button Click (mandatory)
+For every vendor panel capture, drive the Share-button click in headless chrome with authed cookies AFTER response capture and BEFORE the synthesis is written. Operator-clicked Share is FORBIDDEN — telling the operator "please click Share in the vendor UI" is itself a §1 hard-fail.
+
+Verbatim step-by-step recipes per vendor:
+- ChatGPT: `button[aria-label="Share chat"]` → Create link → `chatgpt.com/share/<id>`
+- Grok: `button[aria-label="Share"]` → Copy Link → `grok.com/share/<id>`
+- Gemini: `button[aria-label="Share & export"]` → Share → Create public link → `share/<id>` (or `g.co/gemini/share/<id>`)
+- Perplexity: `button:has-text("Share")` → toggle Anyone with the link → Copy link → `perplexity.ai/search/<id>`
+
+After the click, run `curl -s -L -I <url>` to verify HTTP 200 without session cookies; if non-200 or login-wall, mark the seat as "share-URL UNAVAILABLE: <exact probe output>" and do NOT invent a URL.
+
 ## Triggers
 `/web-advice`, "multi-model review", "ChatGPT/Gemini/Grok/Perplexity second opinion", "external model review", "browser review".
 

@@ -1,0 +1,60 @@
+{
+  "_about": "Minimal full-strategy.json skeleton derived from kvn-phn/gtm-strategy-builder/examples/the-ledger/full-strategy.json. Copy this file to runs/<your-client>/full-strategy.json and fill in real evidence-grounded content. Field names match the gtm-strategy-builder make_deck.py expectations; other agent-pipeline repos may use slightly different names — always cross-check against the bundled examples in your target repo. Ground every field in real evidence (file:line citations, real numbers, real URLs). The anti-fabrication guard at the end of gtm-strategy-builder/copy-engine/FRAMEWORKS.md makes unearned proof points visible as [PROOF SLOT] markers; do the same thing by citing your sources.",
+
+  "client": "your-client-slug",
+
+  "diagnose": [
+    {
+      "model": "Capability Model 1 — Market Maturity",
+      "score": 0.42,
+      "gaps": [
+        "Real gap, file:line cited in evidence",
+        "Second real gap"
+      ],
+      "evidence": "Real source — file:line, URL, or wiki reference. e.g. README.md:1 or https://..."
+    }
+  ],
+
+  "topGaps": {
+    "summary": "1-3 sentence synthesis naming the most important gaps and their relative weight.",
+    "gaps": [
+      "Gap 1 (highest-leverage)",
+      "Gap 2",
+      "Gap 3"
+    ]
+  },
+
+  "strategy": [
+    {
+      "phase": "Phase Name (Diagnose | Foundation | Demand Engine | Sales & Positioning | Content & Story | Measure — for gtm-strategy-builder)",
+      "findings": "What this phase concluded. Cite real evidence.",
+      "playbooksToDeploy": ["playbook-slug-1", "playbook-slug-2"],
+      "recommendations": [
+        {
+          "rec": "Specific, shippable recommendation",
+          "framework": "Source framework or playbook name",
+          "rationale": "Why this matters, grounded in real numbers"
+        }
+      ]
+    }
+  ],
+
+  "builtPlaybooks": [
+    {
+      "playbook": "playbook-slug",
+      "plan": "Concrete steps to ship this playbook. Numbered or phased."
+    }
+  ],
+
+  "roadmap": {
+    "roadmap": "D30/D60/D90/D120/D180 milestone format works well. Each line should be one concrete ship + expected effect."
+  },
+
+  "final": "Recommended order + what to skip + the single biggest open question. This is the synthesis slide content.",
+
+  "verification": {
+    "checked": 6,
+    "weak": 0,
+    "status": "VERIFIED"
+  }
+}

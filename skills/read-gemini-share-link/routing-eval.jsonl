@@ -1,0 +1,8 @@
+{"intent": "read this gemini.google.com/share/abc link", "expected_skill": "read-gemini-share-link"}
+{"intent": "capture this gemini share conversation", "expected_skill": "read-gemini-share-link"}
+{"intent": "what does this gemini.google.com/share/xyz say", "expected_skill": "read-gemini-share-link"}
+{"intent": "get the content from https://share.gemini.google/hZXboZihmwYc", "expected_skill": "read-gemini-share-link"}
+{"intent": "save this gemini chat to disk", "expected_skill": "read-gemini-share-link"}
+{"intent": "summarize this gemini share link", "expected_skill": "read-gemini-share-link"}
+{"intent": "read the linked gemini conversation", "expected_skill": "read-gemini-share-link"}
+{"intent": "open this gemini.google.com link in a browser", "expected_skill": "read-gemini-share-link"}

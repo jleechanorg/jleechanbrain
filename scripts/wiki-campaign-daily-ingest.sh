@@ -37,7 +37,7 @@ PYTHON="${PYTHON:-$WORLDAI_REPO/.venv/bin/python}"
 SCRIPT="${SCRIPT:-$HOME/.smartclaw/skills/download-campaign/scripts/download_campaign.py}"
 LOG="${LOG:-$HOME/Library/Logs/wiki-campaign-daily-ingest.log}"
 MANIFEST="${MANIFEST:-/tmp/campaign_ingest_manifest.jsonl}"
-DAILY_RAW="${DAILY_RAW:-/tmp/campaign_daily_ingest}"
+DAILY_RAW="${DAILY_RAW:-$WIKI_DIR/raw/campaigns}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 
 # Notification config
@@ -70,9 +70,31 @@ INGEST_ERRORS=0
 INGEST_USERS_SCANNED=0
 PUSH_SHA=""
 PUSH_BEFORE_SHA=""
+MANIFEST_LINE_COUNT_BEFORE=0
+# Initialize file-change counters early so build_success_summary() can run
+# in the no-op branch (called at line 434 before ADDED/MODIFIED get assigned
+# at lines 441-442). Without this, `set -u` triggers ADDED: unbound variable
+# on quiet days and the daily Gmail/Slack notification never goes out —
+# leaving the operator without visibility into no-op runs (the 2026-09-13
+# incident: "Make sure the export for campaigns to LLM wiki repo is working
+# think it's a launchd haven't seen the email in awhile").
+ADDED=0
+MODIFIED=0
+# Campaign-level breakdown — distinct from file-level ADDED/MODIFIED.
+# ADDED counts every staged file (wiki sources + raw archives), but the
+# operator only cares about *campaigns*: NEW_CAMPAIGNS = wiki sources that
+# didn't exist before this run; REFRESHED_CAMPAIGNS = wiki sources that
+# existed but were updated with new entries. (2026-09-13 request:
+# "show how many campaigns are brand new and uploaded versus existing
+# campaign with new entries".)
+NEW_CAMPAIGNS=0
+REFRESHED_CAMPAIGNS=0
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG"
+    local line="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$line" >> "$LOG"
+    [[ -t 1 ]] && echo "$line"
+    return 0
 }
 
 # notify <subject> <slack_text> [gmail_body] [gmail_body_file]
@@ -218,6 +240,8 @@ ${status_line}
 *Campaigns downloaded (new):* ${INGEST_DOWNLOADED}
 *Campaigns skipped (existing):* ${INGEST_SKIPPED}
 *Campaigns errored:* ${INGEST_ERRORS}
+*Brand-new campaigns uploaded today:* ${NEW_CAMPAIGNS}
+*Existing campaigns refreshed with new entries:* ${REFRESHED_CAMPAIGNS}
 *Wiki files added:* ${ADDED}
 *Wiki files modified:* ${MODIFIED}
 *Threshold:* \`>=${MIN_ENTRIES} scenes\`
@@ -229,7 +253,7 @@ EOF
     # Sample new campaign titles (up to 5) so the summary is scannable.
     if [[ -s "$MANIFEST" ]] && [[ "$INGEST_DOWNLOADED" -gt 0 ]]; then
         local sample
-        sample=$(grep -F "$RUN_START_DATE" "$MANIFEST" 2>/dev/null \
+        sample=$(tail -n +"$((MANIFEST_LINE_COUNT_BEFORE + 1))" "$MANIFEST" 2>/dev/null \
                  | tail -5 \
                  | python3 -c '
 import json, sys
@@ -260,6 +284,8 @@ Users scanned:                ${INGEST_USERS_SCANNED}
 Campaigns downloaded (new):   ${INGEST_DOWNLOADED}
 Campaigns skipped (existing): ${INGEST_SKIPPED}
 Campaigns errored:            ${INGEST_ERRORS}
+Brand-new campaigns uploaded: ${NEW_CAMPAIGNS}
+Existing campaigns refreshed: ${REFRESHED_CAMPAIGNS}
 Wiki files added:             ${ADDED}
 Wiki files modified:          ${MODIFIED}
 Threshold:                    >=${MIN_ENTRIES} scenes
@@ -271,6 +297,180 @@ Full log:    ${LOG}
 EOF
 )
     notify "$subject" "$slack_text" "$gmail_body"
+}
+
+# Automated wiki index and log updater:
+# Appends/updates newly downloaded campaigns in $WIKI_DIR/wiki/index.md under
+# ## Campaigns (batch ingest) and records them in $WIKI_DIR/wiki/log.md.
+update_wiki_index_and_log() {
+    log "Running automated wiki index updater..."
+    "$PYTHON" - "$WIKI_DIR" "$MANIFEST" "$MANIFEST_LINE_COUNT_BEFORE" "$RUN_START_MARKER" << 'PYEOF'
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+wiki_dir = Path(sys.argv[1])
+manifest_path = Path(sys.argv[2])
+manifest_lines_before = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 0
+run_start_marker = Path(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else None
+
+index_file = wiki_dir / "wiki" / "index.md"
+log_file = wiki_dir / "wiki" / "log.md"
+
+new_campaigns = []
+if manifest_path.exists():
+    with open(manifest_path, "r", encoding="utf-8", errors="replace") as f:
+        all_lines = f.readlines()
+    new_lines = all_lines[manifest_lines_before:]
+    for line in new_lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+            new_campaigns.append(data)
+        except Exception:
+            pass
+
+# Fallback: scan wiki/sources for files newer than run start marker
+if not new_campaigns and run_start_marker and run_start_marker.exists():
+    marker_mtime = run_start_marker.stat().st_mtime
+    sources_dir = wiki_dir / "wiki" / "sources"
+    if sources_dir.exists():
+        for mf in sources_dir.glob("*.md"):
+            if mf.stat().st_mtime >= marker_mtime:
+                try:
+                    text = mf.read_text(encoding="utf-8", errors="replace")
+                    if text.startswith("---\n"):
+                        end = text.find("\n---\n", 4)
+                        if end != -1:
+                            fm = text[4:end]
+                            title_m = re.search(r'^title:\s*"(.*)"\s*$', fm, re.MULTILINE)
+                            cid_m = re.search(r'^campaign_id:\s*([A-Za-z0-9]+)\s*$', fm, re.MULTILINE)
+                            ec_m = re.search(r'^entry_count:\s*(\d+)\s*$', fm, re.MULTILINE)
+                            email_m = re.search(r'^user_email:\s*"(.*)"\s*$', fm, re.MULTILINE)
+                            uid_m = re.search(r'^user_uid:\s*"(.*)"\s*$', fm, re.MULTILINE)
+                            new_campaigns.append({
+                                "title": title_m.group(1) if title_m else mf.stem,
+                                "campaign_id": cid_m.group(1) if cid_m else "",
+                                "entry_count": int(ec_m.group(1)) if ec_m else 0,
+                                "user_email": email_m.group(1) if email_m else "",
+                                "user_uid": uid_m.group(1) if uid_m else "",
+                                "wiki_path": str(mf),
+                                "raw_path": "",
+                            })
+                except Exception:
+                    pass
+
+if not new_campaigns:
+    print("No new campaign records found for index/log update.")
+    sys.exit(0)
+
+# Update wiki/index.md
+if index_file.exists():
+    content = index_file.read_text(encoding="utf-8", errors="replace")
+    lines = content.splitlines()
+
+    target_section_idx = -1
+    max_camps = -1
+    for i, line in enumerate(lines):
+        if line.strip() == "## Campaigns (batch ingest)":
+            c = 0
+            for j in range(i + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    break
+                if lines[j].strip().startswith("- [") and "sources/" in lines[j] and "entries" in lines[j]:
+                    c += 1
+            if c > max_camps:
+                max_camps = c
+                target_section_idx = i
+
+    for camp in new_campaigns:
+        title = camp.get("title") or "Untitled"
+        wiki_path = camp.get("wiki_path") or ""
+        wiki_filename = Path(wiki_path).name if wiki_path else ""
+        if not wiki_filename:
+            continue
+        entry_count = camp.get("entry_count") or 0
+        new_entry_line = f"- [{title}](sources/{wiki_filename}) — {entry_count} entries"
+
+        existing_idx = -1
+        if target_section_idx != -1:
+            for j in range(target_section_idx + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    break
+                if f"sources/{wiki_filename}" in lines[j]:
+                    existing_idx = j
+                    break
+
+        if existing_idx != -1:
+            lines[existing_idx] = new_entry_line
+            print(f"Updated index entry: {new_entry_line}")
+        else:
+            if target_section_idx != -1:
+                last_camp_idx = target_section_idx
+                insert_idx = -1
+                for j in range(target_section_idx + 1, len(lines)):
+                    if lines[j].startswith("## "):
+                        break
+                    m = re.search(r"-\s*\[.*?\]\(sources/.*?\)\s*—\s*(\d+)\s*entries", lines[j])
+                    if m:
+                        last_camp_idx = j
+                        cur_count = int(m.group(1))
+                        if insert_idx == -1 and entry_count >= cur_count:
+                            insert_idx = j
+                if insert_idx != -1:
+                    lines.insert(insert_idx, new_entry_line)
+                    print(f"Inserted into index at line {insert_idx+1}: {new_entry_line}")
+                else:
+                    lines.insert(last_camp_idx + 1, new_entry_line)
+                    print(f"Appended to index at line {last_camp_idx+2}: {new_entry_line}")
+            else:
+                lines.append("")
+                lines.append("## Campaigns (batch ingest)")
+                target_section_idx = len(lines) - 1
+                lines.append(new_entry_line)
+                print(f"Created section and appended to index: {new_entry_line}")
+
+    index_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+# Update wiki/log.md
+if log_file.exists():
+    log_content = log_file.read_text(encoding="utf-8", errors="replace")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    log_append_entries = []
+
+    for camp in new_campaigns:
+        title = camp.get("title") or "Untitled"
+        cid = camp.get("campaign_id") or ""
+        wiki_path = camp.get("wiki_path") or ""
+        wiki_slug = Path(wiki_path).stem if wiki_path else cid
+        entry_count = camp.get("entry_count") or 0
+        email = camp.get("user_email") or ""
+        uid = camp.get("user_uid") or ""
+
+        if f"Source: [[{wiki_slug}]]" in log_content or (cid and f"campaign ID: {cid}" in log_content):
+            print(f"Skipping log entry (already logged): {wiki_slug}")
+            continue
+
+        user_display = email.split("@")[0].capitalize() if email and "@" in email else (email or uid[:8] or "Unknown")
+        user_info = f"{user_display} ({email}, UID: {uid}, campaign ID: {cid}, title: '{title}', {entry_count} scenes)" if email else f"UID: {uid}, campaign ID: {cid}, title: '{title}', {entry_count} scenes"
+
+        entry_text = (
+            f"\n## [{today}] ingest | {title} campaign ({user_display}, {entry_count} scenes)\n\n"
+            f"Source: [[{wiki_slug}]]. Ingested campaign played by {user_info} into wiki source and raw archive.\n"
+        )
+        log_append_entries.append(entry_text)
+        print(f"Added to log: {wiki_slug} ({title})")
+
+    if log_append_entries:
+        if not log_content.endswith("\n"):
+            log_content += "\n"
+        log_content += "".join(log_append_entries)
+        log_file.write_text(log_content, encoding="utf-8")
+PYEOF
 }
 
 # Trap ALL error paths so the error notifier fires on early failures too.
@@ -359,7 +559,7 @@ elif [[ ! -x "$PYTHON" ]]; then
 fi
 
 # Venv dep check (one-time bootstrap if missing)
-if ! "$PYTHON" -c "import firebase_admin, firestore_service, document_generator" 2>/dev/null; then
+if ! PYTHONPATH="$WORLDAI_REPO/mvp_site:$WORLDAI_REPO" "$PYTHON" -c "import firebase_admin, firestore_service, document_generator" 2>/dev/null; then
     log "Bootstrap: installing WA .venv dependencies (one-time)"
     cd "$WORLDAI_REPO" || { log "ERROR: cannot cd to $WORLDAI_REPO"; exit 1; }
     "$PYTHON" -m ensurepip >/dev/null 2>&1 || true
@@ -378,6 +578,11 @@ cd "$WORLDAI_REPO" || { log "ERROR: cannot cd to $WORLDAI_REPO"; exit 1; }
 # entry_count comparison and re-download overwrites). Test users are filtered
 # out by download_campaign.py's is_test_email() helper.
 if [[ "$SKIP_DOWNLOAD" != "1" ]]; then
+    MANIFEST_LINE_COUNT_BEFORE=0
+    if [[ -f "$MANIFEST" ]]; then
+        MANIFEST_LINE_COUNT_BEFORE=$(wc -l < "$MANIFEST" | tr -d ' ')
+    fi
+
     log "Running all-users batch ingest (min-entries=$MIN_ENTRIES, --skip-existing)..."
     # Capture the human-readable summary lines (Downloaded/Skipped/Errors/Manifest
     # header + the per-user Found-N-candidates lines) so we can pull the counters
@@ -422,10 +627,17 @@ else
     log "SKIP_DOWNLOAD=1 — skipping Firestore batch download"
 fi
 
-# Stage all new, modified, and deleted repository files (respecting .gitignore)
-log "Staging repository changes in $WIKI_DIR..."
 cd "$WIKI_DIR" || { log "ERROR: cannot cd to $WIKI_DIR"; exit 1; }
-git add -A 2>/dev/null || true
+
+# Update wiki index and log, then perform targeted staging only when campaigns were downloaded
+if [[ "$INGEST_DOWNLOADED" -gt 0 ]]; then
+    update_wiki_index_and_log 2>&1 | tee -a "$LOG" || true
+
+    log "Staging targeted changes in $WIKI_DIR (wiki/sources/, raw/campaigns/, wiki/index.md, wiki/log.md)..."
+    git add wiki/sources/ raw/campaigns/ wiki/index.md wiki/log.md 2>/dev/null || true
+else
+    log "0 campaigns downloaded — skipping staging to preserve uncommitted working tree files"
+fi
 
 # Check if there's anything staged
 if git diff --cached --quiet; then
@@ -440,7 +652,9 @@ fi
 # Count what changed from the staged index
 ADDED=$(git diff --cached --name-only --diff-filter=A 2>/dev/null | wc -l | tr -d ' ')
 MODIFIED=$(git diff --cached --name-only --diff-filter=M 2>/dev/null | wc -l | tr -d ' ')
-log "Files staged: added=$ADDED modified=$MODIFIED"
+NEW_CAMPAIGNS=$(git diff --cached --name-only --diff-filter=A -- 'wiki/sources/*.md' 2>/dev/null | wc -l | tr -d ' ')
+REFRESHED_CAMPAIGNS=$(git diff --cached --name-only --diff-filter=M -- 'wiki/sources/*.md' 2>/dev/null | wc -l | tr -d ' ')
+log "Files staged: added=$ADDED modified=$MODIFIED (campaigns: new=$NEW_CAMPAIGNS refreshed=$REFRESHED_CAMPAIGNS)"
 
 # Capture pre-push HEAD so we can show the SHA delta in the summary.
 PUSH_BEFORE_SHA=$(git rev-parse origin/main 2>/dev/null || git rev-parse HEAD)

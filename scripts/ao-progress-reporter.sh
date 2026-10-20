@@ -284,17 +284,43 @@ fetch_ao_sessions() {
     echo "$all_sessions"
     return
   fi
-  # Try JSON status first. ao sends its config warnings to stderr, so
-  # `2>/dev/null` is enough — stdout is a clean JSON array. We keep 2>&1
-  # OFF here because we want to lose the warning noise, not capture it.
-  # (We previously had `2>&1` then a strip-prefix block, but verifying
-  #  2026-06-27 with `ao status --json 2>/dev/null > out.txt 2> err.txt`
-  #  showed stdout starts with '[' and stderr holds all the config
-  #  warnings — so the strip was unnecessary defensive code.)
-  if ! all_sessions="$(cd "$AO_DIR" && "$AO_BIN" status --json 2>/dev/null)"; then
-    log "ERROR: '$AO_BIN status --json' failed (rc=$?) — output was: ${all_sessions:0:500}"
-    echo "[]"
-    return
+  # Try JSON list of sessions. ao sends its config warnings to stderr, so
+  # `2>/dev/null` is enough — stdout is a clean JSON object.
+  #
+  # 2026-08-21 fix: this previously called `ao status --json`, which returns
+  # the *daemon status* object ({"state":"ready","pid":...,"uptime":...})
+  # NOT a session list. `jq '.[]'` on that object yields nothing, so the
+  # session-iteration loop never ran and the script silently posted an
+  # empty thread header at 07:08 UTC with no body content for WEEKS.
+  # `ao session ls --json` returns {"data":[...], "meta":{...}} — unwrap
+  # `.data` so the rest of the pipeline keeps treating this as an array.
+  # Fallback to `ao status --json` only if `ao session ls` is unavailable
+  # (older CLI), then warn loudly so the next operator sees the drift.
+  # 2026-08-21 fix (CR round 2): capture exit code BEFORE the negated
+  # condition. `if ! cmd` flips `$?` to 0 on failure so the log line
+  # would have reported rc=0 for a real failure, defeating the point of
+  # the diagnostic.
+  raw="$(cd "$AO_DIR" && "$AO_BIN" session ls --json 2>/dev/null)"
+  rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log "ERROR: '$AO_BIN session ls --json' failed (rc=$rc) — falling back to legacy 'ao status --json'"
+    raw="$(cd "$AO_DIR" && "$AO_BIN" status --json 2>/dev/null)"
+    rc=$?
+    if [[ $rc -ne 0 ]]; then
+      log "ERROR: '$AO_BIN status --json' failed too (rc=$rc) — output was: ${raw:0:500}"
+      echo "[]"
+      return
+    fi
+    log "WARN: using legacy 'ao status --json' (daemon-status object) — sessions likely missing. Upgrade ao CLI."
+  fi
+  # Unwrap {"data":[...]} envelope if present; pass through if already an array.
+  if [[ "$raw" == "{"* ]]; then
+    all_sessions="$(echo "$raw" | jq -c '.data // .sessions // []' 2>/dev/null)" || all_sessions="[]"
+  else
+    all_sessions="$raw"
+  fi
+  if [[ -z "$all_sessions" ]]; then
+    all_sessions="[]"
   fi
   # Defensive sanity check: if for some reason stdout did contain a non-JSON
   # prefix (future ao version, weird flag, etc.), surface a clear log line
@@ -337,6 +363,17 @@ session_has_progress() {
 }
 
 # ── Get session info from AO status JSON ─────────────────────────────────────
+# Extract the canonical session name from a single session JSON record.
+# 2026-08-21: `ao session ls --json` (the post-#828 schema) returns
+# `{id, projectId, status, harness, ...}` — no `.name`. We prefer `.id`
+# and fall back to `.name` for older CLI compatibility.
+extract_session_name() {
+  local session_json=$1
+  local name
+  name="$(echo "$session_json" | jq -r '.id // .name // empty' 2>/dev/null)" || name=""
+  echo "$name"
+}
+
 get_session_info() {
   local ao_json=$1
   local session_name=$2
@@ -672,12 +709,28 @@ fi
   while IFS= read -r session_json; do
     [[ -z "$session_json" || "$session_json" == "null" ]] && continue
 
-    session_name="$(echo "$session_json" | jq -r '.name // empty' 2>/dev/null)" || session_name=""
+    # 2026-08-21 fix: `ao status --json` returned the daemon-status object
+    # (key count = 8, sessions = 0). New `ao session ls --json` returns
+    # sessions with schema {id, projectId, status, harness, ...} — no
+    # `.name`, no `.branch`, no `.prUrl`/`prNumber` (the new CLI dropped
+    # them; PR linkage lives in AO's review subsystem instead). Fall back
+    # to `.name` for old-CLI compatibility, but expect `.id`.
+    session_name="$(extract_session_name "$session_json")"
     project_id="$(echo "$session_json" | jq -r '.projectId // .project // empty' 2>/dev/null)" || project_id=""
+    # 2026-08-21 (CR/codex round 2): read optional legacy fields with
+    # `// empty` rather than hard-coding empty. New `ao session ls --json`
+    # schema drops branch / prUrl / prNumber (PR linkage lives in AO's
+    # review subsystem), so these will legitimately be empty in the new
+    # path — but the LEGACY fallback (`ao status --json`, when `session ls`
+    # is unavailable) STILL carries these fields. Discarding them here would
+    # silently degrade the legacy path: current_sha stays empty, commit
+    # progress is never reported, and PR-detail is always skipped. With
+    # `// empty` we degrade gracefully in the new schema AND keep the
+    # legacy fallback functional.
     branch="$(echo "$session_json" | jq -r '.branch // empty' 2>/dev/null)" || branch=""
-    status="$(echo "$session_json" | jq -r '.status // empty' 2>/dev/null)" || status=""
-    pr_url="$(echo "$session_json" | jq -r '.prUrl // .prUrl // empty' 2>/dev/null)" || pr_url=""
-    pr_number="$(echo "$session_json" | jq -r '.prNumber // empty' 2>/dev/null)" || pr_number=""
+    status="$(echo "$session_json" | jq -r '.status // .activity.state // empty' 2>/dev/null)" || status=""
+    pr_url="$(echo "$session_json" | jq -r '.prUrl // .pr_url // empty' 2>/dev/null)" || pr_url=""
+    pr_number="$(echo "$session_json" | jq -r '.prNumber // .pr_number // empty' 2>/dev/null)" || pr_number=""
 
     [[ -z "$session_name" ]] && continue
     seen_sessions+=("$session_name")

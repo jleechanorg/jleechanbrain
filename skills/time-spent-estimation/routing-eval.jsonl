@@ -1,0 +1,6 @@
+{"intent": "how did I spend my time last week", "expected_skill": "time-spent-estimation"}
+{"intent": "estimate time across all sources", "expected_skill": "time-spent-estimation"}
+{"intent": "where did my time go", "expected_skill": "time-spent-estimation"}
+{"intent": "/time-spent 14", "expected_skill": "time-spent-estimation"}
+{"intent": "track time across slack and gmail", "expected_skill": "time-spent-estimation"}
+{"intent": "time spent on PR review vs calendar", "expected_skill": "time-spent-estimation"}

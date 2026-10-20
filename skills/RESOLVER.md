@@ -4,6 +4,14 @@ Routes user phrases to skill entries. Each section is a skill with its canonical
 
 ---
 
+## memory-search — search memories, /ms, look up in memory, find in my memories
+
+**File:** `skills/memory-search/SKILL.md`
+**Triggers:** search memories, /ms, look up in memory, find in my memories
+**Privacy:** Run the full personal-store fan-out only in a private one-to-one
+session with Jeffrey. In shared or worker contexts, use only sources proven to
+be scoped to the current thread, channel, or task, as required by `SOUL.md`.
+
 ## skillify — skillify this, make this proper, add tests and evals, run skillify workflow
 
 **File:** `skills/skillify/SKILL.md`

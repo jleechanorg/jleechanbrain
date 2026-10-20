@@ -669,7 +669,7 @@ projects:
   worldarchitect:
     fallbackAgents:
     - codex
-    - claude-code
+    - minimax
     backfillAllPRs: true
     agentRules: "You are working in the worldarchitect.ai repo \u2014 a Python/Flask\
       \ game backend.\nAlways run `python -m pytest tests/ -x -q` before pushing.\n\
